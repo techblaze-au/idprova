@@ -1,0 +1,17 @@
+[package]
+name = "idprova-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "IDProva Python SDK — PyO3 bindings to the Rust core"
+publish = false
+
+[lib]
+name = "idprova"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.24", features = ["extension-module"] }
+idprova-core = { path = "../../crates/idprova-core" }
+chrono = { workspace = true }
+serde_json = { workspace = true }

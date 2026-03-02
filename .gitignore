@@ -1,0 +1,66 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+.pytest_cache/
+
+# TypeScript/Node
+node_modules/
+*.js.map
+dist/
+
+# Native binaries (platform-specific, built by CI/locally)
+*.node
+
+# napi-rs generated files are committed for npm consumers:
+# sdks/typescript/packages/core/index.js   (JS loader)
+# sdks/typescript/packages/core/index.d.ts (type definitions)
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keys (NEVER commit private keys)
+*.key
+*.pem
+!test-vectors/**
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage
+*.lcov
+coverage/
+htmlcov/
+.coverage
+
+# Session-specific files
+SESSION-LOG-*.md

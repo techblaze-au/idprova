@@ -1,0 +1,38 @@
+{
+  "description": "Minimal L0 AID with Ed25519 key from keypair-001",
+  "did": "did:idprova:example.com:test-agent",
+  "controller": "did:idprova:example.com:controller",
+  "trust_level": "L0",
+  "document": {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      "https://idprova.dev/v1"
+    ],
+    "id": "did:idprova:example.com:test-agent",
+    "controller": "did:idprova:example.com:controller",
+    "verificationMethod": [
+      {
+        "id": "#key-ed25519",
+        "type": "Ed25519VerificationKey2020",
+        "controller": "did:idprova:example.com:controller",
+        "publicKeyMultibase": "z3AGSV1xoXQPVktQxNYq3QxWFQkDJHYSPsMGXUBNZmss2"
+      }
+    ],
+    "authentication": [
+      "#key-ed25519"
+    ],
+    "service": [
+      {
+        "id": "#idprova-metadata",
+        "type": "IdprovaAgentMetadata",
+        "serviceEndpoint": {
+          "name": "test-agent"
+        }
+      }
+    ],
+    "trustLevel": "L0",
+    "version": 1,
+    "created": "2026-03-02T21:03:28.657089300Z",
+    "updated": "2026-03-02T21:03:28.657089300Z"
+  }
+}

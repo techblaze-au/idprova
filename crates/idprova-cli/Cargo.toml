@@ -1,0 +1,38 @@
+[package]
+name = "idprova-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "IDProva CLI — manage agent identities, delegation tokens, and receipts"
+
+[[bin]]
+name = "idprova"
+path = "src/main.rs"
+
+[dependencies]
+idprova-core = { path = "../idprova-core" }
+
+# CLI
+clap.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# HTTP client (for registry)
+reqwest.workspace = true
+tokio.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Hex encoding
+hex.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true

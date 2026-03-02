@@ -1,0 +1,8 @@
+{
+  "description": "Signature of \"idprova test message\" by keypair-001",
+  "message_utf8": "idprova test message",
+  "message_hex": "696470726f76612074657374206d657373616765",
+  "signature_hex": "9999f76dc57857bca21e4d925bf1d687e64be6e94dcc756cd0ccd7f62e80bacfada5396258b891ad7752639783fa60195062a642b18a3414c6ba6227615c8106",
+  "signer_public_key_hex": "20170ef86343ad1cac0ea2e0e478c3269313aa297d95907449323d5c9e45815d",
+  "verified": true
+}

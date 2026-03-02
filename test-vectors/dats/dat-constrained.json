@@ -1,0 +1,18 @@
+{
+  "description": "DAT with multiple scopes, constraints (max_actions=100, require_receipt=true)",
+  "issuer": "did:idprova:example.com:controller",
+  "subject": "did:idprova:example.com:test-agent",
+  "scope": [
+    "mcp:tool:read",
+    "mcp:tool:write",
+    "a2a:message:send"
+  ],
+  "jti": "dat_01KJR5SXWK2XQ2QYYVTW2TWHE9",
+  "expires_at": 1772489008,
+  "compact_jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImlkcHJvdmEtZGF0K2p3dCIsImtpZCI6ImRpZDppZHByb3ZhOmV4YW1wbGUuY29tOmNvbnRyb2xsZXIja2V5LWVkMjU1MTkifQ.eyJpc3MiOiJkaWQ6aWRwcm92YTpleGFtcGxlLmNvbTpjb250cm9sbGVyIiwic3ViIjoiZGlkOmlkcHJvdmE6ZXhhbXBsZS5jb206dGVzdC1hZ2VudCIsImlhdCI6MTc3MjQ4NTQwOCwiZXhwIjoxNzcyNDg5MDA4LCJuYmYiOjE3NzI0ODU0MDgsImp0aSI6ImRhdF8wMUtKUjVTWFdLMlhRMlFZWVZUVzJUV0hFOSIsInNjb3BlIjpbIm1jcDp0b29sOnJlYWQiLCJtY3A6dG9vbDp3cml0ZSIsImEyYTptZXNzYWdlOnNlbmQiXSwiY29uc3RyYWludHMiOnsibWF4QWN0aW9ucyI6MTAwLCJyZXF1aXJlUmVjZWlwdCI6dHJ1ZX0sImRlbGVnYXRpb25DaGFpbiI6W119.YTABVvilaFsFvC2dDUonTd4fXkgrkJeq_uQk0l0qrW5h5pEnaNoEXV28WoYFw11pK9AFQGCxBVS3Yd53D1aDAw",
+  "signer_public_key_hex": "20170ef86343ad1cac0ea2e0e478c3269313aa297d95907449323d5c9e45815d",
+  "constraints": {
+    "max_actions": 100,
+    "require_receipt": true
+  }
+}

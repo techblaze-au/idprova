@@ -1,0 +1,12 @@
+{
+  "description": "Basic DAT with single scope, 24h expiry, signed by keypair-001",
+  "issuer": "did:idprova:example.com:controller",
+  "subject": "did:idprova:example.com:test-agent",
+  "scope": [
+    "mcp:tool:read"
+  ],
+  "jti": "dat_01KJR5SXWJPT2D58KDSYN67KNY",
+  "expires_at": 1772571808,
+  "compact_jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImlkcHJvdmEtZGF0K2p3dCIsImtpZCI6ImRpZDppZHByb3ZhOmV4YW1wbGUuY29tOmNvbnRyb2xsZXIja2V5LWVkMjU1MTkifQ.eyJpc3MiOiJkaWQ6aWRwcm92YTpleGFtcGxlLmNvbTpjb250cm9sbGVyIiwic3ViIjoiZGlkOmlkcHJvdmE6ZXhhbXBsZS5jb206dGVzdC1hZ2VudCIsImlhdCI6MTc3MjQ4NTQwOCwiZXhwIjoxNzcyNTcxODA4LCJuYmYiOjE3NzI0ODU0MDgsImp0aSI6ImRhdF8wMUtKUjVTWFdKUFQyRDU4S0RTWU42N0tOWSIsInNjb3BlIjpbIm1jcDp0b29sOnJlYWQiXSwiZGVsZWdhdGlvbkNoYWluIjpbXX0.5RJovRKi6Ji1TAcshJqTRxbuerfHxodg4d5BpnmJG905rwTbbxvuXu_ukO9t1N4U6Pg93B2Wu8FNTGy-zLK4CQ",
+  "signer_public_key_hex": "20170ef86343ad1cac0ea2e0e478c3269313aa297d95907449323d5c9e45815d"
+}

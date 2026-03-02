@@ -1,0 +1,7 @@
+{
+  "description": "Empty receipt log — genesis state",
+  "last_hash": "genesis",
+  "next_sequence": 0,
+  "length": 0,
+  "entries": []
+}

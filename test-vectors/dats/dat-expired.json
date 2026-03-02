@@ -1,0 +1,13 @@
+{
+  "description": "Expired DAT — negative test vector. validate_timing() must fail.",
+  "issuer": "did:idprova:example.com:controller",
+  "subject": "did:idprova:example.com:test-agent",
+  "scope": [
+    "mcp:tool:read"
+  ],
+  "jti": "dat_01KJR5SXWKKHNJ5T909Y7TP11B",
+  "expires_at": 1772481808,
+  "is_expired": true,
+  "compact_jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImlkcHJvdmEtZGF0K2p3dCIsImtpZCI6ImRpZDppZHByb3ZhOmV4YW1wbGUuY29tOmNvbnRyb2xsZXIja2V5LWVkMjU1MTkifQ.eyJpc3MiOiJkaWQ6aWRwcm92YTpleGFtcGxlLmNvbTpjb250cm9sbGVyIiwic3ViIjoiZGlkOmlkcHJvdmE6ZXhhbXBsZS5jb206dGVzdC1hZ2VudCIsImlhdCI6MTc3MjQ4NTQwOCwiZXhwIjoxNzcyNDgxODA4LCJuYmYiOjE3NzI0ODU0MDgsImp0aSI6ImRhdF8wMUtKUjVTWFdLS0hOSjVUOTA5WTdUUDExQiIsInNjb3BlIjpbIm1jcDp0b29sOnJlYWQiXSwiZGVsZWdhdGlvbkNoYWluIjpbXX0.BZrflmy5Em3L2wf6WmUYmnUf_D-lEwCxS0j9-J4Flfatb_9z1d8gh1oQq4iJvKocTrqFLyZcWtkj3ZmUZ2CDBg",
+  "signer_public_key_hex": "20170ef86343ad1cac0ea2e0e478c3269313aa297d95907449323d5c9e45815d"
+}

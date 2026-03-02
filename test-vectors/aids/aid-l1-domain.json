@@ -1,0 +1,41 @@
+{
+  "description": "L1 AID with full metadata, Ed25519 key from keypair-002",
+  "did": "did:idprova:techblaze.com.au:kai",
+  "controller": "did:idprova:techblaze.com.au:admin",
+  "trust_level": "L1",
+  "document": {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      "https://idprova.dev/v1"
+    ],
+    "id": "did:idprova:techblaze.com.au:kai",
+    "controller": "did:idprova:techblaze.com.au:admin",
+    "verificationMethod": [
+      {
+        "id": "#key-ed25519",
+        "type": "Ed25519VerificationKey2020",
+        "controller": "did:idprova:techblaze.com.au:admin",
+        "publicKeyMultibase": "zE4NAcSA5pWdrTohqSDLD98goCVWvdq52RSpJStXfFRZY"
+      }
+    ],
+    "authentication": [
+      "#key-ed25519"
+    ],
+    "service": [
+      {
+        "id": "#idprova-metadata",
+        "type": "IdprovaAgentMetadata",
+        "serviceEndpoint": {
+          "description": "AI assistant for Tech Blaze Consulting",
+          "model": "gemini-2.5-flash",
+          "name": "kai",
+          "runtime": "openclaw-2026.2"
+        }
+      }
+    ],
+    "trustLevel": "L1",
+    "version": 1,
+    "created": "2026-03-02T21:03:28.657722200Z",
+    "updated": "2026-03-02T21:03:28.657722200Z"
+  }
+}
