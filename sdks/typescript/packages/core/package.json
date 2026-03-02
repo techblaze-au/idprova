@@ -1,0 +1,35 @@
+{
+  "name": "@idprova/core",
+  "version": "0.1.0",
+  "description": "IDProva core library — crypto, AID, DAT, receipts (napi-rs native bindings)",
+  "license": "Apache-2.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "idprova",
+    "triples": {
+      "defaults": true
+    }
+  },
+  "scripts": {
+    "build": "napi build --release",
+    "build:debug": "napi build",
+    "test": "vitest run",
+    "prepublishOnly": "napi prepublish -t npm"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0",
+    "vitest": "^1.6.0"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node"
+  ],
+  "dependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0"
+  }
+}

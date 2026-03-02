@@ -1,0 +1,6 @@
+{
+  "description": "Second deterministic Ed25519 keypair",
+  "secret_hex": "696470726f76612d746573742d766563746f722d6b6579706169722d30303221",
+  "public_key_multibase": "zE4NAcSA5pWdrTohqSDLD98goCVWvdq52RSpJStXfFRZY",
+  "public_key_hex": "c2049ac7af755f0a059a27a0377a90531d8cf5738a970f74653e08765c3f9a4f"
+}
