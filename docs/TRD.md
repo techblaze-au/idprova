@@ -9,7 +9,7 @@
 ## 1. Architecture — Four-Layer Stack
 
 ```
-Layer 4: Framework Integrations (LangChain, CrewAI, Claude Agent SDK)
+Layer 4: Framework Integrations (LangChain, CrewAI, Agent SDKs)
 Layer 3: Protocol Bindings (MCP middleware, A2A binding, HTTP RFC 9421, SPIFFE bridge)
 Layer 2: Core Protocol (AID, DAT, Receipt — idprova-core crate)
 Layer 1: Cryptography (Ed25519 via ed25519-dalek, BLAKE3, SHA-256)
@@ -17,7 +17,7 @@ Layer 1: Cryptography (Ed25519 via ed25519-dalek, BLAKE3, SHA-256)
 
 | Layer | Components | Implementation |
 |-------|-----------|----------------|
-| Layer 4 | LangChain, CrewAI, Claude Agent SDK | Python/TS wrappers (future) |
+| Layer 4 | LangChain, CrewAI, AutoGen | Python/TS wrappers (future) |
 | Layer 3 | MCP middleware, A2A binding, HTTP RFC 9421, SPIFFE bridge | SDK packages |
 | Layer 2 | AID, DAT, Receipt, Scope, TrustLevel | `idprova-core` Rust crate (100% complete, 33 tests) |
 | Layer 1 | Ed25519 (ed25519-dalek v2), BLAKE3, SHA-256 | Rust crate dependencies |

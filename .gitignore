@@ -64,3 +64,4 @@ htmlcov/
 
 # Session-specific files
 SESSION-LOG-*.md
+error logs/

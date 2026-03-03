@@ -281,7 +281,7 @@ An IDProva DID Document is a valid W3C DID Document with specific required and o
       "serviceEndpoint": {
         "name": "Kai Lead Agent",
         "description": "Primary orchestration agent for OpenClaw",
-        "model": "anthropic/claude-opus-4",
+        "model": "acme-ai/agent-v2",
         "runtime": "openclaw/v2.1",
         "configAttestation": "blake3:a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890",
         "trustLevel": "L1",
@@ -858,7 +858,7 @@ The `constraints` object in a DAT provides additional restrictions beyond scopes
     "requiredConfigAttestation": true,
     "customConstraints": {
       "maxTokensPerRequest": 4096,
-      "allowedModels": ["anthropic/claude-sonnet-4", "anthropic/claude-opus-4"]
+      "allowedModels": ["acme-ai/agent-v1", "acme-ai/agent-v2"]
     }
   }
 }
@@ -1916,7 +1916,7 @@ The following is a complete, valid IDProva DID Document for a production agent:
       "serviceEndpoint": {
         "name": "Kai Lead Agent",
         "description": "Primary orchestration agent for Tech Blaze operations",
-        "model": "anthropic/claude-opus-4",
+        "model": "acme-ai/agent-v2",
         "runtime": "openclaw/v2.1",
         "configAttestation": "blake3:a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890",
         "trustLevel": "L1",

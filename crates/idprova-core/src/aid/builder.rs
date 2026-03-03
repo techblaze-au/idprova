@@ -110,7 +110,11 @@ impl AidBuilder {
             ));
         }
 
-        let auth_refs: Vec<String> = self.verification_methods.iter().map(|vm| vm.id.clone()).collect();
+        let auth_refs: Vec<String> = self
+            .verification_methods
+            .iter()
+            .map(|vm| vm.id.clone())
+            .collect();
 
         let metadata = AgentMetadata {
             name,
@@ -186,7 +190,7 @@ mod tests {
             .controller("did:idprova:techblaze.com.au:pratyush")
             .name("Kai Lead Agent")
             .description("Primary orchestration agent")
-            .model("anthropic/claude-opus-4")
+            .model("acme-ai/agent-v2")
             .runtime("openclaw/v2.1")
             .config_attestation("blake3:abcdef1234567890")
             .trust_level("L1")

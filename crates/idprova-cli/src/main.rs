@@ -151,7 +151,14 @@ fn main() -> Result<()> {
                 runtime,
                 key,
             } => {
-                commands::aid::create(&id, &name, &controller, model.as_deref(), runtime.as_deref(), &key)?;
+                commands::aid::create(
+                    &id,
+                    &name,
+                    &controller,
+                    model.as_deref(),
+                    runtime.as_deref(),
+                    &key,
+                )?;
             }
             AidCommands::Resolve { id, registry } => {
                 commands::aid::resolve(&id, &registry)?;

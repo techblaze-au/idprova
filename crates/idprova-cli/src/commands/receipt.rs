@@ -45,7 +45,8 @@ pub fn stats(file: &str) -> Result<()> {
     }
 
     // Count by action type
-    let mut action_counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut action_counts: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::new();
     for entry in &entries {
         *action_counts.entry(&entry.action.action_type).or_insert(0) += 1;
     }
