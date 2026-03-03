@@ -3,9 +3,9 @@
 //! In v0.1, only single-level delegation is supported (human → agent).
 //! This module provides the foundation for future chain validation.
 
-use crate::{IdprovaError, Result};
-use super::token::Dat;
 use super::scope::ScopeSet;
+use super::token::Dat;
+use crate::{IdprovaError, Result};
 
 /// Validates that a delegation chain is valid:
 /// - Each DAT in the chain was issued by the subject of the previous DAT

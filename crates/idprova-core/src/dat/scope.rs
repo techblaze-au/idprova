@@ -139,11 +139,8 @@ mod tests {
 
     #[test]
     fn test_scope_set_permits() {
-        let set = ScopeSet::parse(&[
-            "mcp:tool:read".to_string(),
-            "mcp:resource:read".to_string(),
-        ])
-        .unwrap();
+        let set = ScopeSet::parse(&["mcp:tool:read".to_string(), "mcp:resource:read".to_string()])
+            .unwrap();
 
         assert!(set.permits(&Scope::parse("mcp:tool:read").unwrap()));
         assert!(set.permits(&Scope::parse("mcp:resource:read").unwrap()));

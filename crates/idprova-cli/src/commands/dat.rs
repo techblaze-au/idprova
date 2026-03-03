@@ -1,7 +1,7 @@
 use anyhow::Result;
+use chrono::{Duration, Utc};
 use idprova_core::crypto::KeyPair;
 use idprova_core::dat::Dat;
-use chrono::{Duration, Utc};
 use std::fs;
 
 pub fn issue(

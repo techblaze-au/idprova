@@ -1,5 +1,5 @@
-use crate::{IdprovaError, Result};
 use super::entry::Receipt;
+use crate::{IdprovaError, Result};
 
 /// An append-only, hash-chained receipt log.
 pub struct ReceiptLog {

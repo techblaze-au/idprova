@@ -37,9 +37,7 @@ fn to_py_err(e: IdprovaError) -> PyErr {
         IdprovaError::InvalidAid(_) | IdprovaError::AidValidation(_) => {
             PyValueError::new_err(format!("InvalidAidError: {}", e))
         }
-        IdprovaError::InvalidDat(_) => {
-            PyValueError::new_err(format!("InvalidDatError: {}", e))
-        }
+        IdprovaError::InvalidDat(_) => PyValueError::new_err(format!("InvalidDatError: {}", e)),
         _ => PyRuntimeError::new_err(format!("IdprovaError: {}", e)),
     }
 }
@@ -74,9 +72,7 @@ impl KeyPair {
     #[staticmethod]
     fn from_secret_bytes(secret: &[u8]) -> PyResult<Self> {
         if secret.len() != 32 {
-            return Err(PyValueError::new_err(
-                "Secret key must be exactly 32 bytes",
-            ));
+            return Err(PyValueError::new_err("Secret key must be exactly 32 bytes"));
         }
         let mut bytes = [0u8; 32];
         bytes.copy_from_slice(secret);
@@ -331,9 +327,7 @@ impl DAT {
     /// Verify the DAT signature against a public key (32 bytes).
     fn verify_signature(&self, public_key_bytes: &[u8]) -> PyResult<bool> {
         if public_key_bytes.len() != 32 {
-            return Err(PyValueError::new_err(
-                "Public key must be exactly 32 bytes",
-            ));
+            return Err(PyValueError::new_err("Public key must be exactly 32 bytes"));
         }
         let mut key = [0u8; 32];
         key.copy_from_slice(public_key_bytes);
@@ -566,11 +560,7 @@ impl AgentIdentity {
     ///     controller: Controller DID (default: auto-generated)
     #[staticmethod]
     #[pyo3(signature = (name, domain="local.dev", controller=None))]
-    fn create(
-        name: &str,
-        domain: &str,
-        controller: Option<&str>,
-    ) -> PyResult<Self> {
+    fn create(name: &str, domain: &str, controller: Option<&str>) -> PyResult<Self> {
         let keypair = RustKeyPair::generate();
         let did = format!("did:idprova:{domain}:{name}");
         let ctrl = controller
@@ -586,11 +576,7 @@ impl AgentIdentity {
             .build()
             .map_err(to_py_err)?;
 
-        Ok(Self {
-            did,
-            keypair,
-            aid,
-        })
+        Ok(Self { did, keypair, aid })
     }
 
     /// Get the AID document.

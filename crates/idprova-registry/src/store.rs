@@ -33,11 +33,11 @@ impl AidStore {
     pub fn put(&self, did: &str, doc: &AidDocument) -> Result<bool> {
         let json = serde_json::to_string(doc)?;
 
-        let existing = self.conn.query_row(
-            "SELECT COUNT(*) FROM aids WHERE did = ?",
-            [did],
-            |row| row.get::<_, i64>(0),
-        )?;
+        let existing =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM aids WHERE did = ?", [did], |row| {
+                    row.get::<_, i64>(0)
+                })?;
 
         if existing > 0 {
             self.conn.execute(

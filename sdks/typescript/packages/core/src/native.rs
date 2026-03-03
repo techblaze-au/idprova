@@ -39,9 +39,7 @@ fn to_napi_err(e: IdprovaError) -> napi::Error {
         IdprovaError::InvalidAid(_) | IdprovaError::AidValidation(_) => {
             napi::Error::from_reason(format!("InvalidAidError: {}", e))
         }
-        IdprovaError::InvalidDat(_) => {
-            napi::Error::from_reason(format!("InvalidDatError: {}", e))
-        }
+        IdprovaError::InvalidDat(_) => napi::Error::from_reason(format!("InvalidDatError: {}", e)),
         _ => napi::Error::from_reason(format!("IdprovaError: {}", e)),
     }
 }

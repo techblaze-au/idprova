@@ -92,7 +92,7 @@ pub struct AgentMetadata {
     /// Optional description.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// AI model identifier (e.g., "anthropic/claude-opus-4").
+    /// AI model identifier (e.g., "acme-ai/agent-v2").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Runtime environment (e.g., "openclaw/v2.1").
@@ -192,10 +192,7 @@ impl AidDocument {
 
         // Authentication must reference existing verification methods
         for auth_ref in &self.authentication {
-            let found = self
-                .verification_method
-                .iter()
-                .any(|vm| vm.id == *auth_ref);
+            let found = self.verification_method.iter().any(|vm| vm.id == *auth_ref);
             if !found {
                 return Err(IdprovaError::AidValidation(format!(
                     "authentication reference {auth_ref} not found in verification methods"
