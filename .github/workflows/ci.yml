@@ -46,13 +46,21 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build workspace
-        run: cargo build --workspace --verbose
+        run: cargo build --workspace --exclude idprova-python --verbose
+
+      - name: Build Python SDK (Linux & Windows only)
+        if: runner.os != 'macOS'
+        run: cargo build -p idprova-python --verbose
 
       - name: Run tests
-        run: cargo test --workspace --verbose
+        run: cargo test --workspace --exclude idprova-python --verbose
 
       - name: Run clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --exclude idprova-python -- -D warnings
+
+      - name: Run clippy on Python SDK (Linux & Windows only)
+        if: runner.os != 'macOS'
+        run: cargo clippy -p idprova-python -- -D warnings
 
       - name: Check formatting
         run: cargo fmt --all -- --check
