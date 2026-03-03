@@ -127,6 +127,7 @@ impl KeyPair {
 ///
 /// Create with AIDBuilder or parse from JSON.
 #[pyclass]
+#[allow(clippy::upper_case_acronyms)]
 struct AID {
     inner: AidDocument,
 }
@@ -261,6 +262,7 @@ impl AIDBuilder {
 ///
 /// Issue with DAT.issue(), parse with DAT.from_compact().
 #[pyclass]
+#[allow(clippy::upper_case_acronyms)]
 struct DAT {
     inner: RustDat,
 }

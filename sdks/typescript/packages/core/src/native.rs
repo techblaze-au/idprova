@@ -188,6 +188,7 @@ pub struct AIDBuilder {
 }
 
 #[napi]
+#[allow(clippy::new_without_default)]
 impl AIDBuilder {
     #[napi(constructor)]
     pub fn new() -> Self {
@@ -469,6 +470,7 @@ pub struct ReceiptLog {
 }
 
 #[napi]
+#[allow(clippy::new_without_default)]
 impl ReceiptLog {
     /// Create a new empty receipt log.
     #[napi(constructor)]
