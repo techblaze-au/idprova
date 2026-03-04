@@ -1,6 +1,6 @@
 # IDProva Master Task Board
 
-> **Last Updated:** 2026-03-04
+> **Last Updated:** 2026-03-05
 > **Plan File:** `C:\Users\praty\.claude\plans\rustling-roaming-peach.md` (full detail)
 > **Notion:** Gap Analysis + Architecture Plan saved 2026-03-04
 
@@ -10,9 +10,9 @@
 
 | Track | Branch | Current Phase | Session | Status | Unblocked By |
 |-------|--------|--------------|---------|--------|-------------|
-| **A** | `idprova/track-a-core-security` | Phase 0 | S1 | 🟡 READY TO START | Nothing |
+| **A** | `idprova/track-a-core-security` | Phase 1 | S2 | 🟢 P0 S1 DONE (42 tests) | Nothing |
 | **B** | `idprova/track-b-registry` | Phase 6 | — | 🔴 BLOCKED | Track A Phase 4 done |
-| **C** | `idprova/track-c-sdk-cli` | Phase 7 | — | 🔴 BLOCKED | Track A Phase 0 done |
+| **C** | `idprova/track-c-sdk-cli` | Phase 7 | — | 🟡 UNBLOCKED | Track A Phase 0 ✅ |
 | **D** | `idprova/track-d-docs-website` | Doc stubs | S1 | 🟡 READY TO START | Nothing |
 | **E** | `idprova/track-e-infra` | Phase 10 | — | 🔴 BLOCKED | A+B near complete |
 | **F** | `idprova/track-f-advanced` | Phase 11+ | — | 🔴 BLOCKED | A+B complete |
@@ -21,7 +21,7 @@
 
 ## Phase Completion Gates
 
-- [ ] **P0 complete** → unlock Track C (SDK/CLI work)
+- [x] **P0 complete** → unlock Track C (SDK/CLI work) — ✅ 2026-03-05
 - [ ] **P1 complete** → Phase 2 (RBAC) can start on Track A
 - [ ] **P4 complete** → unlock Track B (Registry hardening)
 - [ ] **P5 complete** → unlock Track F (Advanced: A2A/SPIFFE)
@@ -34,7 +34,7 @@
 
 | File | Phase | Session | Track | Status |
 |------|-------|---------|-------|--------|
-| *(none yet)* | — | — | — | — |
+| `HANDOVERS/P0-S1-track-a.md` | 0 | 1 | A | ✅ 2026-03-05 — S1/S2/S3/S4 fixed, 42 tests |
 
 ---
 
@@ -42,26 +42,13 @@
 
 ### Phase 0 — Pre-Launch Critical Fixes (2 sessions)
 
-**Session A-1** (start here):
-- [ ] **S1: Fix JWS re-serialization bug**
-  - File: `crates/idprova-core/src/dat/token.rs`
-  - Bug: `verify_signature()` re-serializes JSON → non-deterministic
-  - Fix: Store raw base64 segments in `Dat` struct on `from_compact()`, use them for verification
-  - Tests: Add cross-platform JWS verification tests
-- [ ] **S2: Fix receipt signatures never verified**
-  - File: `crates/idprova-core/src/receipt/log.rs`
-  - Bug: `verify_integrity()` checks hash chain but never verifies receipt signatures
-  - Fix: `verify_integrity()` accepts public key/resolver, verifies each receipt's signature
-  - Tests: Forge a receipt, confirm verify_integrity() rejects it
+**Session A-1** ✅ DONE (2026-03-05) — see HANDOVERS/P0-S1-track-a.md:
+- [x] **S1: JWS re-serialization** — raw_header_b64/raw_claims_b64 on Dat, verify uses original bytes
+- [x] **S2: Receipt signatures never verified** — Receipt::verify_signature() + ReceiptLog::verify_integrity_with_key()
+- [x] **S3: Receipt hash circular dep** — ReceiptSigningPayload excludes signature field
+- [x] **S4: Non-canonical JSON** — serde_json_canonicalizer (RFC 8785 JCS) in to_canonical_json()
 
-**Session A-2**:
-- [ ] **S3: Fix receipt compute_hash includes signature**
-  - File: `crates/idprova-core/src/receipt/entry.rs`
-  - Fix: Define canonical signing payload struct (excludes signature), use for hash
-- [ ] **S4: Fix non-canonical JSON for AID signing**
-  - File: `crates/idprova-core/src/aid/document.rs`
-  - Fix: Use `json-canonicalization` crate (RFC 8785 JCS) in `to_canonical_json()`
-  - New dep: `json-canonicalization = "0.1"` in workspace Cargo.toml
+**Session A-2** (NEXT):
 - [ ] **D1: Fix Quick Start API mismatch**
   - File: `idprova-website/src/content/docs/docs/quick-start.mdx`
   - Fix: Update all `DelegationToken::issue()` → `Dat::issue()`, fix Duration → DateTime<Utc>
