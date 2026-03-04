@@ -1,11 +1,17 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use zeroize::ZeroizeOnDrop;
 
 use crate::{IdprovaError, Result};
 
 /// An Ed25519 keypair for IDProva identity operations.
-#[derive(Debug)]
+///
+/// # Security: SR-1 (zeroize on drop)
+///
+/// The signing key bytes are zeroed from memory when this struct is dropped,
+/// preventing private key material from being retained in process memory.
+#[derive(Debug, ZeroizeOnDrop)]
 pub struct KeyPair {
     signing_key: SigningKey,
 }
@@ -34,8 +40,14 @@ impl KeyPair {
         Self { signing_key }
     }
 
-    /// Get the secret key bytes.
-    pub fn secret_bytes(&self) -> &[u8; 32] {
+    /// Get the secret key bytes for serialization.
+    ///
+    /// # Security: S5 (restricted API)
+    ///
+    /// This method is intentionally `pub(crate)` — external callers should never
+    /// access raw private key bytes directly. Use `sign()` for cryptographic operations.
+    /// For key persistence, use the encrypted export (SR-7, Phase 8).
+    pub(crate) fn secret_bytes(&self) -> &[u8; 32] {
         self.signing_key.as_bytes()
     }
 

@@ -18,12 +18,14 @@ description = "IDProva — The open protocol for AI agent identity"
 rust-version = "1.75"
 
 [workspace.dependencies]
-# Crypto
-ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
-blake3 = "1"
-sha2 = "0.10"
-hkdf = "0.12"
+# Crypto — pinned exact versions (S6: supply chain attack prevention)
+ed25519-dalek = { version = "=2.1.1", features = ["serde", "rand_core", "zeroize"] }
+blake3 = "=1.5.4"
+sha2 = "=0.10.8"
+# hkdf removed (S7: unused dependency, increases attack surface)
 rand = "0.8"
+# Zeroize — SR-1: secure memory erasure of private keys
+zeroize = { version = "1", features = ["derive"] }
 # PQC (post-quantum) — uncomment when ready
 # fips204 = "0.4"
 
