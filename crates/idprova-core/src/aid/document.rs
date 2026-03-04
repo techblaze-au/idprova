@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use serde_json_canonicalizer::to_vec as jcs_to_vec;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -204,12 +205,21 @@ impl AidDocument {
     }
 
     /// Serialize the document to canonical JSON (for signing).
+    ///
+    /// # Security: fix S4 (non-canonical JSON)
+    ///
+    /// Uses RFC 8785 JSON Canonicalization Scheme (JCS) via `json-canonicalization`
+    /// to produce deterministic output with sorted object keys. This ensures that
+    /// signatures produced on one platform verify correctly on all others.
+    ///
+    /// The proof field is excluded (it contains the signature itself).
     pub fn to_canonical_json(&self) -> Result<Vec<u8>> {
-        // For signing, we serialize without the proof field
         let mut doc = self.clone();
         doc.proof = None;
-        let json = serde_json::to_vec(&doc)?;
-        Ok(json)
+        // Serialize to serde_json::Value first, then apply JCS ordering
+        let value = serde_json::to_value(&doc)?;
+        let canonical = jcs_to_vec(&value)?;
+        Ok(canonical)
     }
 }
 
@@ -256,5 +266,78 @@ mod tests {
             local_name: "kai".into(),
         };
         assert_eq!(format!("{id}"), "did:idprova:example.com:kai");
+    }
+
+    fn sample_aid_document() -> AidDocument {
+        AidDocument {
+            context: vec![
+                "https://www.w3.org/ns/did/v1".into(),
+                "https://idprova.dev/ns/v1".into(),
+            ],
+            id: "did:idprova:example.com:kai".into(),
+            controller: "did:idprova:example.com:root".into(),
+            verification_method: vec![VerificationMethod {
+                id: "#key-ed25519".into(),
+                key_type: "Ed25519VerificationKey2020".into(),
+                controller: "did:idprova:example.com:kai".into(),
+                public_key_multibase: "zABCDEF".into(),
+            }],
+            authentication: vec!["#key-ed25519".into()],
+            service: None,
+            trust_level: Some("L2".into()),
+            version: Some(1),
+            created: None,
+            updated: None,
+            proof: None,
+        }
+    }
+
+    /// S4: to_canonical_json() must produce RFC 8785 JCS output.
+    ///
+    /// The output must have sorted object keys so that the same document
+    /// serialized on any platform produces identical bytes.
+    #[test]
+    fn test_s4_canonical_json_is_deterministic() {
+        let doc = sample_aid_document();
+        let canonical1 = doc.to_canonical_json().unwrap();
+        let canonical2 = doc.to_canonical_json().unwrap();
+        assert_eq!(
+            canonical1, canonical2,
+            "to_canonical_json() must be deterministic"
+        );
+    }
+
+    #[test]
+    fn test_s4_canonical_json_excludes_proof() {
+        let mut doc = sample_aid_document();
+        doc.proof = Some(AidProof {
+            proof_type: "Ed25519Signature2020".into(),
+            created: chrono::Utc::now(),
+            verification_method: "#key-ed25519".into(),
+            proof_value: "zsig123".into(),
+        });
+
+        let canonical = String::from_utf8(doc.to_canonical_json().unwrap()).unwrap();
+        assert!(
+            !canonical.contains("proof"),
+            "canonical JSON must exclude the proof field: {canonical}"
+        );
+    }
+
+    #[test]
+    fn test_s4_canonical_json_keys_are_sorted() {
+        let doc = sample_aid_document();
+        let canonical = String::from_utf8(doc.to_canonical_json().unwrap()).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&canonical).unwrap();
+        // Top-level keys should appear in the canonical output sorted lexicographically
+        // Verify by checking that @context comes before authentication (@ < a in ASCII)
+        let ctx_pos = canonical.find("\"@context\"").unwrap();
+        let auth_pos = canonical.find("\"authentication\"").unwrap();
+        assert!(
+            ctx_pos < auth_pos,
+            "@context must appear before authentication in JCS output"
+        );
+        // Ensure the output is valid JSON
+        assert!(value.is_object());
     }
 }
