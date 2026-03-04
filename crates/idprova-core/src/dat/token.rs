@@ -7,8 +7,11 @@ use crate::{IdprovaError, Result};
 
 /// JWS header for a DAT.
 ///
-/// SEC-3 mitigation: `alg` is validated on deserialization — only "EdDSA" is accepted.
-/// SEC-4 mitigation: `deny_unknown_fields` rejects `jwk`, `jku`, `x5u`, etc.
+/// SR-3: `alg` is validated in `validate()` — only "EdDSA" is accepted.
+///   Rejects "none", "RS256", "HS256", "eddsa" (case mismatch), and all other algorithms.
+///
+/// SR-4: `deny_unknown_fields` rejects header injection attacks via `jwk`, `jku`, `x5u`, `crit`, etc.
+///   These fields are used in known JWS confusion attacks and are categorically prohibited.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DatHeader {
@@ -18,6 +21,23 @@ pub struct DatHeader {
     pub typ: String,
     /// Key ID — the DID URL of the signing key.
     pub kid: String,
+}
+
+impl DatHeader {
+    /// Validate the header fields.
+    ///
+    /// # SR-3: Algorithm restriction
+    ///
+    /// Only `"EdDSA"` (exact case) is accepted. Rejects `"none"`, `"RS256"`, `"eddsa"`, etc.
+    pub fn validate(&self) -> Result<()> {
+        if self.alg != "EdDSA" {
+            return Err(IdprovaError::InvalidDat(format!(
+                "unsupported algorithm '{}': only 'EdDSA' is permitted",
+                self.alg
+            )));
+        }
+        Ok(())
+    }
 }
 
 /// Constraints on DAT usage.
@@ -161,13 +181,8 @@ impl Dat {
 
         let header: DatHeader = serde_json::from_slice(&header_bytes)?;
 
-        // SEC-3: Hard-reject any algorithm other than EdDSA
-        if header.alg != "EdDSA" {
-            return Err(IdprovaError::InvalidDat(format!(
-                "unsupported algorithm '{}': only 'EdDSA' is permitted",
-                header.alg
-            )));
-        }
+        // SR-3 + SR-4: Validate header (alg whitelist, unknown fields already rejected by serde)
+        header.validate()?;
 
         let claims: DatClaims = serde_json::from_slice(&claims_bytes)?;
 
@@ -242,7 +257,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:*:read".to_string()],
             expires,
             None,
             None,
@@ -267,7 +282,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:*:*".to_string()],
+            vec!["mcp:*:*:*".to_string()],
             expires,
             Some(DatConstraints {
                 max_actions: Some(1000),
@@ -300,7 +315,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:*:read".to_string()],
             expires,
             None,
             None,
@@ -320,7 +335,7 @@ mod tests {
         let expired = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:*:read".to_string()],
             Utc::now() - Duration::hours(1),
             None,
             None,
@@ -334,7 +349,7 @@ mod tests {
         let valid = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:*:read".to_string()],
             Utc::now() + Duration::hours(24),
             None,
             None,
@@ -358,7 +373,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:issuer",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:*".to_string()],
+            vec!["mcp:tool:*:*".to_string()],
             expires,
             None,
             None,
@@ -394,5 +409,99 @@ mod tests {
             parsed.verify_signature(&wrong_pub).is_err(),
             "verify_signature must fail with a wrong public key"
         );
+    }
+
+    /// SR-3: Only "EdDSA" algorithm is permitted.
+    ///
+    /// Attempts to parse JWS tokens with any other `alg` value must be rejected.
+    #[test]
+    fn test_sr3_rejects_non_eddsa_algorithms() {
+        let kp = test_keypair();
+        let expires = Utc::now() + Duration::hours(1);
+
+        // Issue a valid DAT to get a well-formed compact JWS
+        let dat = Dat::issue(
+            "did:idprova:example.com:issuer",
+            "did:idprova:example.com:agent",
+            vec!["mcp:tool:*:*".to_string()],
+            expires,
+            None,
+            None,
+            &kp,
+        )
+        .unwrap();
+
+        // Helper: craft a compact JWS with a different alg value
+        let make_jws_with_alg = |alg: &str| -> String {
+            let header = serde_json::json!({ "alg": alg, "typ": "idprova-dat+jwt", "kid": "did:example#key" });
+            let claims = serde_json::json!({
+                "iss": dat.claims.iss, "sub": dat.claims.sub,
+                "iat": dat.claims.iat, "exp": dat.claims.exp, "nbf": dat.claims.nbf,
+                "jti": dat.claims.jti, "scope": dat.claims.scope
+            });
+            let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap());
+            let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).unwrap());
+            let sig = kp.sign(format!("{h}.{c}").as_bytes());
+            format!("{h}.{c}.{}", URL_SAFE_NO_PAD.encode(sig))
+        };
+
+        // All of these must be rejected by from_compact()
+        for bad_alg in &["none", "RS256", "HS256", "eddsa", "EDDSA", "Ed25519"] {
+            let jws = make_jws_with_alg(bad_alg);
+            let result = Dat::from_compact(&jws);
+            assert!(
+                result.is_err(),
+                "algorithm '{bad_alg}' must be rejected, but from_compact returned Ok"
+            );
+        }
+
+        // EdDSA (correct casing) must be accepted
+        let valid = make_jws_with_alg("EdDSA");
+        assert!(
+            Dat::from_compact(&valid).is_ok(),
+            "algorithm 'EdDSA' must be accepted"
+        );
+    }
+
+    /// SR-4: Unknown JWS header fields must be rejected.
+    ///
+    /// Header injection via `jwk`, `jku`, `x5u`, `crit` etc. are known JWS attacks.
+    /// The `deny_unknown_fields` attribute on `DatHeader` prevents deserialization.
+    #[test]
+    fn test_sr4_rejects_unknown_header_fields() {
+        let kp = test_keypair();
+
+        let make_jws_with_header = |header: serde_json::Value| -> String {
+            let claims = serde_json::json!({
+                "iss": "did:idprova:example.com:iss", "sub": "did:idprova:example.com:sub",
+                "iat": 0i64, "exp": 9999999999i64, "nbf": 0i64,
+                "jti": "dat_test", "scope": ["mcp:tool:*:*"]
+            });
+            let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap());
+            let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).unwrap());
+            let sig = kp.sign(format!("{h}.{c}").as_bytes());
+            format!("{h}.{c}.{}", URL_SAFE_NO_PAD.encode(sig))
+        };
+
+        // Base valid header
+        let valid_header = serde_json::json!({
+            "alg": "EdDSA", "typ": "idprova-dat+jwt", "kid": "did:example#key"
+        });
+
+        // These fields must cause deserialization failure (deny_unknown_fields)
+        for injected_field in &["jwk", "jku", "x5u", "crit", "x5c", "x5t"] {
+            let mut header = valid_header.clone();
+            header[injected_field] = serde_json::json!("injected");
+            let jws = make_jws_with_header(header);
+            let result = Dat::from_compact(&jws);
+            assert!(
+                result.is_err(),
+                "header with '{injected_field}' field must be rejected"
+            );
+        }
+
+        // Valid header without injected fields must succeed
+        let jws = make_jws_with_header(valid_header);
+        assert!(Dat::from_compact(&jws).is_ok(), "clean header must be accepted");
     }
 }

@@ -11,8 +11,8 @@ description = "Core library for IDProva — AI agent identity, delegation, and a
 ed25519-dalek.workspace = true
 blake3.workspace = true
 sha2.workspace = true
-hkdf.workspace = true
 rand.workspace = true
+zeroize.workspace = true
 
 # Serialization
 serde.workspace = true
