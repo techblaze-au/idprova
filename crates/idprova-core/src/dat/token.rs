@@ -63,11 +63,25 @@ pub struct DatClaims {
 }
 
 /// A complete Delegation Attestation Token.
+///
+/// # Security: JWS Signing Input Preservation (fix S1)
+///
+/// Per RFC 7515 §5.2, signature verification MUST use the original base64url-encoded
+/// header and payload bytes — NOT a re-serialization. `serde_json` is not guaranteed
+/// deterministic across platforms or versions, so re-serializing before verification
+/// breaks cross-implementation interoperability.
+///
+/// `from_compact()` stores the original base64 segments in `raw_header_b64` /
+/// `raw_claims_b64` and `verify_signature()` uses those directly.
 #[derive(Debug, Clone)]
 pub struct Dat {
     pub header: DatHeader,
     pub claims: DatClaims,
     signature: Vec<u8>,
+    /// Original header base64url segment (preserved from compact JWS for verification).
+    raw_header_b64: Option<String>,
+    /// Original claims base64url segment (preserved from compact JWS for verification).
+    raw_claims_b64: Option<String>,
 }
 
 impl Dat {
@@ -113,6 +127,8 @@ impl Dat {
             header,
             claims,
             signature,
+            raw_header_b64: Some(header_b64),
+            raw_claims_b64: Some(claims_b64),
         })
     }
 
@@ -155,18 +171,32 @@ impl Dat {
 
         let claims: DatClaims = serde_json::from_slice(&claims_bytes)?;
 
+        // S1 fix: store original base64 segments for use in verify_signature()
         Ok(Self {
             header,
             claims,
             signature,
+            raw_header_b64: Some(parts[0].to_string()),
+            raw_claims_b64: Some(parts[1].to_string()),
         })
     }
 
     /// Verify the DAT's signature against a public key.
+    ///
+    /// Uses the original base64url segments (stored at parse time) per RFC 7515 §5.2.
+    /// This avoids the re-serialization non-determinism bug where serde_json field
+    /// ordering could differ from the original signing input.
     pub fn verify_signature(&self, public_key_bytes: &[u8; 32]) -> Result<()> {
-        let header_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&self.header)?);
-        let claims_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&self.claims)?);
-        let signing_input = format!("{header_b64}.{claims_b64}");
+        let signing_input = match (&self.raw_header_b64, &self.raw_claims_b64) {
+            (Some(h), Some(c)) => format!("{h}.{c}"),
+            _ => {
+                // Fallback for in-memory tokens created via issue() with no raw segments.
+                // This path only runs for tokens that were never serialized/parsed.
+                let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&self.header)?);
+                let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&self.claims)?);
+                format!("{h}.{c}")
+            }
+        };
 
         KeyPair::verify(public_key_bytes, signing_input.as_bytes(), &self.signature)
     }
@@ -313,5 +343,56 @@ mod tests {
         .unwrap();
         assert!(!valid.is_expired());
         assert!(valid.validate_timing().is_ok());
+    }
+
+    /// S1: JWS re-serialization bug.
+    ///
+    /// verify_signature() must use the original base64 segments from the compact JWS string,
+    /// not re-serialized JSON. This test round-trips through compact form and verifies that
+    /// the parsed token passes signature verification using the original bytes.
+    #[test]
+    fn test_s1_jws_verify_uses_original_segments() {
+        let kp = test_keypair();
+        let expires = Utc::now() + Duration::hours(1);
+
+        let dat = Dat::issue(
+            "did:idprova:example.com:issuer",
+            "did:idprova:example.com:agent",
+            vec!["mcp:tool:*".to_string()],
+            expires,
+            None,
+            None,
+            &kp,
+        )
+        .unwrap();
+
+        // Round-trip through compact serialization (simulates receiving a token over the wire)
+        let compact = dat.to_compact().unwrap();
+        let parsed = Dat::from_compact(&compact).unwrap();
+
+        // The parsed token must carry the raw segments
+        assert!(
+            parsed.raw_header_b64.is_some(),
+            "raw_header_b64 must be populated after from_compact"
+        );
+        assert!(
+            parsed.raw_claims_b64.is_some(),
+            "raw_claims_b64 must be populated after from_compact"
+        );
+
+        // Signature verification MUST pass using original bytes
+        let pub_bytes = kp.public_key_bytes();
+        assert!(
+            parsed.verify_signature(&pub_bytes).is_ok(),
+            "verify_signature must pass for a token round-tripped through compact form"
+        );
+
+        // A different key must fail
+        let kp2 = test_keypair();
+        let wrong_pub = kp2.public_key_bytes();
+        assert!(
+            parsed.verify_signature(&wrong_pub).is_err(),
+            "verify_signature must fail with a wrong public key"
+        );
     }
 }

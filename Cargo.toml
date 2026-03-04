@@ -32,6 +32,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 multibase = "0.9"
+# RFC 8785 JSON Canonicalization Scheme — for deterministic signing (fix S4)
+serde_json_canonicalizer = "0.3"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
