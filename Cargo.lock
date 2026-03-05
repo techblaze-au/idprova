@@ -1052,6 +1052,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "hex",
+ "ipnet",
  "multibase",
  "proptest",
  "rand 0.8.5",

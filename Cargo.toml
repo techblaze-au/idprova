@@ -72,6 +72,9 @@ ulid = "1"
 # Hex encoding
 hex = "0.4"
 
+# Networking
+ipnet = "2"
+
 [profile.release]
 lto = true
 strip = true

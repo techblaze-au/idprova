@@ -33,6 +33,9 @@ ulid.workspace = true
 # Hex encoding
 hex.workspace = true
 
+# Networking (CIDR matching for IP constraint evaluation)
+ipnet.workspace = true
+
 # Logging
 tracing.workspace = true
 
