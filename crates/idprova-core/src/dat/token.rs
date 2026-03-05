@@ -40,18 +40,66 @@ impl DatHeader {
     }
 }
 
+/// A time window restriction (day-of-week + hour range, UTC).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TimeWindow {
+    /// Days of the week (0 = Monday, 6 = Sunday).
+    pub days: Vec<u8>,
+    /// Start hour (0-23, UTC).
+    pub start_hour: u8,
+    /// End hour (0-23, UTC). If < start_hour, wraps past midnight.
+    pub end_hour: u8,
+}
+
 /// Constraints on DAT usage.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// All fields use `#[serde(default)]` + `skip_serializing_if` so that:
+/// - Old tokens without new fields deserialize cleanly (backward compat)
+/// - New tokens omit unset fields (compact serialization)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DatConstraints {
     /// Maximum number of actions the agent can take under this DAT.
-    #[serde(rename = "maxActions", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "maxActions", default, skip_serializing_if = "Option::is_none")]
     pub max_actions: Option<u64>,
     /// Allowed server hostnames/patterns.
-    #[serde(rename = "allowedServers", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "allowedServers", default, skip_serializing_if = "Option::is_none")]
     pub allowed_servers: Option<Vec<String>>,
     /// Whether action receipts are required for each action.
-    #[serde(rename = "requireReceipt", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "requireReceipt", default, skip_serializing_if = "Option::is_none")]
     pub require_receipt: Option<bool>,
+
+    // --- Phase 2 RBAC constraint fields ---
+
+    /// Maximum API calls per hour.
+    #[serde(rename = "maxCallsPerHour", default, skip_serializing_if = "Option::is_none")]
+    pub max_calls_per_hour: Option<u64>,
+    /// Maximum API calls per day.
+    #[serde(rename = "maxCallsPerDay", default, skip_serializing_if = "Option::is_none")]
+    pub max_calls_per_day: Option<u64>,
+    /// Maximum concurrent operations.
+    #[serde(rename = "maxConcurrent", default, skip_serializing_if = "Option::is_none")]
+    pub max_concurrent: Option<u64>,
+    /// Allowed source IP addresses/CIDRs (e.g., "10.0.0.0/8", "192.168.1.1").
+    #[serde(rename = "allowedIPs", default, skip_serializing_if = "Option::is_none")]
+    pub allowed_ips: Option<Vec<String>>,
+    /// Denied source IP addresses/CIDRs.
+    #[serde(rename = "deniedIPs", default, skip_serializing_if = "Option::is_none")]
+    pub denied_ips: Option<Vec<String>>,
+    /// Minimum trust level required (e.g., "L2").
+    #[serde(rename = "requiredTrustLevel", default, skip_serializing_if = "Option::is_none")]
+    pub required_trust_level: Option<String>,
+    /// Maximum delegation chain depth.
+    #[serde(rename = "maxDelegationDepth", default, skip_serializing_if = "Option::is_none")]
+    pub max_delegation_depth: Option<u32>,
+    /// Allowed country codes (ISO 3166-1 alpha-2) for geofencing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geofence: Option<Vec<String>>,
+    /// Allowed time windows for operation.
+    #[serde(rename = "timeWindows", default, skip_serializing_if = "Option::is_none")]
+    pub time_windows: Option<Vec<TimeWindow>>,
+    /// Required config attestation hash (agent must present matching hash).
+    #[serde(rename = "requiredConfigAttestation", default, skip_serializing_if = "Option::is_none")]
+    pub required_config_attestation: Option<String>,
 }
 
 /// The claims (payload) of a DAT.
@@ -286,8 +334,8 @@ mod tests {
             expires,
             Some(DatConstraints {
                 max_actions: Some(1000),
-                allowed_servers: None,
                 require_receipt: Some(true),
+                ..Default::default()
             }),
             None,
             &kp,
@@ -503,5 +551,71 @@ mod tests {
         // Valid header without injected fields must succeed
         let jws = make_jws_with_header(valid_header);
         assert!(Dat::from_compact(&jws).is_ok(), "clean header must be accepted");
+    }
+
+    /// Phase 2: Extended DatConstraints serialize/deserialize roundtrip.
+    ///
+    /// New RBAC fields must survive JSON roundtrip and old tokens without
+    /// them must still deserialize (backward compat via serde defaults).
+    #[test]
+    fn test_extended_constraints_roundtrip() {
+        let constraints = DatConstraints {
+            max_actions: Some(500),
+            require_receipt: Some(true),
+            max_calls_per_hour: Some(100),
+            max_calls_per_day: Some(1000),
+            max_concurrent: Some(5),
+            allowed_ips: Some(vec!["10.0.0.0/8".into(), "192.168.1.0/24".into()]),
+            denied_ips: Some(vec!["10.0.0.99".into()]),
+            required_trust_level: Some("L2".into()),
+            max_delegation_depth: Some(3),
+            geofence: Some(vec!["AU".into(), "NZ".into()]),
+            time_windows: Some(vec![TimeWindow {
+                days: vec![0, 1, 2, 3, 4], // Mon-Fri
+                start_hour: 9,
+                end_hour: 17,
+            }]),
+            required_config_attestation: Some("sha256:abc".into()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&constraints).unwrap();
+        let parsed: DatConstraints = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.max_calls_per_hour, Some(100));
+        assert_eq!(parsed.max_calls_per_day, Some(1000));
+        assert_eq!(parsed.max_concurrent, Some(5));
+        assert_eq!(parsed.allowed_ips.as_ref().unwrap().len(), 2);
+        assert_eq!(parsed.denied_ips.as_ref().unwrap().len(), 1);
+        assert_eq!(parsed.required_trust_level.as_deref(), Some("L2"));
+        assert_eq!(parsed.max_delegation_depth, Some(3));
+        assert_eq!(parsed.geofence.as_ref().unwrap(), &["AU", "NZ"]);
+        assert_eq!(parsed.time_windows.as_ref().unwrap().len(), 1);
+        assert_eq!(
+            parsed.required_config_attestation.as_deref(),
+            Some("sha256:abc")
+        );
+    }
+
+    /// Phase 2: Old tokens without new fields still deserialize.
+    #[test]
+    fn test_backward_compat_constraints_deserialize() {
+        // JSON with only the original 3 fields — no new RBAC fields
+        let json = r#"{"maxActions":100,"requireReceipt":true}"#;
+        let parsed: DatConstraints = serde_json::from_str(json).unwrap();
+
+        assert_eq!(parsed.max_actions, Some(100));
+        assert_eq!(parsed.require_receipt, Some(true));
+        // All new fields should be None
+        assert!(parsed.max_calls_per_hour.is_none());
+        assert!(parsed.max_calls_per_day.is_none());
+        assert!(parsed.max_concurrent.is_none());
+        assert!(parsed.allowed_ips.is_none());
+        assert!(parsed.denied_ips.is_none());
+        assert!(parsed.required_trust_level.is_none());
+        assert!(parsed.max_delegation_depth.is_none());
+        assert!(parsed.geofence.is_none());
+        assert!(parsed.time_windows.is_none());
+        assert!(parsed.required_config_attestation.is_none());
     }
 }
