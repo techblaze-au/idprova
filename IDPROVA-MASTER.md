@@ -10,7 +10,7 @@
 
 | Track | Branch | Current Phase | Session | Status | Unblocked By |
 |-------|--------|--------------|---------|--------|-------------|
-| **A** | `idprova/track-a-core-security` | Phase 1 | S2 | 🟢 P0 S1 DONE (42 tests) | Nothing |
+| **A** | `idprova/track-a-core-security` | Phase 2 | S3 | 🟢 P2 scaffolding DONE (63 tests) | Nothing |
 | **B** | `idprova/track-b-registry` | Phase 6 | — | 🔴 BLOCKED | Track A Phase 4 done |
 | **C** | `idprova/track-c-sdk-cli` | Phase 7 | — | 🟡 UNBLOCKED | Track A Phase 0 ✅ |
 | **D** | `idprova/track-d-docs-website` | Doc stubs | S1 | 🟡 READY TO START | Nothing |
@@ -22,7 +22,7 @@
 ## Phase Completion Gates
 
 - [x] **P0 complete** → unlock Track C (SDK/CLI work) — ✅ 2026-03-05
-- [ ] **P1 complete** → Phase 2 (RBAC) can start on Track A
+- [x] **P1 complete** → Phase 2 (RBAC) can start on Track A — ✅ 2026-03-05
 - [ ] **P4 complete** → unlock Track B (Registry hardening)
 - [ ] **P5 complete** → unlock Track F (Advanced: A2A/SPIFFE)
 - [ ] **P6 complete** → unlock Track E (Infra/Release)
@@ -35,6 +35,8 @@
 | File | Phase | Session | Track | Status |
 |------|-------|---------|-------|--------|
 | `HANDOVERS/P0-S1-track-a.md` | 0 | 1 | A | ✅ 2026-03-05 — S1/S2/S3/S4 fixed, 42 tests |
+| `HANDOVERS/P1-S2-track-a.md` | 1 | 2 | A | ✅ 2026-03-05 — D2/SR-1/SR-3/SR-4/SR-8/S5/S6/S7, 54 tests |
+| `HANDOVERS/P2-S3-track-a.md` | 2 | 3 | A | ✅ 2026-03-05 — Policy module scaffolding, 63 tests |
 
 ---
 
