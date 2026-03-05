@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::crypto::KeyPair;
 use crate::{IdprovaError, Result};
 
+use super::constraints::{DatConstraints, EvaluationContext};
+use super::scope::{Scope, ScopeSet};
+
 /// JWS header for a DAT.
 ///
 /// SEC-3 mitigation: `alg` is validated on deserialization — only "EdDSA" is accepted.
@@ -18,20 +21,6 @@ pub struct DatHeader {
     pub typ: String,
     /// Key ID — the DID URL of the signing key.
     pub kid: String,
-}
-
-/// Constraints on DAT usage.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatConstraints {
-    /// Maximum number of actions the agent can take under this DAT.
-    #[serde(rename = "maxActions", skip_serializing_if = "Option::is_none")]
-    pub max_actions: Option<u64>,
-    /// Allowed server hostnames/patterns.
-    #[serde(rename = "allowedServers", skip_serializing_if = "Option::is_none")]
-    pub allowed_servers: Option<Vec<String>>,
-    /// Whether action receipts are required for each action.
-    #[serde(rename = "requireReceipt", skip_serializing_if = "Option::is_none")]
-    pub require_receipt: Option<bool>,
 }
 
 /// The claims (payload) of a DAT.
@@ -193,11 +182,80 @@ impl Dat {
         }
         Ok(())
     }
+
+    /// Full verification pipeline.
+    ///
+    /// Runs all checks in order:
+    /// 1. Signature verification
+    /// 2. Timing (exp + nbf)
+    /// 3. Scope — `required_scope` must be permitted by the DAT's scope set
+    /// 4. Constraint policy engine (rate limit, IP, trust, depth, geofence, time windows)
+    /// 5. Config attestation (if constraint requires it)
+    ///
+    /// Delegation depth is taken as the **maximum** of `ctx.delegation_depth` and the
+    /// length of `claims.delegation_chain`, so the stricter value always wins.
+    ///
+    /// Pass `required_scope = ""` to skip the scope check (e.g. for token introspection).
+    pub fn verify(
+        &self,
+        public_key_bytes: &[u8; 32],
+        required_scope: &str,
+        ctx: &EvaluationContext,
+    ) -> Result<()> {
+        // 1. Signature
+        self.verify_signature(public_key_bytes)?;
+
+        // 2. Timing
+        self.validate_timing()?;
+
+        // 3. Scope
+        if !required_scope.is_empty() {
+            let requested = Scope::parse(required_scope)?;
+            let granted = ScopeSet::parse(&self.claims.scope)?;
+            if !granted.permits(&requested) {
+                return Err(IdprovaError::ScopeNotPermitted(format!(
+                    "scope '{}' is not granted by this DAT",
+                    required_scope
+                )));
+            }
+        }
+
+        // 4 & 5. Constraint policy engine (if present)
+        if let Some(constraints) = &self.claims.constraints {
+            // Derive effective delegation depth — conservative (take max)
+            let chain_depth = self
+                .claims
+                .delegation_chain
+                .as_ref()
+                .map(|c| c.len() as u32)
+                .unwrap_or(0);
+
+            let effective_depth = ctx.delegation_depth.max(chain_depth);
+
+            // Build augmented context with resolved depth
+            let augmented = EvaluationContext {
+                delegation_depth: effective_depth,
+                ..ctx.clone()
+            };
+
+            // 4. All constraint evaluators
+            constraints.evaluate(&augmented)?;
+
+            // 5. Config attestation (needs the token's own claim)
+            constraints.eval_config_attestation(
+                &augmented,
+                self.claims.config_attestation.as_deref(),
+            )?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dat::constraints::{RateLimit};
     use chrono::Duration;
 
     fn test_keypair() -> KeyPair {
@@ -241,8 +299,8 @@ mod tests {
             expires,
             Some(DatConstraints {
                 max_actions: Some(1000),
-                allowed_servers: None,
                 require_receipt: Some(true),
+                ..Default::default()
             }),
             None,
             &kp,
@@ -313,5 +371,154 @@ mod tests {
         .unwrap();
         assert!(!valid.is_expired());
         assert!(valid.validate_timing().is_ok());
+    }
+
+    // ── verify() full pipeline ───────────────────────────────────────────────
+
+    fn issue_valid(kp: &KeyPair, scope: &str, constraints: Option<DatConstraints>) -> Dat {
+        Dat::issue(
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
+            vec![scope.to_string()],
+            Utc::now() + Duration::hours(24),
+            constraints,
+            None,
+            kp,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_verify_happy_path() {
+        let kp = test_keypair();
+        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let ctx = EvaluationContext::default();
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).is_ok());
+    }
+
+    #[test]
+    fn test_verify_wrong_key() {
+        let kp = test_keypair();
+        let kp2 = test_keypair();
+        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let ctx = EvaluationContext::default();
+        assert!(dat.verify(&kp2.public_key_bytes(), "mcp:tool:read", &ctx).is_err());
+    }
+
+    #[test]
+    fn test_verify_expired_token() {
+        let kp = test_keypair();
+        let dat = Dat::issue(
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
+            vec!["mcp:tool:read".to_string()],
+            Utc::now() - Duration::hours(1),
+            None,
+            None,
+            &kp,
+        )
+        .unwrap();
+        let ctx = EvaluationContext::default();
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).unwrap_err();
+        assert!(matches!(err, IdprovaError::DatExpired));
+    }
+
+    #[test]
+    fn test_verify_scope_denied() {
+        let kp = test_keypair();
+        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let ctx = EvaluationContext::default();
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:write", &ctx).unwrap_err();
+        assert!(matches!(err, IdprovaError::ScopeNotPermitted(_)));
+    }
+
+    #[test]
+    fn test_verify_wildcard_scope_passes() {
+        let kp = test_keypair();
+        let dat = issue_valid(&kp, "mcp:*:*", None);
+        let ctx = EvaluationContext::default();
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:write", &ctx).is_ok());
+    }
+
+    #[test]
+    fn test_verify_empty_scope_skips_check() {
+        let kp = test_keypair();
+        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let ctx = EvaluationContext::default();
+        // "" → skip scope check
+        assert!(dat.verify(&kp.public_key_bytes(), "", &ctx).is_ok());
+    }
+
+    #[test]
+    fn test_verify_constraint_rate_limit_blocks() {
+        let kp = test_keypair();
+        let dat = issue_valid(
+            &kp,
+            "mcp:tool:read",
+            Some(DatConstraints {
+                rate_limit: Some(RateLimit { max_actions: 5, window_secs: 60 }),
+                ..Default::default()
+            }),
+        );
+        let mut ctx = EvaluationContext::default();
+        ctx.actions_in_window = 10;
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).unwrap_err();
+        assert!(err.to_string().contains("rate limit exceeded"));
+    }
+
+    #[test]
+    fn test_verify_delegation_depth_blocked() {
+        let kp = test_keypair();
+        let dat = issue_valid(
+            &kp,
+            "mcp:tool:read",
+            Some(DatConstraints {
+                max_delegation_depth: Some(2),
+                ..Default::default()
+            }),
+        );
+        // ctx carries the runtime depth — 3 levels deep exceeds max=2
+        let mut ctx = EvaluationContext::default();
+        ctx.delegation_depth = 3;
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).unwrap_err();
+        assert!(err.to_string().contains("delegation depth"));
+    }
+
+    #[test]
+    fn test_verify_delegation_depth_at_limit_passes() {
+        let kp = test_keypair();
+        let dat = issue_valid(
+            &kp,
+            "mcp:tool:read",
+            Some(DatConstraints {
+                max_delegation_depth: Some(2),
+                ..Default::default()
+            }),
+        );
+        let mut ctx = EvaluationContext::default();
+        ctx.delegation_depth = 2; // exactly at limit → ok
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).is_ok());
+    }
+
+    #[test]
+    fn test_verify_config_attestation_pass() {
+        let hash = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899".to_string();
+        let kp = test_keypair();
+        let dat = Dat::issue(
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
+            vec!["mcp:tool:read".to_string()],
+            Utc::now() + Duration::hours(24),
+            Some(DatConstraints {
+                required_config_hash: Some(hash.clone()),
+                ..Default::default()
+            }),
+            Some(hash.clone()), // config_attestation claim in token
+            &kp,
+        )
+        .unwrap();
+        let mut ctx = EvaluationContext::default();
+        ctx.agent_config_hash = Some(hash);
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).is_ok());
     }
 }

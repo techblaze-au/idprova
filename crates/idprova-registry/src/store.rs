@@ -1,15 +1,25 @@
 use anyhow::Result;
 use rusqlite::Connection;
+use serde::Serialize;
 
 use idprova_core::aid::AidDocument;
 
-/// SQLite-backed store for AID documents.
+/// SQLite-backed store for AID documents and DAT revocations.
 pub struct AidStore {
     conn: Connection,
 }
 
+/// A recorded DAT revocation.
+#[derive(Debug, Clone, Serialize)]
+pub struct RevocationRecord {
+    pub jti: String,
+    pub reason: String,
+    pub revoked_by: String,
+    pub revoked_at: String,
+}
+
 impl AidStore {
-    /// Create or open the AID store database.
+    /// Create or open the store database.
     pub fn new(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
 
@@ -23,11 +33,20 @@ impl AidStore {
                 active INTEGER NOT NULL DEFAULT 1
             );
             CREATE INDEX IF NOT EXISTS idx_aids_active ON aids(active);
+
+            CREATE TABLE IF NOT EXISTS dat_revocations (
+                jti         TEXT PRIMARY KEY,
+                reason      TEXT NOT NULL DEFAULT '',
+                revoked_by  TEXT NOT NULL DEFAULT '',
+                revoked_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
             ",
         )?;
 
         Ok(Self { conn })
     }
+
+    // ── AID operations ───────────────────────────────────────────────────────
 
     /// Store or update an AID document. Returns true if this is a new entry.
     pub fn put(&self, did: &str, doc: &AidDocument) -> Result<bool> {
@@ -54,7 +73,7 @@ impl AidStore {
         }
     }
 
-    /// Retrieve an AID document by DID.
+    /// Retrieve an AID document by DID (active only).
     pub fn get(&self, did: &str) -> Result<Option<AidDocument>> {
         let result = self.conn.query_row(
             "SELECT document FROM aids WHERE did = ? AND active = 1",
@@ -79,5 +98,50 @@ impl AidStore {
             [did],
         )?;
         Ok(rows > 0)
+    }
+
+    // ── DAT revocation operations ────────────────────────────────────────────
+
+    /// Record a DAT revocation by JTI.
+    ///
+    /// Idempotent — revoking an already-revoked JTI is a no-op (returns false).
+    pub fn revoke(&self, jti: &str, reason: &str, revoked_by: &str) -> Result<bool> {
+        let rows = self.conn.execute(
+            "INSERT OR IGNORE INTO dat_revocations (jti, reason, revoked_by) VALUES (?, ?, ?)",
+            rusqlite::params![jti, reason, revoked_by],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Return true if the given JTI has been revoked.
+    pub fn is_revoked(&self, jti: &str) -> Result<bool> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM dat_revocations WHERE jti = ?",
+            [jti],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    /// Return the revocation record for a JTI, if one exists.
+    pub fn get_revocation(&self, jti: &str) -> Result<Option<RevocationRecord>> {
+        let result = self.conn.query_row(
+            "SELECT jti, reason, revoked_by, revoked_at FROM dat_revocations WHERE jti = ?",
+            [jti],
+            |row| {
+                Ok(RevocationRecord {
+                    jti: row.get(0)?,
+                    reason: row.get(1)?,
+                    revoked_by: row.get(2)?,
+                    revoked_at: row.get(3)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
 }

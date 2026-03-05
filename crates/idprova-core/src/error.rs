@@ -39,6 +39,9 @@ pub enum IdprovaError {
     #[error("DAT not yet valid")]
     DatNotYetValid,
 
+    #[error("DAT revoked: {0}")]
+    DatRevoked(String),
+
     #[error("scope not permitted: {0}")]
     ScopeNotPermitted(String),
 
