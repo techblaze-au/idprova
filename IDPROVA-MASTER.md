@@ -10,7 +10,7 @@
 
 | Track | Branch | Current Phase | Session | Status | Unblocked By |
 |-------|--------|--------------|---------|--------|-------------|
-| **A** | `idprova/track-a-core-security` | Phase 2 | S6 | 🟢 **P2 COMPLETE** — PolicyEvaluator + all 7 evaluators + inheritance + RateTracker (126 tests) | Nothing |
+| **A** | `main` | Milestone 4 | S1 | 🟡 **M2+M3 COMMITTED, M4 in progress** — SSRF http.rs done, CLI integration done, needs build verify + commit (174 tests) | Nothing |
 | **B** | `idprova/track-b-registry` | Phase 6 | — | 🔴 BLOCKED | Track A Phase 4 done |
 | **C** | `idprova/track-c-sdk-cli` | Phase 7 | S1 | 🟢 Session C-1+C-2 DONE (persistence+config) | Track A Phase 0 ✅ |
 | **D** | `idprova/track-d-docs-website` | Doc stubs | S1 | 🟡 READY TO START | Nothing |
