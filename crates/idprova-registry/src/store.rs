@@ -114,6 +114,7 @@ impl AidStore {
     }
 
     /// Return true if the given JTI has been revoked.
+    #[allow(dead_code)]
     pub fn is_revoked(&self, jti: &str) -> Result<bool> {
         let count: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM dat_revocations WHERE jti = ?",

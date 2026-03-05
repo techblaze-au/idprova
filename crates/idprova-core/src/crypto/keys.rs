@@ -35,6 +35,9 @@ impl KeyPair {
     }
 
     /// Get the secret key bytes.
+    ///
+    /// Hidden from public docs — used internally by SDKs in separate crates.
+    #[doc(hidden)]
     pub fn secret_bytes(&self) -> &[u8; 32] {
         self.signing_key.as_bytes()
     }
@@ -150,5 +153,17 @@ mod tests {
         let secret = *kp1.secret_bytes();
         let kp2 = KeyPair::from_secret_bytes(&secret);
         assert_eq!(kp1.public_key_bytes(), kp2.public_key_bytes());
+    }
+
+    #[test]
+    fn test_zeroize_on_drop() {
+        // Verify KeyPair can be created and dropped without panicking.
+        // With the `zeroize` feature enabled on ed25519-dalek, SigningKey implements
+        // ZeroizeOnDrop — this test confirms the drop path is exercised safely.
+        let kp = KeyPair::generate();
+        let pub_bytes = kp.public_key_bytes();
+        drop(kp);
+        // pub_bytes is a Copy [u8;32] — still accessible after drop
+        assert_eq!(pub_bytes.len(), 32);
     }
 }

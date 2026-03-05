@@ -348,6 +348,7 @@ impl DAT {
     ///     max_delegation_depth: Max re-delegation depth (0 = no re-delegation)
     ///     min_trust_level: Minimum agent trust level (0-100)
     #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
         issuer_did, subject_did, scope, expires_in_seconds, signing_key,
         max_actions=None, require_receipt=None,
@@ -616,6 +617,7 @@ impl ReceiptLog {
     ///     status: Action status (default: "success")
     ///     duration_ms: Optional duration in milliseconds
     ///     session_id: Optional session identifier
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
         agent_did, dat_jti, action_type, input_data, signing_key,
         server=None, tool=None, output_data=None,
