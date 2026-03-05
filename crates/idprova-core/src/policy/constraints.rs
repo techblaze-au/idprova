@@ -6,6 +6,7 @@
 
 use std::net::IpAddr;
 
+use chrono::{Datelike, Timelike};
 use ipnet::IpNet;
 
 use crate::dat::token::DatConstraints;
@@ -187,10 +188,17 @@ pub struct DelegationDepthEvaluator;
 impl ConstraintEvaluator for DelegationDepthEvaluator {
     fn evaluate(
         &self,
-        _constraints: &DatConstraints,
-        _context: &EvaluationContext,
+        constraints: &DatConstraints,
+        context: &EvaluationContext,
     ) -> PolicyDecision {
-        // TODO(A-5): Check delegation_depth against max_delegation_depth
+        if let Some(max) = constraints.max_delegation_depth {
+            if context.delegation_depth > max {
+                return PolicyDecision::Deny(DenialReason::DelegationDepthExceeded {
+                    max_depth: max,
+                    actual_depth: context.delegation_depth,
+                });
+            }
+        }
         PolicyDecision::Allow
     }
 
@@ -200,16 +208,38 @@ impl ConstraintEvaluator for DelegationDepthEvaluator {
 }
 
 /// Evaluates `geofence` country-code constraint.
+///
+/// Fail-closed: if geofence is set but no country in context, deny.
 pub struct GeofenceEvaluator;
 
 impl ConstraintEvaluator for GeofenceEvaluator {
     fn evaluate(
         &self,
-        _constraints: &DatConstraints,
-        _context: &EvaluationContext,
+        constraints: &DatConstraints,
+        context: &EvaluationContext,
     ) -> PolicyDecision {
-        // TODO(A-5): Check source_country against allowed country list
-        PolicyDecision::Allow
+        let allowed = match constraints.geofence {
+            Some(ref countries) if !countries.is_empty() => countries,
+            _ => return PolicyDecision::Allow, // No constraint — skip
+        };
+
+        match context.source_country {
+            Some(ref country) => {
+                let upper = country.to_uppercase();
+                if allowed.iter().any(|c| c.to_uppercase() == upper) {
+                    PolicyDecision::Allow
+                } else {
+                    PolicyDecision::Deny(DenialReason::GeofenceViolation {
+                        country: country.clone(),
+                        allowed: allowed.clone(),
+                    })
+                }
+            }
+            None => PolicyDecision::Deny(DenialReason::GeofenceViolation {
+                country: "unknown".into(),
+                allowed: allowed.clone(),
+            }),
+        }
     }
 
     fn name(&self) -> &'static str {
@@ -218,16 +248,49 @@ impl ConstraintEvaluator for GeofenceEvaluator {
 }
 
 /// Evaluates `timeWindows` day/time restriction constraint.
+///
+/// If any time window matches the current timestamp, allow. If windows are set
+/// and none match, deny. Handles overnight windows (start_hour > end_hour wraps midnight).
 pub struct TimeWindowEvaluator;
+
+impl TimeWindowEvaluator {
+    /// Check if a given hour falls within a time window, handling overnight wrap.
+    fn hour_in_range(hour: u8, start: u8, end: u8) -> bool {
+        if start <= end {
+            // Normal range: e.g., 9-17
+            hour >= start && hour <= end
+        } else {
+            // Overnight wrap: e.g., 22-6 means 22,23,0,1,2,3,4,5,6
+            hour >= start || hour <= end
+        }
+    }
+}
 
 impl ConstraintEvaluator for TimeWindowEvaluator {
     fn evaluate(
         &self,
-        _constraints: &DatConstraints,
-        _context: &EvaluationContext,
+        constraints: &DatConstraints,
+        context: &EvaluationContext,
     ) -> PolicyDecision {
-        // TODO(A-5): Parse time windows, check timestamp against allowed windows
-        PolicyDecision::Allow
+        let windows = match constraints.time_windows {
+            Some(ref w) if !w.is_empty() => w,
+            _ => return PolicyDecision::Allow, // No constraint — skip
+        };
+
+        let ts = context.timestamp;
+        let hour = ts.hour() as u8;
+        // chrono: weekday().num_days_from_monday() gives 0=Mon..6=Sun
+        let day = ts.weekday().num_days_from_monday() as u8;
+
+        for window in windows {
+            let day_matches = window.days.is_empty() || window.days.contains(&day);
+            let hour_matches = Self::hour_in_range(hour, window.start_hour, window.end_hour);
+            if day_matches && hour_matches {
+                return PolicyDecision::Allow;
+            }
+        }
+
+        PolicyDecision::Deny(DenialReason::OutsideTimeWindow)
     }
 
     fn name(&self) -> &'static str {
@@ -236,16 +299,32 @@ impl ConstraintEvaluator for TimeWindowEvaluator {
 }
 
 /// Evaluates `requiredConfigAttestation` constraint.
+///
+/// Fail-closed: if constraint is set but caller provides no attestation, deny.
 pub struct ConfigAttestationEvaluator;
 
 impl ConstraintEvaluator for ConfigAttestationEvaluator {
     fn evaluate(
         &self,
-        _constraints: &DatConstraints,
-        _context: &EvaluationContext,
+        constraints: &DatConstraints,
+        context: &EvaluationContext,
     ) -> PolicyDecision {
-        // TODO(A-5): Compare caller_config_attestation against required hash
-        PolicyDecision::Allow
+        let required = match constraints.required_config_attestation {
+            Some(ref hash) => hash,
+            None => return PolicyDecision::Allow, // No constraint — skip
+        };
+
+        match context.caller_config_attestation {
+            Some(ref actual) if actual == required => PolicyDecision::Allow,
+            Some(ref actual) => PolicyDecision::Deny(DenialReason::ConfigAttestationMismatch {
+                expected: required.clone(),
+                actual: Some(actual.clone()),
+            }),
+            None => PolicyDecision::Deny(DenialReason::ConfigAttestationMismatch {
+                expected: required.clone(),
+                actual: None,
+            }),
+        }
     }
 
     fn name(&self) -> &'static str {
@@ -269,6 +348,7 @@ pub fn default_evaluators() -> Vec<Box<dyn ConstraintEvaluator>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     fn empty_constraints() -> DatConstraints {
         DatConstraints::default()
@@ -524,5 +604,284 @@ mod tests {
             DenialReason::InsufficientTrustLevel { actual, .. } => assert_eq!(actual, "none"),
             other => panic!("expected InsufficientTrustLevel, got {other:?}"),
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // DelegationDepthEvaluator tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_delegation_depth_within_limit() {
+        let c = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
+        let ctx = EvaluationContext::builder("scope").delegation_depth(3).build();
+        assert!(DelegationDepthEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_delegation_depth_at_limit() {
+        let c = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
+        let ctx = EvaluationContext::builder("scope").delegation_depth(5).build();
+        assert!(DelegationDepthEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_delegation_depth_exceeded() {
+        let c = DatConstraints { max_delegation_depth: Some(3), ..Default::default() };
+        let ctx = EvaluationContext::builder("scope").delegation_depth(4).build();
+        let d = DelegationDepthEvaluator.evaluate(&c, &ctx);
+        assert!(d.is_denied());
+        match d.denial_reason().unwrap() {
+            DenialReason::DelegationDepthExceeded { max_depth, actual_depth } => {
+                assert_eq!(*max_depth, 3);
+                assert_eq!(*actual_depth, 4);
+            }
+            other => panic!("expected DelegationDepthExceeded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_delegation_depth_no_constraint() {
+        let c = empty_constraints();
+        let ctx = EvaluationContext::builder("scope").delegation_depth(100).build();
+        assert!(DelegationDepthEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_delegation_depth_zero_max() {
+        let c = DatConstraints { max_delegation_depth: Some(0), ..Default::default() };
+        // Depth 0 = direct delegation, should be allowed
+        let ctx0 = EvaluationContext::builder("scope").delegation_depth(0).build();
+        assert!(DelegationDepthEvaluator.evaluate(&c, &ctx0).is_allowed());
+        // Depth 1 = one re-delegation, should be denied
+        let ctx1 = EvaluationContext::builder("scope").delegation_depth(1).build();
+        assert!(DelegationDepthEvaluator.evaluate(&c, &ctx1).is_denied());
+    }
+
+    // -----------------------------------------------------------------------
+    // GeofenceEvaluator tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_geofence_country_in_allowed() {
+        let c = DatConstraints {
+            geofence: Some(vec!["AU".into(), "NZ".into()]),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope").source_country("AU").build();
+        assert!(GeofenceEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_geofence_country_not_in_allowed() {
+        let c = DatConstraints {
+            geofence: Some(vec!["AU".into(), "NZ".into()]),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope").source_country("US").build();
+        let d = GeofenceEvaluator.evaluate(&c, &ctx);
+        assert!(d.is_denied());
+        match d.denial_reason().unwrap() {
+            DenialReason::GeofenceViolation { country, allowed } => {
+                assert_eq!(country, "US");
+                assert_eq!(allowed, &vec!["AU".to_string(), "NZ".to_string()]);
+            }
+            other => panic!("expected GeofenceViolation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_geofence_case_insensitive() {
+        let c = DatConstraints {
+            geofence: Some(vec!["au".into()]),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope").source_country("AU").build();
+        assert!(GeofenceEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_geofence_no_country_fail_closed() {
+        let c = DatConstraints {
+            geofence: Some(vec!["AU".into()]),
+            ..Default::default()
+        };
+        let ctx = minimal_context(); // no source_country
+        assert!(GeofenceEvaluator.evaluate(&c, &ctx).is_denied());
+    }
+
+    #[test]
+    fn test_geofence_no_constraint() {
+        let c = empty_constraints();
+        let ctx = minimal_context();
+        assert!(GeofenceEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    // -----------------------------------------------------------------------
+    // TimeWindowEvaluator tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_time_window_inside() {
+        use chrono::TimeZone;
+        let c = DatConstraints {
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![0, 1, 2, 3, 4], // Mon-Fri
+                start_hour: 9,
+                end_hour: 17,
+            }]),
+            ..Default::default()
+        };
+        // 2026-03-05 is a Thursday (day=3), set hour to 12 UTC
+        let ts = Utc.with_ymd_and_hms(2026, 3, 5, 12, 0, 0).unwrap();
+        let ctx = EvaluationContext::builder("scope").timestamp(ts).build();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_time_window_outside_hour() {
+        use chrono::TimeZone;
+        let c = DatConstraints {
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![0, 1, 2, 3, 4],
+                start_hour: 9,
+                end_hour: 17,
+            }]),
+            ..Default::default()
+        };
+        // Thursday at 20:00 UTC — outside 9-17
+        let ts = Utc.with_ymd_and_hms(2026, 3, 5, 20, 0, 0).unwrap();
+        let ctx = EvaluationContext::builder("scope").timestamp(ts).build();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx).is_denied());
+    }
+
+    #[test]
+    fn test_time_window_outside_day() {
+        use chrono::TimeZone;
+        let c = DatConstraints {
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![0, 1, 2, 3, 4], // Mon-Fri only
+                start_hour: 9,
+                end_hour: 17,
+            }]),
+            ..Default::default()
+        };
+        // 2026-03-07 is a Saturday (day=5) at 12:00 — right hour, wrong day
+        let ts = Utc.with_ymd_and_hms(2026, 3, 7, 12, 0, 0).unwrap();
+        let ctx = EvaluationContext::builder("scope").timestamp(ts).build();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx).is_denied());
+    }
+
+    #[test]
+    fn test_time_window_overnight_wrap() {
+        use chrono::TimeZone;
+        let c = DatConstraints {
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![], // any day
+                start_hour: 22,
+                end_hour: 6, // overnight: 22-23, 0-6
+            }]),
+            ..Default::default()
+        };
+        // 2:00 AM should be inside the overnight window
+        let ts = Utc.with_ymd_and_hms(2026, 3, 5, 2, 0, 0).unwrap();
+        let ctx = EvaluationContext::builder("scope").timestamp(ts).build();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx).is_allowed());
+
+        // 12:00 PM should be outside
+        let ts_noon = Utc.with_ymd_and_hms(2026, 3, 5, 12, 0, 0).unwrap();
+        let ctx_noon = EvaluationContext::builder("scope").timestamp(ts_noon).build();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx_noon).is_denied());
+    }
+
+    #[test]
+    fn test_time_window_multiple_windows() {
+        use chrono::TimeZone;
+        let c = DatConstraints {
+            time_windows: Some(vec![
+                crate::dat::token::TimeWindow {
+                    days: vec![0, 1, 2, 3, 4], // weekdays
+                    start_hour: 9,
+                    end_hour: 17,
+                },
+                crate::dat::token::TimeWindow {
+                    days: vec![5, 6], // weekends
+                    start_hour: 10,
+                    end_hour: 14,
+                },
+            ]),
+            ..Default::default()
+        };
+        // Saturday at 12:00 — should match weekend window
+        let ts = Utc.with_ymd_and_hms(2026, 3, 7, 12, 0, 0).unwrap();
+        let ctx = EvaluationContext::builder("scope").timestamp(ts).build();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_time_window_no_constraint() {
+        let c = empty_constraints();
+        let ctx = minimal_context();
+        assert!(TimeWindowEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    // -----------------------------------------------------------------------
+    // ConfigAttestationEvaluator tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_config_attestation_match() {
+        let hash = "sha256:abc123def456";
+        let c = DatConstraints {
+            required_config_attestation: Some(hash.into()),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope")
+            .caller_config_attestation(hash)
+            .build();
+        assert!(ConfigAttestationEvaluator.evaluate(&c, &ctx).is_allowed());
+    }
+
+    #[test]
+    fn test_config_attestation_mismatch() {
+        let c = DatConstraints {
+            required_config_attestation: Some("sha256:expected".into()),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope")
+            .caller_config_attestation("sha256:different")
+            .build();
+        let d = ConfigAttestationEvaluator.evaluate(&c, &ctx);
+        assert!(d.is_denied());
+        match d.denial_reason().unwrap() {
+            DenialReason::ConfigAttestationMismatch { expected, actual } => {
+                assert_eq!(expected, "sha256:expected");
+                assert_eq!(actual, &Some("sha256:different".to_string()));
+            }
+            other => panic!("expected ConfigAttestationMismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_config_attestation_missing_caller_hash() {
+        let c = DatConstraints {
+            required_config_attestation: Some("sha256:required".into()),
+            ..Default::default()
+        };
+        let ctx = minimal_context(); // no caller_config_attestation
+        let d = ConfigAttestationEvaluator.evaluate(&c, &ctx);
+        assert!(d.is_denied());
+        match d.denial_reason().unwrap() {
+            DenialReason::ConfigAttestationMismatch { actual, .. } => assert_eq!(actual, &None),
+            other => panic!("expected ConfigAttestationMismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_config_attestation_no_constraint() {
+        let c = empty_constraints();
+        let ctx = EvaluationContext::builder("scope")
+            .caller_config_attestation("sha256:anything")
+            .build();
+        assert!(ConfigAttestationEvaluator.evaluate(&c, &ctx).is_allowed());
     }
 }
