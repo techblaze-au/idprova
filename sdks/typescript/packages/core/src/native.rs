@@ -638,6 +638,7 @@ impl ReceiptLog {
     /// @param durationMs - Optional duration in milliseconds
     /// @param sessionId - Optional session identifier
     #[napi]
+    #[allow(clippy::too_many_arguments)]
     pub fn append(
         &mut self,
         agent_did: String,

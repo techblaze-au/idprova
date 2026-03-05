@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 /// CLI configuration loaded from ~/.idprova/config.toml.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct Config {
     /// Registry URL for AID resolution and DAT verification.
     #[serde(default = "default_registry")]
