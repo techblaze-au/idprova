@@ -68,6 +68,9 @@ ulid = "1"
 # Hex encoding
 hex = "0.4"
 
+# Config
+toml = "0.8"
+
 [profile.release]
 lto = true
 strip = true

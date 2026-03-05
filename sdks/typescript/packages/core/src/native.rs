@@ -11,12 +11,18 @@ use napi::bindgen_prelude::*;
 use chrono::{Duration, Utc};
 use idprova_core::aid::builder::AidBuilder;
 use idprova_core::aid::document::AidDocument;
+use idprova_core::crypto::hash::prefixed_blake3;
 use idprova_core::crypto::KeyPair as RustKeyPair;
 use idprova_core::dat::scope::Scope as RustScope;
-use idprova_core::dat::token::{Dat as RustDat, DatConstraints as RustDatConstraints};
+use idprova_core::dat::constraints::{
+    DatConstraints as RustDatConstraints, EvaluationContext as RustEvaluationContext,
+};
+use idprova_core::dat::token::Dat as RustDat;
+use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptContext};
 use idprova_core::receipt::log::ReceiptLog as RustReceiptLog;
 use idprova_core::trust::level::TrustLevel as RustTrustLevel;
 use idprova_core::IdprovaError;
+use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
 // Error mapping — IdprovaError → napi::Error
@@ -40,7 +46,96 @@ fn to_napi_err(e: IdprovaError) -> napi::Error {
             napi::Error::from_reason(format!("InvalidAidError: {}", e))
         }
         IdprovaError::InvalidDat(_) => napi::Error::from_reason(format!("InvalidDatError: {}", e)),
+        IdprovaError::DatRevoked(_) => napi::Error::from_reason(format!(
+            "DatRevokedError: {}. Fix: The token has been explicitly revoked.",
+            e
+        )),
+        IdprovaError::ConstraintViolated(_) => napi::Error::from_reason(format!(
+            "ConstraintViolatedError: {}. Fix: Check the DAT constraints against the request context.",
+            e
+        )),
+        IdprovaError::ScopeNotPermitted(_) => napi::Error::from_reason(format!(
+            "ScopeNotPermittedError: {}. Fix: Request a token with the required scope.",
+            e
+        )),
         _ => napi::Error::from_reason(format!("IdprovaError: {}", e)),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Path helpers
+// ---------------------------------------------------------------------------
+
+fn expand_home(path: &str) -> PathBuf {
+    if path.starts_with('~') {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(path.replacen('~', &home, 1))
+    } else {
+        PathBuf::from(path)
+    }
+}
+
+fn default_identity_dir(name: &str) -> PathBuf {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home)
+        .join(".idprova")
+        .join("identities")
+        .join(name)
+}
+
+// ---------------------------------------------------------------------------
+// EvaluationContext — Runtime context for constraint evaluation
+// ---------------------------------------------------------------------------
+
+/// Runtime context passed to DAT.verify() for constraint evaluation.
+///
+/// All fields are optional — only populate what you need for your constraints.
+#[napi]
+pub struct EvaluationContext {
+    /// Number of actions already taken in the current rate-limit window.
+    pub actions_in_window: i64,
+    /// Request IP address string (IPv4 or IPv6).
+    pub request_ip: Option<String>,
+    /// Agent trust level (0–100).
+    pub agent_trust_level: Option<u8>,
+    /// Delegation depth in the current chain.
+    pub delegation_depth: u32,
+    /// ISO 3166-1 alpha-2 country code of the request origin.
+    pub country_code: Option<String>,
+    /// SHA-256 hex hash of the agent's current configuration.
+    pub agent_config_hash: Option<String>,
+}
+
+#[napi]
+#[allow(clippy::new_without_default)]
+impl EvaluationContext {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self {
+            actions_in_window: 0,
+            request_ip: None,
+            agent_trust_level: None,
+            delegation_depth: 0,
+            country_code: None,
+            agent_config_hash: None,
+        }
+    }
+
+    fn to_rust(&self) -> RustEvaluationContext {
+        use std::net::IpAddr;
+        RustEvaluationContext {
+            actions_in_window: self.actions_in_window as u64,
+            request_ip: self.request_ip.as_deref().and_then(|s| s.parse::<IpAddr>().ok()),
+            agent_trust_level: self.agent_trust_level,
+            delegation_depth: self.delegation_depth,
+            country_code: self.country_code.clone(),
+            current_timestamp: None,
+            agent_config_hash: self.agent_config_hash.clone(),
+        }
     }
 }
 
@@ -284,8 +379,8 @@ impl DAT {
         let constraints = if max_actions.is_some() || require_receipt.is_some() {
             Some(RustDatConstraints {
                 max_actions: max_actions.map(|n| n as u64),
-                allowed_servers: None,
                 require_receipt,
+                ..Default::default()
             })
         } else {
             None
@@ -375,6 +470,30 @@ impl DAT {
     #[napi(getter)]
     pub fn expires_at(&self) -> i64 {
         self.inner.claims.exp
+    }
+
+    /// Full verification pipeline: signature → timing → scope → constraints.
+    ///
+    /// @param publicKeyBytes - 32-byte Ed25519 public key of the issuer
+    /// @param requiredScope - scope string to check (e.g. "mcp:tool:read"), or "" to skip
+    /// @param ctx - optional EvaluationContext for constraint evaluation
+    #[napi]
+    pub fn verify(
+        &self,
+        public_key_bytes: Buffer,
+        required_scope: Option<String>,
+        ctx: Option<&EvaluationContext>,
+    ) -> Result<()> {
+        let bytes = public_key_bytes.as_ref();
+        if bytes.len() != 32 {
+            return Err(napi::Error::from_reason("Public key must be exactly 32 bytes"));
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(bytes);
+        let scope = required_scope.as_deref().unwrap_or("");
+        let default_ctx = EvaluationContext::new();
+        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust();
+        self.inner.verify(&key, scope, &rust_ctx).map_err(to_napi_err)
     }
 }
 
@@ -503,6 +622,81 @@ impl ReceiptLog {
         self.inner.len() as u32
     }
 
+    /// Append a new receipt to the log.
+    ///
+    /// Constructs a signed, hash-chained receipt from the provided action details.
+    ///
+    /// @param agentDid - DID of the agent performing the action
+    /// @param datJti - JTI of the DAT authorizing the action
+    /// @param actionType - Action type string (e.g., "mcp:tool-call")
+    /// @param inputData - Input data (hashed with BLAKE3, not stored raw)
+    /// @param signingKey - Agent's KeyPair for signing
+    /// @param server - Optional target server hostname
+    /// @param tool - Optional tool/method name
+    /// @param outputData - Optional output data (hashed with BLAKE3)
+    /// @param status - Action status (default: "success")
+    /// @param durationMs - Optional duration in milliseconds
+    /// @param sessionId - Optional session identifier
+    #[napi]
+    pub fn append(
+        &mut self,
+        agent_did: String,
+        dat_jti: String,
+        action_type: String,
+        input_data: Buffer,
+        signing_key: &KeyPair,
+        server: Option<String>,
+        tool: Option<String>,
+        output_data: Option<Buffer>,
+        status: Option<String>,
+        duration_ms: Option<u32>,
+        session_id: Option<String>,
+    ) -> Result<()> {
+        let receipt_id = ulid::Ulid::new().to_string();
+        let prev_hash = self.inner.last_hash();
+        let seq = self.inner.next_sequence();
+
+        let action = ActionDetails {
+            action_type,
+            server,
+            tool,
+            input_hash: prefixed_blake3(input_data.as_ref()),
+            output_hash: output_data.as_ref().map(|d| prefixed_blake3(d.as_ref())),
+            status: status.unwrap_or_else(|| "success".to_string()),
+            duration_ms: duration_ms.map(|d| d as u64),
+        };
+
+        let context = session_id.map(|sid| ReceiptContext {
+            session_id: Some(sid),
+            parent_receipt_id: None,
+            request_id: None,
+        });
+
+        let chain = ChainLink {
+            previous_hash: prev_hash,
+            sequence_number: seq,
+        };
+
+        let mut receipt = Receipt {
+            id: receipt_id,
+            timestamp: Utc::now(),
+            agent: agent_did,
+            dat: dat_jti,
+            action,
+            context,
+            chain,
+            signature: String::new(),
+        };
+
+        let canonical = serde_json::to_vec(&receipt)
+            .map_err(|e| napi::Error::from_reason(format!("Serialization error: {e}")))?;
+        let sig_bytes = signing_key.inner.sign(&canonical);
+        receipt.signature = hex::encode(sig_bytes);
+
+        self.inner.append(receipt);
+        Ok(())
+    }
+
     /// Serialize the log to JSON string.
     #[napi]
     pub fn to_json(&self) -> Result<String> {
@@ -604,6 +798,94 @@ impl AgentIdentity {
         )
         .map(|dat| DAT { inner: dat })
         .map_err(to_napi_err)
+    }
+
+    /// Save this identity to disk.
+    ///
+    /// Creates a directory containing the private key, AID document, and metadata.
+    /// The private key file has restrictive permissions (0600 on Unix).
+    ///
+    /// @param path - Directory path. Defaults to ~/.idprova/identities/{name}/
+    #[napi]
+    pub fn save(&self, path: Option<String>) -> Result<()> {
+        let dir = match path {
+            Some(p) => expand_home(&p),
+            None => {
+                let name = self.did_str.rsplit(':').next().unwrap_or("agent");
+                default_identity_dir(name)
+            }
+        };
+
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| napi::Error::from_reason(format!("Failed to create directory: {e}")))?;
+
+        // Save secret key (hex-encoded)
+        let key_path = dir.join("secret.key");
+        let secret_hex = hex::encode(self.keypair.secret_bytes());
+        std::fs::write(&key_path, &secret_hex)
+            .map_err(|e| napi::Error::from_reason(format!("Failed to write key: {e}")))?;
+
+        // Restrictive permissions on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| napi::Error::from_reason(format!("Failed to set permissions: {e}")))?;
+        }
+
+        // Save AID document
+        let aid_json = serde_json::to_string_pretty(&self.aid_doc)
+            .map_err(|e| napi::Error::from_reason(format!("Serialization error: {e}")))?;
+        std::fs::write(dir.join("aid.json"), &aid_json)
+            .map_err(|e| napi::Error::from_reason(format!("Failed to write AID: {e}")))?;
+
+        // Save metadata
+        let metadata = serde_json::json!({
+            "version": 1,
+            "did": self.did_str,
+            "created": Utc::now().to_rfc3339(),
+        });
+        std::fs::write(
+            dir.join("identity.json"),
+            serde_json::to_string_pretty(&metadata).unwrap(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("Failed to write metadata: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Load an identity from disk.
+    ///
+    /// @param path - Directory containing secret.key and aid.json
+    #[napi(factory)]
+    pub fn load(path: String) -> Result<Self> {
+        let dir = expand_home(&path);
+
+        // Read secret key
+        let secret_hex = std::fs::read_to_string(dir.join("secret.key"))
+            .map_err(|e| napi::Error::from_reason(format!("Failed to read key: {e}")))?;
+        let secret_bytes = hex::decode(secret_hex.trim())
+            .map_err(|e| napi::Error::from_reason(format!("Invalid key hex: {e}")))?;
+        if secret_bytes.len() != 32 {
+            return Err(napi::Error::from_reason("Secret key must be 32 bytes"));
+        }
+        let mut key_arr = [0u8; 32];
+        key_arr.copy_from_slice(&secret_bytes);
+        let keypair = RustKeyPair::from_secret_bytes(&key_arr);
+
+        // Read AID document
+        let aid_json = std::fs::read_to_string(dir.join("aid.json"))
+            .map_err(|e| napi::Error::from_reason(format!("Failed to read AID: {e}")))?;
+        let aid_doc: AidDocument = serde_json::from_str(&aid_json)
+            .map_err(|e| napi::Error::from_reason(format!("Invalid AID JSON: {e}")))?;
+        aid_doc.validate().map_err(to_napi_err)?;
+
+        let did_str = aid_doc.id.clone();
+        Ok(Self {
+            did_str,
+            keypair,
+            aid_doc,
+        })
     }
 
     /// Get the public key bytes (32 bytes).

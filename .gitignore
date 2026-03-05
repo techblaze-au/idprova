@@ -65,3 +65,10 @@ htmlcov/
 # Session-specific files
 SESSION-LOG-*.md
 error logs/
+
+# CI temp files
+ci-*.json
+macos-*.txt
+
+# Worktrees
+worktrees/
