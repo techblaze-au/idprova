@@ -32,6 +32,9 @@ ulid.workspace = true
 # Hex encoding
 hex.workspace = true
 
+# Network
+ipnet.workspace = true
+
 # Logging
 tracing.workspace = true
 
