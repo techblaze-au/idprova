@@ -41,6 +41,7 @@
 | (no handover) | 2 | 4 | A | ✅ 2026-03-05 — RateLimit/IP/TrustLevel evaluators, 78 tests |
 | `HANDOVERS/P2-S56-track-a.md` | 2 | 5-6 | A | ✅ 2026-03-06 — All evaluators + PolicyEvaluator + inheritance + RateTracker, 126 tests |
 | `HANDOVERS/P7-S1-track-c.md` | 7 | 1 | C | ✅ 2026-03-05 — SDK persistence + CLI config, 81 tests |
+| `HANDOVERS/M2-S7-track-a.md` | M2 | 7 | A | 🟡 IN PROGRESS — M1 complete (150 tests), M2 crypto pins uncommitted, rand ambiguity unresolved |
 
 ---
 
