@@ -1,8 +1,10 @@
 use anyhow::Result;
 use axum::{
+    body::Body,
     extract::{Path, State},
-    http::StatusCode,
-    response::Json,
+    http::{HeaderValue, Request, StatusCode},
+    middleware::{self, Next},
+    response::{Json, Response},
     routing::{delete, get, post, put},
     Router,
 };
@@ -10,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
+use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 mod store;
@@ -32,6 +35,12 @@ async fn main() -> Result<()> {
     let store = AidStore::new("idprova_registry.db")?;
     let state: SharedState = Arc::new(Mutex::new(store));
 
+    // CORS — allow all origins/methods/headers (registry is a public read API)
+    let cors = CorsLayer::new()
+        .allow_methods(Any)
+        .allow_headers(Any)
+        .allow_origin(Any);
+
     // Build the router
     let app = Router::new()
         .route("/health", get(health))
@@ -43,6 +52,8 @@ async fn main() -> Result<()> {
         .route("/v1/dat/verify", post(verify_dat))
         .route("/v1/dat/revoke", post(revoke_dat))
         .route("/v1/dat/revoked/:jti", get(check_revocation))
+        .layer(middleware::from_fn(security_headers))
+        .layer(cors)
         .with_state(state);
 
     let addr = "0.0.0.0:3000";
@@ -51,6 +62,26 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Axum middleware that appends security headers to every response.
+async fn security_headers(request: Request<Body>, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        "X-Content-Type-Options",
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
+    headers.insert(
+        "Strict-Transport-Security",
+        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+    );
+    headers.insert(
+        "X-XSS-Protection",
+        HeaderValue::from_static("1; mode=block"),
+    );
+    response
 }
 
 async fn health() -> Json<Value> {
@@ -394,6 +425,24 @@ async fn revoke_dat(
         return Err((
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": "jti must not be empty" })),
+        ));
+    }
+    if req.jti.len() > 128 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "jti exceeds maximum length of 128 characters" })),
+        ));
+    }
+    if req.reason.len() > 512 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "reason exceeds maximum length of 512 characters" })),
+        ));
+    }
+    if req.revoked_by.len() > 256 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "revoked_by exceeds maximum length of 256 characters" })),
         ));
     }
 
