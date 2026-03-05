@@ -4,8 +4,10 @@
 //! time-bounded permissions on behalf of a human controller.
 
 pub mod chain;
+pub mod constraints;
 pub mod scope;
 pub mod token;
 
+pub use constraints::{DatConstraints, EvaluationContext, RateLimit, TimeWindow};
 pub use scope::{Scope, ScopeSet};
-pub use token::{Dat, DatClaims, DatConstraints, DatHeader};
+pub use token::{Dat, DatClaims, DatHeader};
