@@ -9,12 +9,18 @@ use pyo3::prelude::*;
 use chrono::{Duration, Utc};
 use idprova_core::aid::builder::AidBuilder;
 use idprova_core::aid::document::AidDocument;
+use idprova_core::crypto::hash::prefixed_blake3;
 use idprova_core::crypto::KeyPair as RustKeyPair;
+use idprova_core::dat::constraints::{
+    DatConstraints as RustDatConstraints, EvaluationContext as RustEvaluationContext,
+};
 use idprova_core::dat::scope::Scope as RustScope;
-use idprova_core::dat::token::{Dat as RustDat, DatConstraints as RustDatConstraints};
+use idprova_core::dat::token::Dat as RustDat;
+use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptContext};
 use idprova_core::receipt::log::ReceiptLog as RustReceiptLog;
 use idprova_core::trust::level::TrustLevel as RustTrustLevel;
 use idprova_core::IdprovaError;
+use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
 // Error mapping — IdprovaError → Python exceptions
@@ -30,8 +36,20 @@ fn to_py_err(e: IdprovaError) -> PyErr {
             "DatNotYetValidError: {}. Fix: Check system clock or wait until the nbf time.",
             e
         )),
+        IdprovaError::DatRevoked(_) => PyValueError::new_err(format!(
+            "DatRevokedError: {}. Fix: The issuer must issue a new DAT.",
+            e
+        )),
         IdprovaError::VerificationFailed(_) => PyValueError::new_err(format!(
             "VerificationFailedError: {}. Fix: Ensure the correct public key is used.",
+            e
+        )),
+        IdprovaError::ConstraintViolated(_) => PyValueError::new_err(format!(
+            "ConstraintViolatedError: {}",
+            e
+        )),
+        IdprovaError::ScopeNotPermitted(_) => PyValueError::new_err(format!(
+            "ScopeNotPermittedError: {}",
             e
         )),
         IdprovaError::InvalidAid(_) | IdprovaError::AidValidation(_) => {
@@ -40,6 +58,31 @@ fn to_py_err(e: IdprovaError) -> PyErr {
         IdprovaError::InvalidDat(_) => PyValueError::new_err(format!("InvalidDatError: {}", e)),
         _ => PyRuntimeError::new_err(format!("IdprovaError: {}", e)),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Path helpers
+// ---------------------------------------------------------------------------
+
+fn expand_home(path: &str) -> PathBuf {
+    if path.starts_with('~') {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(path.replacen('~', &home, 1))
+    } else {
+        PathBuf::from(path)
+    }
+}
+
+fn default_identity_dir(name: &str) -> PathBuf {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home)
+        .join(".idprova")
+        .join("identities")
+        .join(name)
 }
 
 // ---------------------------------------------------------------------------
@@ -66,9 +109,6 @@ impl KeyPair {
     }
 
     /// Create a key pair from secret key bytes (32 bytes).
-    ///
-    /// WARNING: Only use for loading previously saved keys.
-    /// Prefer generate() for new keys.
     #[staticmethod]
     fn from_secret_bytes(secret: &[u8]) -> PyResult<Self> {
         if secret.len() != 32 {
@@ -81,12 +121,10 @@ impl KeyPair {
         })
     }
 
-    /// Sign a message and return the signature as bytes.
     fn sign(&self, message: &[u8]) -> Vec<u8> {
         self.inner.sign(message)
     }
 
-    /// Verify a signature against a message using this key pair's public key.
     fn verify(&self, message: &[u8], signature: &[u8]) -> PyResult<bool> {
         let pub_bytes = self.inner.public_key_bytes();
         match RustKeyPair::verify(&pub_bytes, message, signature) {
@@ -95,23 +133,87 @@ impl KeyPair {
         }
     }
 
-    /// Get the public key in multibase encoding (z-prefixed base58btc).
     #[getter]
     fn public_key_multibase(&self) -> String {
         self.inner.public_key_multibase()
     }
 
-    /// Get the raw public key bytes (32 bytes).
     #[getter]
     fn public_key_bytes(&self) -> Vec<u8> {
         self.inner.public_key_bytes().to_vec()
     }
 
     fn __repr__(&self) -> String {
+        format!("KeyPair(public_key='{}')", self.inner.public_key_multibase())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EvaluationContext — runtime values for constraint evaluation
+// ---------------------------------------------------------------------------
+
+/// Runtime context supplied to DAT.verify() for constraint evaluation.
+///
+/// Example:
+///     ctx = EvaluationContext()
+///     ctx.request_ip = "10.0.0.5"
+///     ctx.agent_trust_level = 75
+///     ctx.country_code = "AU"
+///     dat.verify(pub_key_bytes, "mcp:tool:read", ctx)
+#[pyclass]
+#[derive(Clone, Default)]
+struct EvaluationContext {
+    /// Actions taken in the current rate-limit window.
+    #[pyo3(get, set)]
+    actions_in_window: u64,
+
+    /// Request IP address string (IPv4 or IPv6).
+    #[pyo3(get, set)]
+    request_ip: Option<String>,
+
+    /// Agent trust level (0–100).
+    #[pyo3(get, set)]
+    agent_trust_level: Option<u8>,
+
+    /// Delegation chain depth (0 = root token).
+    #[pyo3(get, set)]
+    delegation_depth: u32,
+
+    /// ISO 3166-1 alpha-2 country code.
+    #[pyo3(get, set)]
+    country_code: Option<String>,
+
+    /// SHA-256 hex hash of the agent's current configuration.
+    #[pyo3(get, set)]
+    agent_config_hash: Option<String>,
+}
+
+#[pymethods]
+impl EvaluationContext {
+    #[new]
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn __repr__(&self) -> String {
         format!(
-            "KeyPair(public_key='{}')",
-            self.inner.public_key_multibase()
+            "EvaluationContext(ip={:?}, trust={:?}, depth={}, country={:?})",
+            self.request_ip, self.agent_trust_level, self.delegation_depth, self.country_code
         )
+    }
+}
+
+impl EvaluationContext {
+    fn to_rust(&self) -> RustEvaluationContext {
+        RustEvaluationContext {
+            actions_in_window: self.actions_in_window,
+            request_ip: self.request_ip.as_deref().and_then(|s| s.parse().ok()),
+            agent_trust_level: self.agent_trust_level,
+            delegation_depth: self.delegation_depth,
+            country_code: self.country_code.clone(),
+            current_timestamp: None,
+            agent_config_hash: self.agent_config_hash.clone(),
+        }
     }
 }
 
@@ -119,9 +221,6 @@ impl KeyPair {
 // AID — Agent Identity Document
 // ---------------------------------------------------------------------------
 
-/// An IDProva Agent Identity Document (W3C DID Document).
-///
-/// Create with AIDBuilder or parse from JSON.
 #[pyclass]
 #[allow(clippy::upper_case_acronyms)]
 struct AID {
@@ -130,31 +229,26 @@ struct AID {
 
 #[pymethods]
 impl AID {
-    /// Get the DID identifier (e.g., "did:idprova:example.com:my-agent").
     #[getter]
     fn did(&self) -> &str {
         &self.inner.id
     }
 
-    /// Get the controller DID.
     #[getter]
     fn controller(&self) -> &str {
         &self.inner.controller
     }
 
-    /// Get the trust level string (e.g., "L0", "L1").
     #[getter]
     fn trust_level(&self) -> Option<&str> {
         self.inner.trust_level.as_deref()
     }
 
-    /// Serialize to JSON string.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(&self.inner)
             .map_err(|e| PyRuntimeError::new_err(format!("Serialization error: {e}")))
     }
 
-    /// Parse from JSON string.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let doc: AidDocument = serde_json::from_str(json)
@@ -163,7 +257,6 @@ impl AID {
         Ok(Self { inner: doc })
     }
 
-    /// Validate the document structure.
     fn validate(&self) -> PyResult<()> {
         self.inner.validate().map_err(to_py_err)
     }
@@ -174,18 +267,9 @@ impl AID {
 }
 
 // ---------------------------------------------------------------------------
-// AIDBuilder — Fluent builder for AID documents
+// AIDBuilder
 // ---------------------------------------------------------------------------
 
-/// Builder for creating Agent Identity Documents.
-///
-/// Example:
-///     builder = AIDBuilder()
-///     builder.id("did:idprova:example.com:my-agent")
-///     builder.controller("did:idprova:example.com:alice")
-///     builder.name("My Agent")
-///     builder.add_ed25519_key(keypair)
-///     aid = builder.build()
 #[pyclass]
 struct AIDBuilder {
     inner: AidBuilder,
@@ -195,58 +279,44 @@ struct AIDBuilder {
 impl AIDBuilder {
     #[new]
     fn new() -> Self {
-        Self {
-            inner: AidBuilder::new(),
-        }
+        Self { inner: AidBuilder::new() }
     }
 
-    /// Set the DID identifier.
     fn id(&mut self, id: &str) {
         self.inner = std::mem::take(&mut self.inner).id(id);
     }
 
-    /// Set the controller DID.
     fn controller(&mut self, controller: &str) {
         self.inner = std::mem::take(&mut self.inner).controller(controller);
     }
 
-    /// Set the human-readable agent name.
     fn name(&mut self, name: &str) {
         self.inner = std::mem::take(&mut self.inner).name(name);
     }
 
-    /// Set an optional description.
     fn description(&mut self, desc: &str) {
         self.inner = std::mem::take(&mut self.inner).description(desc);
     }
 
-    /// Set the AI model identifier.
     fn model(&mut self, model: &str) {
         self.inner = std::mem::take(&mut self.inner).model(model);
     }
 
-    /// Set the runtime environment.
     fn runtime(&mut self, runtime: &str) {
         self.inner = std::mem::take(&mut self.inner).runtime(runtime);
     }
 
-    /// Set the trust level (e.g., "L0", "L1").
     fn trust_level(&mut self, level: &str) {
         self.inner = std::mem::take(&mut self.inner).trust_level(level);
     }
 
-    /// Add an Ed25519 verification key from a KeyPair.
     fn add_ed25519_key(&mut self, keypair: &KeyPair) {
         self.inner = std::mem::take(&mut self.inner).add_ed25519_key(&keypair.inner);
     }
 
-    /// Build and validate the AID document.
     fn build(&mut self) -> PyResult<AID> {
         let builder = std::mem::take(&mut self.inner);
-        builder
-            .build()
-            .map(|doc| AID { inner: doc })
-            .map_err(to_py_err)
+        builder.build().map(|doc| AID { inner: doc }).map_err(to_py_err)
     }
 }
 
@@ -256,7 +326,7 @@ impl AIDBuilder {
 
 /// A Delegation Attestation Token — signed, scoped, time-bounded permission grant.
 ///
-/// Issue with DAT.issue(), parse with DAT.from_compact().
+/// Issue with DAT.issue(), verify with dat.verify(), parse with DAT.from_compact().
 #[pyclass]
 #[allow(clippy::upper_case_acronyms)]
 struct DAT {
@@ -265,18 +335,24 @@ struct DAT {
 
 #[pymethods]
 impl DAT {
-    /// Issue a new DAT signed by the issuer's key pair.
+    /// Issue a new DAT.
     ///
     /// Args:
-    ///     issuer_did: The DID of the delegator
-    ///     subject_did: The DID of the agent receiving delegation
-    ///     scope: List of scope strings (e.g., ["mcp:tool:read"])
-    ///     expires_in_seconds: Seconds until expiration
-    ///     signing_key: The issuer's KeyPair
-    ///     max_actions: Optional max number of actions
-    ///     require_receipt: Whether action receipts are required
+    ///     issuer_did: DID of the delegator
+    ///     subject_did: DID of the agent receiving delegation
+    ///     scope: List of scope strings, e.g. ["mcp:tool:read"]
+    ///     expires_in_seconds: TTL in seconds
+    ///     signing_key: Issuer's KeyPair
+    ///     max_actions: Optional lifetime action cap
+    ///     require_receipt: Whether receipts are required per action
+    ///     max_delegation_depth: Max re-delegation depth (0 = no re-delegation)
+    ///     min_trust_level: Minimum agent trust level (0-100)
     #[staticmethod]
-    #[pyo3(signature = (issuer_did, subject_did, scope, expires_in_seconds, signing_key, max_actions=None, require_receipt=None))]
+    #[pyo3(signature = (
+        issuer_did, subject_did, scope, expires_in_seconds, signing_key,
+        max_actions=None, require_receipt=None,
+        max_delegation_depth=None, min_trust_level=None
+    ))]
     fn issue(
         issuer_did: &str,
         subject_did: &str,
@@ -285,14 +361,23 @@ impl DAT {
         signing_key: &KeyPair,
         max_actions: Option<u64>,
         require_receipt: Option<bool>,
+        max_delegation_depth: Option<u32>,
+        min_trust_level: Option<u8>,
     ) -> PyResult<Self> {
         let expires_at = Utc::now() + Duration::seconds(expires_in_seconds);
 
-        let constraints = if max_actions.is_some() || require_receipt.is_some() {
+        let has_constraints = max_actions.is_some()
+            || require_receipt.is_some()
+            || max_delegation_depth.is_some()
+            || min_trust_level.is_some();
+
+        let constraints = if has_constraints {
             Some(RustDatConstraints {
                 max_actions,
-                allowed_servers: None,
                 require_receipt,
+                max_delegation_depth,
+                min_trust_level,
+                ..Default::default()
             })
         } else {
             None
@@ -311,12 +396,12 @@ impl DAT {
         .map_err(to_py_err)
     }
 
-    /// Serialize to compact JWS format (header.payload.signature).
+    /// Serialize to compact JWS format.
     fn to_compact(&self) -> PyResult<String> {
         self.inner.to_compact().map_err(to_py_err)
     }
 
-    /// Parse from compact JWS string (validates algorithm).
+    /// Parse from compact JWS string.
     #[staticmethod]
     fn from_compact(compact: &str) -> PyResult<Self> {
         RustDat::from_compact(compact)
@@ -324,7 +409,34 @@ impl DAT {
             .map_err(to_py_err)
     }
 
-    /// Verify the DAT signature against a public key (32 bytes).
+    /// Full verification pipeline: sig + timing + scope + all constraints.
+    ///
+    /// Args:
+    ///     public_key_bytes: 32-byte Ed25519 public key of the issuer
+    ///     required_scope: Scope string to check (e.g. "mcp:tool:read"), or "" to skip
+    ///     ctx: EvaluationContext with runtime values (optional, defaults to empty context)
+    ///
+    /// Raises ValueError on any verification failure.
+    #[pyo3(signature = (public_key_bytes, required_scope="", ctx=None))]
+    fn verify(
+        &self,
+        public_key_bytes: &[u8],
+        required_scope: &str,
+        ctx: Option<&EvaluationContext>,
+    ) -> PyResult<()> {
+        if public_key_bytes.len() != 32 {
+            return Err(PyValueError::new_err("Public key must be exactly 32 bytes"));
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(public_key_bytes);
+
+        let default_ctx = EvaluationContext::default();
+        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust();
+
+        self.inner.verify(&key, required_scope, &rust_ctx).map_err(to_py_err)
+    }
+
+    /// Verify signature only (no scope/constraint checks).
     fn verify_signature(&self, public_key_bytes: &[u8]) -> PyResult<bool> {
         if public_key_bytes.len() != 32 {
             return Err(PyValueError::new_err("Public key must be exactly 32 bytes"));
@@ -337,42 +449,35 @@ impl DAT {
         }
     }
 
-    /// Validate timing constraints (not expired, not before valid).
     fn validate_timing(&self) -> PyResult<()> {
         self.inner.validate_timing().map_err(to_py_err)
     }
 
-    /// Check if the DAT is expired.
     #[getter]
     fn is_expired(&self) -> bool {
         self.inner.is_expired()
     }
 
-    /// Get the issuer DID.
     #[getter]
     fn issuer(&self) -> &str {
         &self.inner.claims.iss
     }
 
-    /// Get the subject DID.
     #[getter]
     fn subject(&self) -> &str {
         &self.inner.claims.sub
     }
 
-    /// Get the token ID (jti).
     #[getter]
     fn jti(&self) -> &str {
         &self.inner.claims.jti
     }
 
-    /// Get the granted scopes as a list of strings.
     #[getter]
     fn scope(&self) -> Vec<String> {
         self.inner.claims.scope.clone()
     }
 
-    /// Get the expiration timestamp (Unix seconds).
     #[getter]
     fn expires_at(&self) -> i64 {
         self.inner.claims.exp
@@ -390,10 +495,9 @@ impl DAT {
 }
 
 // ---------------------------------------------------------------------------
-// Scope — Permission scope
+// Scope
 // ---------------------------------------------------------------------------
 
-/// A permission scope in namespace:resource:action format.
 #[pyclass]
 struct Scope {
     inner: RustScope,
@@ -401,15 +505,11 @@ struct Scope {
 
 #[pymethods]
 impl Scope {
-    /// Parse a scope string (e.g., "mcp:tool:read").
     #[new]
     fn new(scope_str: &str) -> PyResult<Self> {
-        RustScope::parse(scope_str)
-            .map(|s| Self { inner: s })
-            .map_err(to_py_err)
+        RustScope::parse(scope_str).map(|s| Self { inner: s }).map_err(to_py_err)
     }
 
-    /// Check if this scope covers (permits) the requested scope.
     fn covers(&self, requested: &Scope) -> bool {
         self.inner.covers(&requested.inner)
     }
@@ -427,7 +527,6 @@ impl Scope {
 // TrustLevel
 // ---------------------------------------------------------------------------
 
-/// Trust level for an agent identity (L0 through L4).
 #[pyclass]
 #[derive(Clone)]
 struct TrustLevel {
@@ -436,7 +535,6 @@ struct TrustLevel {
 
 #[pymethods]
 impl TrustLevel {
-    /// Parse a trust level string (e.g., "L0", "L1", "L2", "L3", "L4").
     #[new]
     fn new(level: &str) -> PyResult<Self> {
         RustTrustLevel::from_str_repr(level)
@@ -449,12 +547,10 @@ impl TrustLevel {
             })
     }
 
-    /// Check if this trust level meets the required minimum.
     fn meets_minimum(&self, required: &TrustLevel) -> bool {
         self.inner.meets_minimum(required.inner)
     }
 
-    /// Get a human-readable description of this trust level.
     #[getter]
     fn description(&self) -> &str {
         self.inner.description()
@@ -465,21 +561,14 @@ impl TrustLevel {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "TrustLevel('{}' — {})",
-            self.inner.as_str(),
-            self.inner.description()
-        )
+        format!("TrustLevel('{}' — {})", self.inner.as_str(), self.inner.description())
     }
 }
 
 // ---------------------------------------------------------------------------
-// ReceiptLog — Append-only, hash-chained audit log
+// ReceiptLog
 // ---------------------------------------------------------------------------
 
-/// An append-only, hash-chained audit receipt log.
-///
-/// Provides tamper-evident logging of agent actions.
 #[pyclass]
 struct ReceiptLog {
     inner: RustReceiptLog,
@@ -487,38 +576,111 @@ struct ReceiptLog {
 
 #[pymethods]
 impl ReceiptLog {
-    /// Create a new empty receipt log.
     #[new]
     fn new() -> Self {
-        Self {
-            inner: RustReceiptLog::new(),
-        }
+        Self { inner: RustReceiptLog::new() }
     }
 
-    /// Verify the integrity of the entire receipt chain.
-    /// Raises an error if any receipt has been tampered with.
     fn verify_integrity(&self) -> PyResult<()> {
         self.inner.verify_integrity().map_err(to_py_err)
     }
 
-    /// Get the hash of the last receipt (or "genesis" if empty).
     #[getter]
     fn last_hash(&self) -> String {
         self.inner.last_hash()
     }
 
-    /// Get the next sequence number.
     #[getter]
     fn next_sequence(&self) -> u64 {
         self.inner.next_sequence()
     }
 
-    /// Get the number of entries in the log.
     fn __len__(&self) -> usize {
         self.inner.len()
     }
 
-    /// Serialize the log to JSON string.
+    /// Append a new receipt to the log.
+    ///
+    /// Constructs a signed, hash-chained receipt from the provided action details.
+    /// The receipt is automatically linked to the previous entry in the chain.
+    ///
+    /// Args:
+    ///     agent_did: DID of the agent performing the action
+    ///     dat_jti: JTI of the DAT authorizing the action
+    ///     action_type: Action type string (e.g., "mcp:tool-call")
+    ///     input_data: Input data bytes (hashed with BLAKE3, not stored raw)
+    ///     signing_key: Agent's KeyPair for signing the receipt
+    ///     server: Optional target server hostname
+    ///     tool: Optional tool/method name
+    ///     output_data: Optional output data bytes (hashed with BLAKE3)
+    ///     status: Action status (default: "success")
+    ///     duration_ms: Optional duration in milliseconds
+    ///     session_id: Optional session identifier
+    #[pyo3(signature = (
+        agent_did, dat_jti, action_type, input_data, signing_key,
+        server=None, tool=None, output_data=None,
+        status="success", duration_ms=None, session_id=None
+    ))]
+    fn append(
+        &mut self,
+        agent_did: &str,
+        dat_jti: &str,
+        action_type: &str,
+        input_data: &[u8],
+        signing_key: &KeyPair,
+        server: Option<String>,
+        tool: Option<String>,
+        output_data: Option<&[u8]>,
+        status: &str,
+        duration_ms: Option<u64>,
+        session_id: Option<String>,
+    ) -> PyResult<()> {
+        let receipt_id = ulid::Ulid::new().to_string();
+        let prev_hash = self.inner.last_hash();
+        let seq = self.inner.next_sequence();
+
+        let action = ActionDetails {
+            action_type: action_type.to_string(),
+            server,
+            tool,
+            input_hash: prefixed_blake3(input_data),
+            output_hash: output_data.map(prefixed_blake3),
+            status: status.to_string(),
+            duration_ms,
+        };
+
+        let context = session_id.map(|sid| ReceiptContext {
+            session_id: Some(sid),
+            parent_receipt_id: None,
+            request_id: None,
+        });
+
+        let chain = ChainLink {
+            previous_hash: prev_hash,
+            sequence_number: seq,
+        };
+
+        // Build receipt with empty signature, serialize, sign, then fill signature
+        let mut receipt = Receipt {
+            id: receipt_id,
+            timestamp: Utc::now(),
+            agent: agent_did.to_string(),
+            dat: dat_jti.to_string(),
+            action,
+            context,
+            chain,
+            signature: String::new(),
+        };
+
+        let canonical = serde_json::to_vec(&receipt)
+            .map_err(|e| PyRuntimeError::new_err(format!("Serialization error: {e}")))?;
+        let sig_bytes = signing_key.inner.sign(&canonical);
+        receipt.signature = hex::encode(sig_bytes);
+
+        self.inner.append(receipt);
+        Ok(())
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(self.inner.entries())
             .map_err(|e| PyRuntimeError::new_err(format!("Serialization error: {e}")))
@@ -534,14 +696,9 @@ impl ReceiptLog {
 }
 
 // ---------------------------------------------------------------------------
-// Convenience: AgentIdentity — high-level API
+// AgentIdentity — high-level convenience API
 // ---------------------------------------------------------------------------
 
-/// High-level convenience class for creating agent identities.
-///
-/// Example:
-///     identity = AgentIdentity.create("my-agent", domain="example.com")
-///     print(identity.did)
 #[pyclass]
 struct AgentIdentity {
     #[pyo3(get)]
@@ -552,12 +709,6 @@ struct AgentIdentity {
 
 #[pymethods]
 impl AgentIdentity {
-    /// Create a new agent identity with a generated key pair.
-    ///
-    /// Args:
-    ///     name: Agent name (lowercase alphanumeric + hyphens)
-    ///     domain: Domain namespace (default: "local.dev")
-    ///     controller: Controller DID (default: auto-generated)
     #[staticmethod]
     #[pyo3(signature = (name, domain="local.dev", controller=None))]
     fn create(name: &str, domain: &str, controller: Option<&str>) -> PyResult<Self> {
@@ -579,22 +730,14 @@ impl AgentIdentity {
         Ok(Self { did, keypair, aid })
     }
 
-    /// Get the AID document.
     fn aid(&self) -> AID {
-        AID {
-            inner: self.aid.clone(),
-        }
+        AID { inner: self.aid.clone() }
     }
 
-    /// Get the key pair (for signing operations).
     fn keypair(&self) -> KeyPair {
-        // Clone the keypair — the original stays in AgentIdentity
-        KeyPair {
-            inner: RustKeyPair::from_secret_bytes(self.keypair.secret_bytes()),
-        }
+        KeyPair { inner: RustKeyPair::from_secret_bytes(self.keypair.secret_bytes()) }
     }
 
-    /// Issue a delegation token to another agent.
     #[pyo3(signature = (subject_did, scope, expires_in_seconds=3600))]
     fn issue_dat(
         &self,
@@ -603,20 +746,97 @@ impl AgentIdentity {
         expires_in_seconds: i64,
     ) -> PyResult<DAT> {
         let expires_at = Utc::now() + Duration::seconds(expires_in_seconds);
-        RustDat::issue(
-            &self.did,
-            subject_did,
-            scope,
-            expires_at,
-            None,
-            None,
-            &self.keypair,
-        )
-        .map(|dat| DAT { inner: dat })
-        .map_err(to_py_err)
+        RustDat::issue(&self.did, subject_did, scope, expires_at, None, None, &self.keypair)
+            .map(|dat| DAT { inner: dat })
+            .map_err(to_py_err)
     }
 
-    /// Get the public key bytes (32 bytes).
+    /// Save this identity to disk.
+    ///
+    /// Creates a directory containing the private key, AID document, and metadata.
+    /// The private key file has restrictive permissions (0600 on Unix).
+    ///
+    /// Args:
+    ///     path: Directory path. Defaults to ~/.idprova/identities/{name}/
+    #[pyo3(signature = (path=None))]
+    fn save(&self, path: Option<String>) -> PyResult<()> {
+        let dir = match path {
+            Some(p) => expand_home(&p),
+            None => {
+                let name = self.did.rsplit(':').next().unwrap_or("agent");
+                default_identity_dir(name)
+            }
+        };
+
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to create directory: {e}")))?;
+
+        // Save secret key (hex-encoded)
+        let key_path = dir.join("secret.key");
+        let secret_hex = hex::encode(self.keypair.secret_bytes());
+        std::fs::write(&key_path, &secret_hex)
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to write key: {e}")))?;
+
+        // Restrictive permissions on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| PyRuntimeError::new_err(format!("Failed to set permissions: {e}")))?;
+        }
+
+        // Save AID document
+        let aid_json = serde_json::to_string_pretty(&self.aid)
+            .map_err(|e| PyRuntimeError::new_err(format!("Serialization error: {e}")))?;
+        std::fs::write(dir.join("aid.json"), &aid_json)
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to write AID: {e}")))?;
+
+        // Save metadata
+        let metadata = serde_json::json!({
+            "version": 1,
+            "did": self.did,
+            "created": Utc::now().to_rfc3339(),
+        });
+        std::fs::write(
+            dir.join("identity.json"),
+            serde_json::to_string_pretty(&metadata).unwrap(),
+        )
+        .map_err(|e| PyRuntimeError::new_err(format!("Failed to write metadata: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Load an identity from disk.
+    ///
+    /// Args:
+    ///     path: Directory containing secret.key and aid.json
+    #[staticmethod]
+    fn load(path: &str) -> PyResult<Self> {
+        let dir = expand_home(path);
+
+        // Read secret key
+        let secret_hex = std::fs::read_to_string(dir.join("secret.key"))
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to read key: {e}")))?;
+        let secret_bytes = hex::decode(secret_hex.trim())
+            .map_err(|e| PyValueError::new_err(format!("Invalid key hex: {e}")))?;
+        if secret_bytes.len() != 32 {
+            return Err(PyValueError::new_err("Secret key must be 32 bytes"));
+        }
+        let mut key_arr = [0u8; 32];
+        key_arr.copy_from_slice(&secret_bytes);
+        let keypair = RustKeyPair::from_secret_bytes(&key_arr);
+
+        // Read AID document
+        let aid_json = std::fs::read_to_string(dir.join("aid.json"))
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to read AID: {e}")))?;
+        let aid: AidDocument = serde_json::from_str(&aid_json)
+            .map_err(|e| PyValueError::new_err(format!("Invalid AID JSON: {e}")))?;
+        aid.validate().map_err(to_py_err)?;
+
+        let did = aid.id.clone();
+        Ok(Self { did, keypair, aid })
+    }
+
     #[getter]
     fn public_key_bytes(&self) -> Vec<u8> {
         self.keypair.public_key_bytes().to_vec()
@@ -632,12 +852,10 @@ impl AgentIdentity {
 // ---------------------------------------------------------------------------
 
 /// IDProva — Verifiable identity for the agent era.
-///
-/// This module provides Ed25519-based agent identity, scoped delegation tokens,
-/// and hash-chained audit receipts for AI agent systems.
 #[pymodule]
 fn idprova(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<KeyPair>()?;
+    m.add_class::<EvaluationContext>()?;
     m.add_class::<AID>()?;
     m.add_class::<AIDBuilder>()?;
     m.add_class::<DAT>()?;

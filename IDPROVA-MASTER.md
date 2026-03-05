@@ -1,6 +1,6 @@
 # IDProva Master Task Board
 
-> **Last Updated:** 2026-03-05
+> **Last Updated:** 2026-03-06
 > **Plan File:** `C:\Users\praty\.claude\plans\rustling-roaming-peach.md` (full detail)
 > **Notion:** Gap Analysis + Architecture Plan saved 2026-03-04
 
@@ -10,9 +10,9 @@
 
 | Track | Branch | Current Phase | Session | Status | Unblocked By |
 |-------|--------|--------------|---------|--------|-------------|
-| **A** | `idprova/track-a-core-security` | Phase 2 | S3 | 🟢 P2 scaffolding DONE (63 tests) | Nothing |
+| **A** | `idprova/track-a-core-security` | Phase 2 | S6 | 🟢 **P2 COMPLETE** — PolicyEvaluator + all 7 evaluators + inheritance + RateTracker (126 tests) | Nothing |
 | **B** | `idprova/track-b-registry` | Phase 6 | — | 🔴 BLOCKED | Track A Phase 4 done |
-| **C** | `idprova/track-c-sdk-cli` | Phase 7 | — | 🟡 UNBLOCKED | Track A Phase 0 ✅ |
+| **C** | `idprova/track-c-sdk-cli` | Phase 7 | S1 | 🟢 Session C-1+C-2 DONE (persistence+config) | Track A Phase 0 ✅ |
 | **D** | `idprova/track-d-docs-website` | Doc stubs | S1 | 🟡 READY TO START | Nothing |
 | **E** | `idprova/track-e-infra` | Phase 10 | — | 🔴 BLOCKED | A+B near complete |
 | **F** | `idprova/track-f-advanced` | Phase 11+ | — | 🔴 BLOCKED | A+B complete |
@@ -23,6 +23,7 @@
 
 - [x] **P0 complete** → unlock Track C (SDK/CLI work) — ✅ 2026-03-05
 - [x] **P1 complete** → Phase 2 (RBAC) can start on Track A — ✅ 2026-03-05
+- [x] **P2 complete** → RBAC Policy Engine fully implemented — ✅ 2026-03-06
 - [ ] **P4 complete** → unlock Track B (Registry hardening)
 - [ ] **P5 complete** → unlock Track F (Advanced: A2A/SPIFFE)
 - [ ] **P6 complete** → unlock Track E (Infra/Release)
@@ -37,48 +38,50 @@
 | `HANDOVERS/P0-S1-track-a.md` | 0 | 1 | A | ✅ 2026-03-05 — S1/S2/S3/S4 fixed, 42 tests |
 | `HANDOVERS/P1-S2-track-a.md` | 1 | 2 | A | ✅ 2026-03-05 — D2/SR-1/SR-3/SR-4/SR-8/S5/S6/S7, 54 tests |
 | `HANDOVERS/P2-S3-track-a.md` | 2 | 3 | A | ✅ 2026-03-05 — Policy module scaffolding, 63 tests |
+| (no handover) | 2 | 4 | A | ✅ 2026-03-05 — RateLimit/IP/TrustLevel evaluators, 78 tests |
+| `HANDOVERS/P2-S56-track-a.md` | 2 | 5-6 | A | ✅ 2026-03-06 — All evaluators + PolicyEvaluator + inheritance + RateTracker, 126 tests |
+| `HANDOVERS/P7-S1-track-c.md` | 7 | 1 | C | ✅ 2026-03-05 — SDK persistence + CLI config, 81 tests |
 
 ---
 
 ## Critical Path (Track A — MUST COMPLETE IN ORDER)
 
-### Phase 0 — Pre-Launch Critical Fixes (2 sessions)
+### Phase 0 — Pre-Launch Critical Fixes ✅ DONE
 
-**Session A-1** ✅ DONE (2026-03-05) — see HANDOVERS/P0-S1-track-a.md:
-- [x] **S1: JWS re-serialization** — raw_header_b64/raw_claims_b64 on Dat, verify uses original bytes
-- [x] **S2: Receipt signatures never verified** — Receipt::verify_signature() + ReceiptLog::verify_integrity_with_key()
-- [x] **S3: Receipt hash circular dep** — ReceiptSigningPayload excludes signature field
-- [x] **S4: Non-canonical JSON** — serde_json_canonicalizer (RFC 8785 JCS) in to_canonical_json()
+- [x] **Session A-1** — JWS re-serialization, receipt sigs, hash dep, canonical JSON (42 tests)
+- [x] **Session A-2** — 4-part scope grammar (`namespace:protocol:resource:action`), security hardening SR-1/SR-3/SR-4/SR-8/S5/S6/S7 (54 tests)
 
-**Session A-2** (NEXT):
-- [ ] **D1: Fix Quick Start API mismatch**
-  - File: `idprova-website/src/content/docs/docs/quick-start.mdx`
-  - Fix: Update all `DelegationToken::issue()` → `Dat::issue()`, fix Duration → DateTime<Utc>
-- [ ] **D2: Scope grammar decision** (discuss with Pratyush first)
-  - Options: (a) 3-part with literal colons in action names, (b) 4-part with path hierarchy
-  - File: `crates/idprova-core/src/dat/scope.rs`
+### Phase 1 — Security Hardening ✅ DONE
 
----
+- [x] Zeroize private keys (ZeroizeOnDrop)
+- [x] Hard-reject non-EdDSA algorithms
+- [x] Max delegation depth (default 5, hard max 10)
+- [x] Pin exact crypto crate versions
+- [x] Remove unused hkdf dependency
 
-### Phase 1 — P0 Security Hardening (2 sessions)
+### Phase 2 — RBAC Policy Engine ✅ DONE (2026-03-06)
 
-**Session A-3**:
-- [ ] **SR-1: Zeroize private keys** — enable `ed25519-dalek/zeroize`, derive `ZeroizeOnDrop` on `KeyPair`
-- [ ] **S5: Remove `secret_bytes()` from public API** — `crates/idprova-core/src/crypto/keys.rs`
-- [ ] **S6: Pin exact versions for crypto crates** — `Cargo.toml`
-- [ ] **S7: Remove unused `hkdf` dependency** — `Cargo.toml`
+- [x] **Session A-3** — EvaluationContext, PolicyDecision, ConstraintEvaluator trait + 7 stubs (63 tests)
+- [x] **Session A-4** — RateLimitEvaluator, IpConstraintEvaluator, TrustLevelEvaluator (78 tests)
+- [x] **Session A-5** — DelegationDepthEvaluator, GeofenceEvaluator, TimeWindowEvaluator, ConfigAttestationEvaluator (98 tests)
+- [x] **Session A-6** — PolicyEvaluator engine, constraint inheritance validation, RateTracker (126 tests)
 
-**Session A-4**:
-- [ ] **SR-3: Hard-reject non-EdDSA algorithms** — `crates/idprova-core/src/dat/token.rs`
-- [ ] **SR-8: Max delegation depth** — `crates/idprova-core/src/dat/chain.rs`
-- [ ] **S8: Registry CORS/CSRF** — `crates/idprova-registry/src/main.rs`
-- [ ] **SR-4: Test deny_unknown_fields** — add injection tests
+**Policy module structure:**
+```
+crates/idprova-core/src/policy/
+  mod.rs          — re-exports
+  context.rs      — EvaluationContext + builder
+  decision.rs     — PolicyDecision, DenialReason (14 variants)
+  constraints.rs  — ConstraintEvaluator trait + 7 implementations
+  evaluator.rs    — PolicyEvaluator (scope→timing→constraints pipeline)
+  inheritance.rs  — validate_constraint_inheritance()
+  rate.rs         — RateTracker (thread-safe sliding-window counters)
+```
 
----
-
-### Phase 2 — RBAC Policy Engine (4 sessions)
-
-See plan file Phase 2 section for full detail.
+### Phase 1 Leftovers (lower priority)
+- [ ] **SR-10** — SQL injection test for registry store
+- [ ] **S8** — Registry CORS
+- [ ] **D1** — Fix Quick Start docs (`DelegationToken` → `Dat`)
 
 ---
 
@@ -104,14 +107,14 @@ See plan file Phase 5 section.
 
 ### Phase 7 — SDK Fixes (2 sessions)
 
-**Session C-1**:
-- [ ] Python SDK: `AgentIdentity.save(path)` / `AgentIdentity.load(path)` (PyO3)
-- [ ] Python SDK: Expose `ReceiptLog.append()` in bindings
-- [ ] CLI: `~/.idprova/config.toml` support (registry URL, default key path)
+**Session C-1** ✅ DONE (2026-03-05) — see HANDOVERS/P7-S1-track-c.md:
+- [x] Python SDK: `AgentIdentity.save(path)` / `AgentIdentity.load(path)` (PyO3)
+- [x] Python SDK: Expose `ReceiptLog.append()` in bindings
+- [x] CLI: `~/.idprova/config.toml` support (registry URL, default key path)
 
-**Session C-2**:
-- [ ] TypeScript SDK: same persistence + receipt append (napi-rs)
-- [ ] TypeScript SDK: config file support
+**Session C-2** ✅ DONE (2026-03-05) — same handover:
+- [x] TypeScript SDK: same persistence + receipt append (napi-rs)
+- [ ] TypeScript SDK: config file support (deferred — config is CLI-focused)
 
 ---
 

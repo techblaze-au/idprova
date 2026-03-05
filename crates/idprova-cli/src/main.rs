@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod commands;
+mod config;
 
 /// IDProva CLI — manage AI agent identities, delegation tokens, and receipts.
 #[derive(Parser)]
@@ -67,9 +68,9 @@ enum AidCommands {
     Resolve {
         /// The DID to resolve.
         id: String,
-        /// Registry URL.
-        #[arg(long, default_value = "https://registry.idprova.dev")]
-        registry: String,
+        /// Registry URL (overrides config.toml).
+        #[arg(long)]
+        registry: Option<String>,
     },
 
     /// Verify an AID document.
@@ -104,9 +105,15 @@ enum DatCommands {
     Verify {
         /// The compact JWS token to verify.
         token: String,
-        /// Registry URL for AID resolution.
-        #[arg(long, default_value = "https://registry.idprova.dev")]
-        registry: String,
+        /// Registry URL for AID resolution (overrides config.toml).
+        #[arg(long)]
+        registry: Option<String>,
+        /// Path to the issuer's public key file (hex-encoded, for offline verification).
+        #[arg(long)]
+        key: Option<String>,
+        /// Required scope to check against the DAT's grants (e.g. "mcp:tool:read").
+        #[arg(long, default_value = "")]
+        scope: String,
     },
 
     /// Inspect a DAT (decode without verifying).
@@ -136,6 +143,7 @@ fn main() -> Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
+    let cfg = config::Config::load().unwrap_or_default();
     let cli = Cli::parse();
 
     match cli.command {
@@ -161,7 +169,8 @@ fn main() -> Result<()> {
                 )?;
             }
             AidCommands::Resolve { id, registry } => {
-                commands::aid::resolve(&id, &registry)?;
+                let reg = registry.unwrap_or_else(|| cfg.registry_url.clone());
+                commands::aid::resolve(&id, &reg)?;
             }
             AidCommands::Verify { file } => {
                 commands::aid::verify(&file)?;
@@ -177,8 +186,9 @@ fn main() -> Result<()> {
             } => {
                 commands::dat::issue(&issuer, &subject, &scope, &expires_in, &key)?;
             }
-            DatCommands::Verify { token, registry } => {
-                commands::dat::verify(&token, &registry)?;
+            DatCommands::Verify { token, registry, key, scope } => {
+                let reg = registry.unwrap_or_else(|| cfg.registry_url.clone());
+                commands::dat::verify(&token, &reg, key.as_deref(), &scope)?;
             }
             DatCommands::Inspect { token } => {
                 commands::dat::inspect(&token)?;

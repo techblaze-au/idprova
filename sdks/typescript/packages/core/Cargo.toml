@@ -16,6 +16,8 @@ napi-derive = "2"
 idprova-core = { path = "../../../../crates/idprova-core" }
 chrono = { workspace = true }
 serde_json = { workspace = true }
+hex = { workspace = true }
+ulid = { workspace = true }
 
 [build-dependencies]
 napi-build = "2"
