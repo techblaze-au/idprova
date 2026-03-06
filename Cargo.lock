@@ -1124,6 +1124,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "idprova-verify"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "idprova-core",
+ "proptest",
+ "thiserror",
+ "ulid",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
