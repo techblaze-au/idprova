@@ -64,10 +64,17 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
     match key_path {
         Some(path) => {
             // ── Offline full verification ──────────────────────────────────
-            let key_hex = fs::read_to_string(path)?.trim().to_string();
-            let key_bytes: [u8; 32] = hex::decode(&key_hex)?
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("key must be 32 bytes"))?;
+            // Accept hex (private key secret bytes) OR multibase public key (.pub file)
+            let key_str = fs::read_to_string(path)?.trim().to_string();
+            let key_bytes: [u8; 32] = if key_str.starts_with('z') {
+                // multibase (base58btc) — this is the .pub file
+                KeyPair::decode_multibase_pubkey(&key_str)
+                    .map_err(|e| anyhow::anyhow!("invalid multibase public key: {e}"))?
+            } else {
+                hex::decode(&key_str)?
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("key must be 32 bytes"))?
+            };
 
             // Build a default context — caller can extend via env vars in future
             let ctx = EvaluationContext::default();
