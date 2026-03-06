@@ -10,17 +10,67 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::limit::RequestBodyLimitLayer;
 use tracing_subscriber::EnvFilter;
 
 mod store;
 
 use store::{AidStore, RevocationRecord};
 
+// ── Registry admin public key ─────────────────────────────────────────────────
+
+/// Load the registry admin public key from the `REGISTRY_ADMIN_PUBKEY` environment variable.
+///
+/// The value must be a 64-character lowercase hex string (32 bytes Ed25519 public key).
+/// If unset, write endpoints are **open** (development mode — warn loudly).
+fn load_admin_pubkey() -> Option<[u8; 32]> {
+    let hex_str = std::env::var("REGISTRY_ADMIN_PUBKEY").ok()?;
+    let bytes = hex::decode(hex_str.trim()).ok()?;
+    bytes.try_into().ok()
+}
+
+// ── Per-IP rate limiter ───────────────────────────────────────────────────────
+
+/// Simple sliding-window rate limiter (per client IP, per minute).
+#[derive(Default)]
+struct RateLimiter {
+    /// Map of IP → list of request timestamps in the last 60 seconds.
+    windows: HashMap<String, Vec<Instant>>,
+}
+
+impl RateLimiter {
+    /// Returns `true` if the request should be allowed, `false` if rate-limited.
+    ///
+    /// Allows up to `limit` requests per 60-second sliding window per IP.
+    fn check_and_record(&mut self, ip: &str, limit: usize) -> bool {
+        let now = Instant::now();
+        let window = self.windows.entry(ip.to_string()).or_default();
+        // Prune entries older than 60 seconds
+        window.retain(|t| now.duration_since(*t).as_secs() < 60);
+        if window.len() >= limit {
+            return false;
+        }
+        window.push(now);
+        true
+    }
+}
+
 /// Shared application state — uses std::sync::Mutex because rusqlite::Connection is !Sync.
-type SharedState = Arc<Mutex<AidStore>>;
+#[derive(Clone)]
+struct AppState {
+    store: Arc<Mutex<AidStore>>,
+    /// Ed25519 public key for admin DAT verification. None = open (dev mode).
+    admin_pubkey: Option<[u8; 32]>,
+    /// Per-IP rate limiter.
+    rate_limiter: Arc<Mutex<RateLimiter>>,
+}
+
+type SharedState = Arc<AppState>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -31,9 +81,19 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting IDProva Registry v{}", env!("CARGO_PKG_VERSION"));
 
-    // Initialize the store
+    // Initialize the store and app state
     let store = AidStore::new("idprova_registry.db")?;
-    let state: SharedState = Arc::new(Mutex::new(store));
+    let admin_pubkey = load_admin_pubkey();
+    if admin_pubkey.is_none() {
+        tracing::warn!(
+            "REGISTRY_ADMIN_PUBKEY not set — write endpoints are OPEN (development mode only)"
+        );
+    }
+    let state: SharedState = Arc::new(AppState {
+        store: Arc::new(Mutex::new(store)),
+        admin_pubkey,
+        rate_limiter: Arc::new(Mutex::new(RateLimiter::default())),
+    });
 
     // CORS — allow all origins/methods/headers (registry is a public read API)
     let cors = CorsLayer::new()
@@ -52,7 +112,10 @@ async fn main() -> Result<()> {
         .route("/v1/dat/verify", post(verify_dat))
         .route("/v1/dat/revoke", post(revoke_dat))
         .route("/v1/dat/revoked/:jti", get(check_revocation))
+        .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn(security_headers))
+        // 1 MB body limit on all requests
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .layer(cors)
         .with_state(state);
 
@@ -84,6 +147,93 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
     response
 }
 
+// ── Write authorization helper ────────────────────────────────────────────────
+
+/// Verify that the request carries a valid admin DAT Bearer token.
+///
+/// If `state.admin_pubkey` is `None` (dev mode), all writes are permitted.
+/// Otherwise the `Authorization: Bearer <compact-jws>` header is required and
+/// the token must be verifiable against the configured admin public key.
+fn require_write_auth(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<(), (StatusCode, Json<Value>)> {
+    let pubkey = match state.admin_pubkey {
+        Some(k) => k,
+        None => return Ok(()), // dev mode — open writes
+    };
+
+    let auth = headers.get("Authorization").ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Authorization header required for write operations" })),
+        )
+    })?;
+
+    let auth_str = auth.to_str().unwrap_or("");
+    let token = auth_str.strip_prefix("Bearer ").unwrap_or("").trim();
+    if token.is_empty() {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Bearer token required" })),
+        ));
+    }
+
+    let ctx = idprova_core::dat::constraints::EvaluationContext::default();
+    idprova_verify::verify_dat(token, &pubkey, "", &ctx).map_err(|e| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": format!("invalid admin token: {e}") })),
+        )
+    })?;
+
+    Ok(())
+}
+
+// ── Rate limiting middleware ───────────────────────────────────────────────────
+
+/// Per-IP rate limiting: 120 requests per 60-second window.
+async fn rate_limit_middleware(
+    State(state): State<SharedState>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    // Extract client IP from X-Forwarded-For or X-Real-IP, fallback to "unknown"
+    let ip = req
+        .headers()
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            req.headers()
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let allowed = {
+        let mut limiter = state.rate_limiter.lock().unwrap();
+        limiter.check_and_record(&ip, 120)
+    };
+
+    if allowed {
+        next.run(req).await
+    } else {
+        let body = serde_json::to_string(&json!({
+            "error": "rate limit exceeded — max 120 requests per 60 seconds per IP"
+        }))
+        .unwrap_or_default();
+        Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header("Content-Type", "application/json")
+            .header("Retry-After", "60")
+            .body(Body::from(body))
+            .unwrap()
+    }
+}
+
 async fn health() -> Json<Value> {
     Json(json!({
         "status": "ok",
@@ -104,9 +254,13 @@ async fn meta() -> Json<Value> {
 
 async fn register_aid(
     State(state): State<SharedState>,
+    headers: axum::http::HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
+    // Require valid DAT for write operations
+    require_write_auth(&state, &headers)?;
+
     let did = format!("did:idprova:{id}");
 
     // Validate the AID document
@@ -124,7 +278,7 @@ async fn register_aid(
         ));
     }
 
-    let store = state.lock().unwrap();
+    let store = state.store.lock().unwrap();
     let is_new = store.put(&did, &doc).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -152,7 +306,7 @@ async fn resolve_aid(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let did = format!("did:idprova:{id}");
-    let store = state.lock().unwrap();
+    let store = state.store.lock().unwrap();
 
     match store.get(&did) {
         Ok(Some(doc)) => Ok(Json(serde_json::to_value(doc).unwrap())),
@@ -169,10 +323,12 @@ async fn resolve_aid(
 
 async fn deactivate_aid(
     State(state): State<SharedState>,
+    headers: axum::http::HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    require_write_auth(&state, &headers)?;
     let did = format!("did:idprova:{id}");
-    let store = state.lock().unwrap();
+    let store = state.store.lock().unwrap();
 
     match store.delete(&did) {
         Ok(true) => Ok(Json(json!({ "id": did, "status": "deactivated" }))),
@@ -192,7 +348,7 @@ async fn get_public_key(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let did = format!("did:idprova:{id}");
-    let store = state.lock().unwrap();
+    let store = state.store.lock().unwrap();
 
     match store.get(&did) {
         Ok(Some(doc)) => {
@@ -313,7 +469,7 @@ async fn verify_dat(
 
     // 1b. Revocation check — fail fast before any crypto work
     {
-        let store = state.lock().unwrap();
+        let store = state.store.lock().unwrap();
         match store.get_revocation(&jti) {
             Ok(Some(rev)) => {
                 tracing::info!("Rejected revoked DAT jti={jti} reason={}", rev.reason);
@@ -344,7 +500,7 @@ async fn verify_dat(
 
     // 3. Resolve AID from registry store
     let doc = {
-        let store = state.lock().unwrap();
+        let store = state.store.lock().unwrap();
         store
             .get(&issuer_from_kid)
             .map_err(|e| err_resp(format!("store error: {e}")))?
@@ -419,8 +575,11 @@ pub struct RevokeRequest {
 
 async fn revoke_dat(
     State(state): State<SharedState>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<RevokeRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    require_write_auth(&state, &headers)?;
+
     if req.jti.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -446,7 +605,7 @@ async fn revoke_dat(
         ));
     }
 
-    let store = state.lock().unwrap();
+    let store = state.store.lock().unwrap();
     match store.revoke(&req.jti, &req.reason, &req.revoked_by) {
         Ok(true) => {
             tracing::info!("Revoked DAT jti={} by={}", req.jti, req.revoked_by);
@@ -476,7 +635,7 @@ async fn check_revocation(
     State(state): State<SharedState>,
     Path(jti): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let store = state.lock().unwrap();
+    let store = state.store.lock().unwrap();
 
     match store.get_revocation(&jti) {
         Ok(Some(RevocationRecord { jti, reason, revoked_by, revoked_at })) => {

@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 idprova-core = { path = "../idprova-core" }
+idprova-verify = { path = "../idprova-verify" }
 
 # Web framework
 axum.workspace = true
@@ -29,6 +30,9 @@ serde_json.workspace = true
 # Logging
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+# Hex encoding
+hex.workspace = true
 
 # Error handling
 anyhow.workspace = true
