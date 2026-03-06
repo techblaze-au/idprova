@@ -1,0 +1,16 @@
+[package]
+name = "idprova-verify"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "IDProva verification utilities — DAT and receipt log verification"
+
+[dependencies]
+idprova-core = { path = "../idprova-core" }
+thiserror.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true
+proptest.workspace = true
+ulid.workspace = true
