@@ -10,12 +10,12 @@
 
 | Track | Branch | Current Phase | Session | Status | Unblocked By |
 |-------|--------|--------------|---------|--------|-------------|
-| **A** | `main` | Milestone 4 | S1 | 🟡 **M2+M3 COMMITTED, M4 in progress** — SSRF http.rs done, CLI integration done, needs build verify + commit (174 tests) | Nothing |
-| **B** | `idprova/track-b-registry` | Phase 6 | — | 🔴 BLOCKED | Track A Phase 4 done |
-| **C** | `idprova/track-c-sdk-cli` | Phase 7 | S1 | 🟢 Session C-1+C-2 DONE (persistence+config) | Track A Phase 0 ✅ |
+| **A** | `main` | **ALL MILESTONES DONE** | S8 | 🟢 **v0.1 FEATURE-COMPLETE** — 205 tests, all committed + pushed | — |
+| **B** | `idprova/track-b-registry` | Phase 6 | — | 🟡 Partially done (M7 main hardening merged to A) | — |
+| **C** | `idprova/track-c-sdk-cli` | Phase 7 | S1 | 🟢 Session C-1+C-2 DONE (persistence+config) | ✅ |
 | **D** | `idprova/track-d-docs-website` | Doc stubs | S1 | 🟡 READY TO START | Nothing |
-| **E** | `idprova/track-e-infra` | Phase 10 | — | 🔴 BLOCKED | A+B near complete |
-| **F** | `idprova/track-f-advanced` | Phase 11+ | — | 🔴 BLOCKED | A+B complete |
+| **E** | `idprova/track-e-infra` | Phase 10 | — | 🟡 Unblocked — ready to start | ✅ |
+| **F** | `idprova/track-f-advanced` | Phase 11+ | — | 🟡 Unblocked — ready to start | ✅ |
 
 ---
 
@@ -41,7 +41,8 @@
 | (no handover) | 2 | 4 | A | ✅ 2026-03-05 — RateLimit/IP/TrustLevel evaluators, 78 tests |
 | `HANDOVERS/P2-S56-track-a.md` | 2 | 5-6 | A | ✅ 2026-03-06 — All evaluators + PolicyEvaluator + inheritance + RateTracker, 126 tests |
 | `HANDOVERS/P7-S1-track-c.md` | 7 | 1 | C | ✅ 2026-03-05 — SDK persistence + CLI config, 81 tests |
-| `HANDOVERS/M2-S7-track-a.md` | M2 | 7 | A | 🟡 IN PROGRESS — M1 complete (150 tests), M2 crypto pins uncommitted, rand ambiguity unresolved |
+| `HANDOVERS/M2-S7-track-a.md` | M2 | 7 | A | ✅ 2026-03-06 — M2 crypto pins in working tree |
+| `HANDOVERS/M7-S8-track-a.md` | M7 | 8 | A | ✅ 2026-03-07 — ALL MILESTONES DONE, 205 tests |
 
 ---
 
