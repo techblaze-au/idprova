@@ -33,9 +33,14 @@ hex.workspace = true
 
 # Network
 ipnet.workspace = true
+url.workspace = true
+reqwest = { workspace = true, optional = true }
 
 # Logging
 tracing.workspace = true
+
+[features]
+http = ["dep:reqwest"]
 
 [dev-dependencies]
 proptest.workspace = true

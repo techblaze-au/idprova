@@ -35,7 +35,7 @@ pub fn issue(
 ///
 /// Without a key, timing and decode are checked and the signature
 /// check is skipped (the user is told to pass `--key`).
-pub fn verify(token: &str, _registry: &str, key_path: Option<&str>, scope: &str) -> Result<()> {
+pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) -> Result<()> {
     let dat = Dat::from_compact(token)?;
 
     println!("IDProva DAT Verification");
@@ -92,15 +92,69 @@ pub fn verify(token: &str, _registry: &str, key_path: Option<&str>, scope: &str)
             }
         }
         None => {
-            // ── Decode-only (no key supplied) ──────────────────────────────
-            match dat.validate_timing() {
-                Ok(()) => println!("✓ Timing: VALID"),
-                Err(e) => println!("✗ Timing: INVALID — {e}"),
+            // ── Registry-assisted verification ────────────────────────────
+            // Validate the registry URL before making any network call
+            idprova_core::http::validate_registry_url(registry)
+                .map_err(|e| anyhow::anyhow!("invalid registry URL: {e}"))?;
+
+            let base = registry.trim_end_matches('/');
+            let issuer_did = &dat.claims.iss;
+            let key_url = format!("{base}/v1/aid/{issuer_did}/key");
+
+            eprintln!("No key supplied — resolving issuer public key from registry...");
+            eprintln!("  GET {key_url}");
+
+            let client = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .user_agent(format!("idprova-cli/{}", env!("CARGO_PKG_VERSION")))
+                .build()?;
+
+            let resp = client.get(&key_url).send()?;
+            let status = resp.status();
+
+            if !status.is_success() {
+                if status.as_u16() == 404 {
+                    bail!("issuer AID not found in registry: {issuer_did}");
+                }
+                bail!("registry returned {status} for key lookup");
             }
-            println!();
-            println!(
-                "Note: Pass --key <path> to verify the signature and all constraint policies."
-            );
+
+            #[derive(serde::Deserialize)]
+            struct KeyEntry {
+                #[serde(rename = "publicKeyMultibase")]
+                public_key_multibase: String,
+            }
+            #[derive(serde::Deserialize)]
+            struct KeyResp {
+                keys: Vec<KeyEntry>,
+            }
+
+            let key_resp: KeyResp = resp.json()?;
+            let key_entry = key_resp.keys.into_iter().next()
+                .ok_or_else(|| anyhow::anyhow!("issuer AID has no verification keys"))?;
+
+            let pub_key_bytes = KeyPair::decode_multibase_pubkey(&key_entry.public_key_multibase)
+                .map_err(|e| anyhow::anyhow!("failed to decode issuer public key: {e}"))?;
+
+            let ctx = EvaluationContext::default();
+            match dat.verify(&pub_key_bytes, scope, &ctx) {
+                Ok(()) => {
+                    println!("✓ Signature:  VALID (verified via registry)");
+                    println!("✓ Timing:     VALID");
+                    if !scope.is_empty() {
+                        println!("✓ Scope:      '{}' GRANTED", scope);
+                    }
+                    if dat.claims.constraints.is_some() {
+                        println!("✓ Constraints: ALL PASS");
+                    }
+                    println!();
+                    println!("Result: VALID");
+                }
+                Err(e) => {
+                    println!("✗ Verification FAILED: {e}");
+                    bail!("DAT verification failed");
+                }
+            }
         }
     }
 

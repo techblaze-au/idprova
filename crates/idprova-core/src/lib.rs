@@ -15,6 +15,7 @@ pub mod aid;
 pub mod crypto;
 pub mod dat;
 pub mod error;
+pub mod http;
 pub mod policy;
 pub mod receipt;
 pub mod trust;
