@@ -45,10 +45,37 @@ pub fn create(
     Ok(())
 }
 
-pub fn resolve(id: &str, _registry: &str) -> Result<()> {
-    // TODO: Implement registry client resolution
-    println!("Resolving {id} from registry...");
-    println!("(Registry client not yet implemented — coming in v0.1)");
+pub fn resolve(id: &str, registry: &str) -> Result<()> {
+    // Validate the registry URL for SSRF safety before any network call
+    idprova_core::http::validate_registry_url(registry)
+        .map_err(|e| anyhow::anyhow!("invalid registry URL: {e}"))?;
+
+    // Strip trailing slash, build endpoint URL
+    let base = registry.trim_end_matches('/');
+    // The DID path segment is the part after "did:idprova:" — use the full id as path param
+    let url = format!("{base}/v1/aid/{id}");
+
+    eprintln!("Resolving {id} from {base}...");
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .user_agent(format!("idprova-cli/{}", env!("CARGO_PKG_VERSION")))
+        .build()?;
+
+    let resp = client.get(&url).send()?;
+    let status = resp.status();
+
+    if status.is_success() {
+        let doc: idprova_core::aid::AidDocument = resp.json()?;
+        let json = serde_json::to_string_pretty(&doc)?;
+        println!("{json}");
+    } else if status.as_u16() == 404 {
+        anyhow::bail!("AID not found: {id}");
+    } else {
+        let body = resp.text().unwrap_or_default();
+        anyhow::bail!("registry returned {status}: {body}");
+    }
+
     Ok(())
 }
 
