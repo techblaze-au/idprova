@@ -203,16 +203,22 @@ impl EvaluationContext {
 }
 
 impl EvaluationContext {
-    fn to_rust(&self) -> RustEvaluationContext {
-        RustEvaluationContext {
-            actions_in_window: self.actions_in_window,
-            request_ip: self.request_ip.as_deref().and_then(|s| s.parse().ok()),
-            agent_trust_level: self.agent_trust_level,
-            delegation_depth: self.delegation_depth,
-            country_code: self.country_code.clone(),
-            current_timestamp: None,
-            agent_config_hash: self.agent_config_hash.clone(),
+    fn to_rust(&self, scope: &str) -> RustEvaluationContext {
+        let mut builder = RustEvaluationContext::builder(scope)
+            .actions_this_hour(self.actions_in_window)
+            .delegation_depth(self.delegation_depth);
+        if let Some(ref ip_str) = self.request_ip {
+            if let Ok(ip) = ip_str.parse() {
+                builder = builder.source_ip(ip);
+            }
         }
+        if let Some(ref cc) = self.country_code {
+            builder = builder.source_country(cc.clone());
+        }
+        if let Some(ref hash) = self.agent_config_hash {
+            builder = builder.caller_config_attestation(hash.clone());
+        }
+        builder.build()
     }
 }
 
@@ -376,7 +382,7 @@ impl DAT {
                 max_actions,
                 require_receipt,
                 max_delegation_depth,
-                min_trust_level,
+                required_trust_level: min_trust_level.map(|l| format!("L{}", l)),
                 ..Default::default()
             })
         } else {
@@ -433,7 +439,17 @@ impl DAT {
         let default_ctx = EvaluationContext::default();
         let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust();
 
-        self.inner.verify(&key, required_scope, &rust_ctx).map_err(to_py_err)
+        {
+            self.inner.verify_signature(&key).map_err(to_py_err)?;
+            let evaluator = idprova_core::policy::PolicyEvaluator::new();
+            let decision = evaluator.evaluate(&self.inner, &rust_ctx);
+            if decision.is_allowed() {
+                Ok(())
+            } else {
+                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                Err(pyo3::exceptions::PyValueError::new_err(reason))
+            }
+        }
     }
 
     /// Verify signature only (no scope/constraint checks).
