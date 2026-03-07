@@ -1,47 +1,66 @@
-# HANDOVER — Track B: Registry Hardening
+# Track E Handover
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
-**Branch:** `idprova/track-b-registry`
-**Session date:** 2026-03-07
-**Status:** ALL TASKS COMPLETE — track done
+**Branch:** `idprova/track-e-infra`
+**Status: COMPLETE — all 6 tasks done**
+**Progress:** 6 of 6 tasks complete
 
 ---
 
 ## All Tasks Completed
 
-| # | Task | Commit |
-|---|------|--------|
-| 1 | `GET /ready` endpoint with SQLite liveness check (200/503) | `b28db2f` |
-| 2 | `error.rs` — `ApiError` type with `error`/`code`/`request_id` (ULID); all handlers migrated | `1e3d072` |
-| 3 | CORS — pre-existing (`CorsLayer::new().allow_*Any`) | — |
-| 4 | Request size limit — pre-existing (`RequestBodyLimitLayer::new(1024 * 1024)`) | — |
-| 5 | Input validation in `register_aid`: DID path consistency + Ed25519 pubkey decode check | `3017445` |
-| 6 | `TraceLayer::new_for_http()` + `request_id_middleware` (X-Request-ID ULID per response) | `d74dfc4` |
-| 7 | `GET /v1/dat/revocations` with limit/offset pagination; optional `token` field on `POST /revoke` with Ed25519 sig validation | `ec1d3b2` |
+### Task 1: CI Pipeline — Build & Test (826ce41)
+- `.github/workflows/ci.yml` updated
+- Matrix: `stable` + `1.75` (MSRV), ubuntu-latest
+- Excludes: `--exclude idprova-python --exclude idprova-typescript`
+- Separate lint job; improved cache paths
+
+### Task 2: Security Audit (8a8369a)
+- `.github/workflows/audit.yml` created
+- Weekly schedule + triggers on Cargo.lock/Cargo.toml changes
+- Uses `rustsec/audit-check@v2`
+
+### Task 3: Dockerfile Optimization (b4e57d0)
+- 4-stage cargo-chef build: chef → planner → builder → runtime
+- `debian:bookworm-slim` runtime, non-root `idprova` user
+- HEALTHCHECK via curl against `/health` endpoint
+
+### Task 4: Docker Compose Stack (2ea471f)
+- `docker-compose.yml`: registry service with SQLite volume
+- `Caddyfile`: reverse proxy with automatic HTTPS, security headers, gzip
+- Caddy activated via `--profile proxy`; all config via env vars
+
+### Task 5: Release Workflow (7647b3b)
+- `.github/workflows/release.yml`: triggered on `v*` tag push
+- Builds 5 targets: Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64
+- Uses `cross` for Linux aarch64 cross-compilation
+- Multi-arch Docker image (amd64+arm64) pushed to GHCR
+- GitHub Release created with archives + SHA256 checksums
+- Pre-release auto-detected from tag (e.g. `v1.0.0-rc1`)
+
+### Task 6: Developer Scripts (5464af9)
+- `scripts/dev-setup.sh`: install tooling, build, lint, test; `--skip-tests` flag
+- `scripts/run-registry.sh`: build + launch registry; `--release` flag
+- Both scripts are executable and idempotent
 
 ---
 
 ## Key Decisions
 
-- **Task 3 & 4:** Verified pre-existing in `main.rs` — no code changes needed.
-- **`ApiError::request_id`:** Generates a fresh ULID per error instance (not per request); this is sufficient for log correlation and simpler than request-scoped IDs.
-- **`TraceLayer` position:** Outermost layer so it captures total latency including all middleware.
-- **`request_id_middleware` position:** Inside `TraceLayer`, adds `X-Request-ID` response header.
-- **DAT sig validation on revoke:** Uses `dat.verify_signature()` only (skips expiry) — admins must be able to revoke expired/compromised tokens. JTI mismatch between body and token returns 400.
-- **`list_revocations`:** Ordered `DESC` by `revoked_at`, internal cap at 1000, API cap at 200 per page.
-- **`decode_multibase_pubkey`:** Returns `[u8; 32]` — length guaranteed by type.
+- CI runs ubuntu-latest only; MSRV 1.75 tested alongside stable
+- SDK crates excluded from all workspace cargo commands
+- Dockerfile uses `debian:bookworm-slim` (not distroless) — curl needed for healthcheck
+- Caddy optional via Docker Compose profiles — zero overhead when not needed
+- `cross` used for Linux aarch64 (avoids maintaining separate runners)
 
 ---
 
-## Files Modified (full session)
+## Blockers / Issues
 
-- `crates/idprova-registry/src/store.rs` — `ping()`, `get_revocation()`, `list_revocations()`
-- `crates/idprova-registry/src/main.rs` — all handler/middleware additions
-- `crates/idprova-registry/src/error.rs` — new file, `ApiError` type
-- `crates/idprova-registry/Cargo.toml` — added `ulid` dep
+None.
 
 ---
 
-## Environment Note
+## Next Steps
 
-`cargo` is not available in this agent environment. Compilation verified via code review. CI will run `cargo test --workspace` and `cargo clippy`.
+Track E is complete. No further execution required on this branch.

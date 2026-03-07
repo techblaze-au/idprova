@@ -1,8 +1,8 @@
-# Project State — Track B: Registry Hardening
+# Project State — Track E: Infrastructure & CI/CD
 
 ## Current Position
 
-Phase: 1 of 1 (Registry Hardening)
+Phase: 1 of 1 (Infrastructure)
 Plan: 1 of 1 in current phase
 Status: Ready to execute
 Last activity: Not started
