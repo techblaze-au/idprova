@@ -199,7 +199,7 @@ fn require_write_auth(
         return Err(ApiError::unauthorized("Bearer token required"));
     }
 
-    let ctx = idprova_core::dat::constraints::EvaluationContext::default();
+    let ctx = idprova_core::policy::EvaluationContext::builder("").build();
     idprova_verify::verify_dat(token, &pubkey, "", &ctx)
         .map_err(|e| ApiError::unauthorized(format!("invalid admin token: {e}")))?;
 
@@ -467,7 +467,7 @@ async fn verify_dat(
     Json(req): Json<DatVerifyRequest>,
 ) -> Result<Json<DatVerifyResponse>, (StatusCode, Json<DatVerifyResponse>)> {
     use idprova_core::crypto::KeyPair;
-    use idprova_core::dat::constraints::EvaluationContext;
+    use idprova_core::policy::EvaluationContext;
     use idprova_core::dat::Dat;
 
     let err_resp = |msg: String| {
@@ -549,19 +549,25 @@ async fn verify_dat(
         .as_deref()
         .and_then(|s| s.parse().ok());
 
-    let ctx = EvaluationContext {
-        actions_in_window: req.actions_in_window,
-        request_ip,
-        agent_trust_level: req.trust_level,
-        delegation_depth: req.delegation_depth,
-        country_code: req.country_code,
-        current_timestamp: None, // use Utc::now() inside evaluators
-        agent_config_hash: req.agent_config_hash,
-    };
+    let mut builder = EvaluationContext::builder(&req.scope);
+    builder = builder.actions_this_hour(req.actions_in_window);
+    if let Some(ip) = request_ip {
+        builder = builder.source_ip(ip);
+    }
+    builder = builder.delegation_depth(req.delegation_depth);
+    if let Some(ref cc) = req.country_code {
+        builder = builder.source_country(cc.clone());
+    }
+    if let Some(ref hash) = req.agent_config_hash {
+        builder = builder.caller_config_attestation(hash.clone());
+    }
+    let ctx = builder.build();
 
     // 6. Full verification pipeline
-    match dat.verify(&pub_key_bytes, &req.scope, &ctx) {
-        Ok(()) => Ok(Json(DatVerifyResponse {
+    let evaluator = idprova_core::policy::PolicyEvaluator::new();
+    let decision = evaluator.evaluate(&dat, &ctx);
+    if decision.is_allowed() {
+        Ok(Json(DatVerifyResponse {
             valid: true,
             issuer: Some(issuer_did),
             subject: Some(subject),

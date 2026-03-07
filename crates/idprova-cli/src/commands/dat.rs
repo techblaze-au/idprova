@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use chrono::{Duration, Utc};
 use idprova_core::crypto::KeyPair;
-use idprova_core::dat::constraints::EvaluationContext;
+use idprova_core::policy::EvaluationContext;
 use idprova_core::dat::Dat;
 use std::fs;
 
@@ -77,10 +77,12 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             };
 
             // Build a default context — caller can extend via env vars in future
-            let ctx = EvaluationContext::default();
+            let ctx = EvaluationContext::builder(scope).build();
 
-            match dat.verify(&key_bytes, scope, &ctx) {
-                Ok(()) => {
+            dat.verify_signature(&key_bytes)?;
+            let evaluator = idprova_core::policy::PolicyEvaluator::new();
+            let decision = evaluator.evaluate(&dat, &ctx);
+            if decision.is_allowed() {
                     println!("✓ Signature:  VALID");
                     println!("✓ Timing:     VALID");
                     if !scope.is_empty() {
@@ -92,16 +94,16 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
                     println!();
                     println!("Result: VALID");
                 }
-                Err(e) => {
-                    println!("✗ Verification FAILED: {e}");
+            } else {
+                    let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                    println!("✗ Verification FAILED: {reason}");
                     bail!("DAT verification failed");
                 }
-            }
         }
         None => {
             // ── Registry-assisted verification ────────────────────────────
             // Validate the registry URL before making any network call
-            idprova_core::http::validate_registry_url(registry)
+            url::Url::parse(registry).map(|_| ())
                 .map_err(|e| anyhow::anyhow!("invalid registry URL: {e}"))?;
 
             let base = registry.trim_end_matches('/');
@@ -143,9 +145,11 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             let pub_key_bytes = KeyPair::decode_multibase_pubkey(&key_entry.public_key_multibase)
                 .map_err(|e| anyhow::anyhow!("failed to decode issuer public key: {e}"))?;
 
-            let ctx = EvaluationContext::default();
-            match dat.verify(&pub_key_bytes, scope, &ctx) {
-                Ok(()) => {
+            let ctx = EvaluationContext::builder(scope).build();
+            dat.verify_signature(&pub_key_bytes).map_err(|e| anyhow::anyhow!("signature verification failed: {e}"))?;
+            let evaluator = idprova_core::policy::PolicyEvaluator::new();
+            let decision = evaluator.evaluate(&dat, &ctx);
+            if decision.is_allowed() {
                     println!("✓ Signature:  VALID (verified via registry)");
                     println!("✓ Timing:     VALID");
                     if !scope.is_empty() {
@@ -157,11 +161,11 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
                     println!();
                     println!("Result: VALID");
                 }
-                Err(e) => {
-                    println!("✗ Verification FAILED: {e}");
+            } else {
+                    let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                    println!("✗ Verification FAILED: {reason}");
                     bail!("DAT verification failed");
                 }
-            }
         }
     }
 
