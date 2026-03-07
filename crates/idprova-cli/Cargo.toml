@@ -29,7 +29,7 @@ chrono.workspace = true
 
 # Hex encoding
 hex.workspace = true
-n# URL parsing
+# URL parsing
 url.workspace = true
 
 # Config
