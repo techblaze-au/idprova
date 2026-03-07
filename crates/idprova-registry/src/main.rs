@@ -16,7 +16,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
+use ulid::Ulid;
 
 mod error;
 mod store;
@@ -114,12 +116,17 @@ async fn main() -> Result<()> {
         .route("/v1/aid/:id/key", get(get_public_key))
         .route("/v1/dat/verify", post(verify_dat))
         .route("/v1/dat/revoke", post(revoke_dat))
+        .route("/v1/dat/revocations", get(list_revocations))
         .route("/v1/dat/revoked/:jti", get(check_revocation))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn(security_headers))
         // 1 MB body limit on all requests
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .layer(cors)
+        // Attach X-Request-ID header to every response
+        .layer(middleware::from_fn(request_id_middleware))
+        // Structured request/response tracing (method, path, status, latency)
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let port = std::env::var("REGISTRY_PORT")
@@ -151,6 +158,18 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
         "X-XSS-Protection",
         HeaderValue::from_static("1; mode=block"),
     );
+    response
+}
+
+/// Axum middleware that generates a unique ULID request ID and attaches it as
+/// the `X-Request-ID` response header. This allows log correlation between
+/// client errors and server-side traces.
+async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
+    let id = Ulid::new().to_string();
+    let mut response = next.run(req).await;
+    if let Ok(val) = axum::http::HeaderValue::from_str(&id) {
+        response.headers_mut().insert("X-Request-ID", val);
+    }
     response
 }
 
@@ -578,6 +597,10 @@ pub struct RevokeRequest {
     /// DID or identifier of the party performing the revocation.
     #[serde(default)]
     pub revoked_by: String,
+    /// Optional compact JWS DAT token being revoked. When provided, its Ed25519
+    /// signature is validated against the issuer's registered AID — proving the
+    /// token is genuine before recording the revocation.
+    pub token: Option<String>,
 }
 
 async fn revoke_dat(
@@ -602,6 +625,53 @@ async fn revoke_dat(
         ));
     }
 
+    // If the caller supplied the original DAT token, validate its Ed25519 signature
+    // against the issuer's registered AID. This prevents revoking tokens the caller
+    // never possessed (e.g. guessed JTIs). Expiry is intentionally not checked —
+    // admins must be able to revoke already-expired compromised tokens.
+    if let Some(ref token) = req.token {
+        use idprova_core::crypto::KeyPair;
+        use idprova_core::dat::Dat;
+
+        let dat = Dat::from_compact(token)
+            .map_err(|e| ApiError::bad_request(format!("token parse error: {e}")))?;
+
+        if dat.claims.jti != req.jti {
+            return Err(ApiError::bad_request(format!(
+                "token jti '{}' does not match request jti '{}'",
+                dat.claims.jti, req.jti
+            )));
+        }
+
+        // Resolve issuer AID from the `kid` header claim
+        let kid = &dat.header.kid;
+        let issuer_did = kid.split('#').next().unwrap_or("").to_string();
+        let doc = {
+            let store = state.store.lock().unwrap();
+            store
+                .get(&issuer_did)
+                .map_err(|e| ApiError::internal(format!("store error: {e}")))?
+                .ok_or_else(|| {
+                    ApiError::bad_request(format!("issuer AID not found: {issuer_did}"))
+                })?
+        };
+
+        let vm = doc
+            .verification_method
+            .iter()
+            .find(|vm| vm.id == *kid || vm.id == format!("{issuer_did}#key-ed25519"))
+            .ok_or_else(|| {
+                ApiError::bad_request(format!("key '{kid}' not found in issuer AID"))
+            })?;
+
+        let pub_key_bytes = KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
+            .map_err(|e| ApiError::bad_request(format!("key decode error: {e}")))?;
+
+        // Signature-only check — timing/scope/constraints intentionally skipped
+        dat.verify_signature(&pub_key_bytes)
+            .map_err(|e| ApiError::bad_request(format!("token signature invalid: {e}")))?;
+    }
+
     let store = state.store.lock().unwrap();
     match store.revoke(&req.jti, &req.reason, &req.revoked_by) {
         Ok(true) => {
@@ -617,6 +687,49 @@ async fn revoke_dat(
             "jti": req.jti,
             "status": "already_revoked"
         }))),
+        Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /v1/dat/revocations
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Query parameters for paginated list endpoints.
+#[derive(Debug, Deserialize)]
+struct PaginationParams {
+    /// Maximum number of records to return (capped at 200). Default: 50.
+    #[serde(default = "default_page_limit")]
+    limit: usize,
+    /// Number of records to skip. Default: 0.
+    #[serde(default)]
+    offset: usize,
+}
+
+fn default_page_limit() -> usize {
+    50
+}
+
+/// List recorded DAT revocations with cursor-style pagination.
+///
+/// Returns revocations ordered by `revoked_at` descending (newest first).
+/// Supports `?limit=N&offset=M` query parameters.
+async fn list_revocations(
+    State(state): State<SharedState>,
+    axum::extract::Query(params): axum::extract::Query<PaginationParams>,
+) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
+    let limit = params.limit.min(200);
+    let store = state.store.lock().unwrap();
+    match store.list_revocations(limit, params.offset) {
+        Ok(records) => {
+            let count = records.len();
+            Ok(Json(json!({
+                "revocations": records,
+                "count": count,
+                "limit": limit,
+                "offset": params.offset
+            })))
+        }
         Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
     }
 }
