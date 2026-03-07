@@ -540,7 +540,7 @@ async fn verify_dat(
         .find(|vm| vm.id == *kid || vm.id == format!("{issuer_from_kid}#key-ed25519"))
         .ok_or_else(|| err_resp(format!("key '{kid}' not found in issuer AID")))?;
 
-    let pub_key_bytes = KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
+    let _pub_key_bytes = KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
         .map_err(|e| err_resp(format!("key decode error: {e}")))?;
 
     // 5. Build evaluation context from request fields
