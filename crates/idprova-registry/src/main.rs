@@ -18,8 +18,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tracing_subscriber::EnvFilter;
 
+mod error;
 mod store;
 
+use error::ApiError;
 use store::{AidStore, RevocationRecord};
 
 // ── Registry admin public key ─────────────────────────────────────────────────
@@ -162,35 +164,25 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
 fn require_write_auth(
     state: &AppState,
     headers: &axum::http::HeaderMap,
-) -> Result<(), (StatusCode, Json<Value>)> {
+) -> Result<(), (StatusCode, Json<ApiError>)> {
     let pubkey = match state.admin_pubkey {
         Some(k) => k,
         None => return Ok(()), // dev mode — open writes
     };
 
-    let auth = headers.get("Authorization").ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "Authorization header required for write operations" })),
-        )
-    })?;
+    let auth = headers
+        .get("Authorization")
+        .ok_or_else(|| ApiError::unauthorized("Authorization header required for write operations"))?;
 
     let auth_str = auth.to_str().unwrap_or("");
     let token = auth_str.strip_prefix("Bearer ").unwrap_or("").trim();
     if token.is_empty() {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "Bearer token required" })),
-        ));
+        return Err(ApiError::unauthorized("Bearer token required"));
     }
 
     let ctx = idprova_core::dat::constraints::EvaluationContext::default();
-    idprova_verify::verify_dat(token, &pubkey, "", &ctx).map_err(|e| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": format!("invalid admin token: {e}") })),
-        )
-    })?;
+    idprova_verify::verify_dat(token, &pubkey, "", &ctx)
+        .map_err(|e| ApiError::unauthorized(format!("invalid admin token: {e}")))?;
 
     Ok(())
 }
@@ -226,10 +218,11 @@ async fn rate_limit_middleware(
     if allowed {
         next.run(req).await
     } else {
-        let body = serde_json::to_string(&json!({
-            "error": "rate limit exceeded — max 120 requests per 60 seconds per IP"
-        }))
-        .unwrap_or_default();
+        let err = ApiError::new(
+            "RATE_LIMITED",
+            "rate limit exceeded — max 120 requests per 60 seconds per IP",
+        );
+        let body = serde_json::to_string(&err).unwrap_or_default();
         Response::builder()
             .status(StatusCode::TOO_MANY_REQUESTS)
             .header("Content-Type", "application/json")
@@ -280,34 +273,24 @@ async fn register_aid(
     headers: axum::http::HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<Value>,
-) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
+) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<ApiError>)> {
     // Require valid DAT for write operations
     require_write_auth(&state, &headers)?;
 
     let did = format!("did:idprova:{id}");
 
     // Validate the AID document
-    let doc: idprova_core::aid::AidDocument = serde_json::from_value(body).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": format!("invalid AID document: {e}") })),
-        )
-    })?;
+    let doc: idprova_core::aid::AidDocument = serde_json::from_value(body)
+        .map_err(|e| ApiError::bad_request(format!("invalid AID document: {e}")))?;
 
     if let Err(e) = doc.validate() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": format!("AID validation failed: {e}") })),
-        ));
+        return Err(ApiError::bad_request(format!("AID validation failed: {e}")));
     }
 
     let store = state.store.lock().unwrap();
-    let is_new = store.put(&did, &doc).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("storage error: {e}") })),
-        )
-    })?;
+    let is_new = store
+        .put(&did, &doc)
+        .map_err(|e| ApiError::internal(format!("storage error: {e}")))?;
 
     let status = if is_new {
         StatusCode::CREATED
@@ -327,20 +310,14 @@ async fn register_aid(
 async fn resolve_aid(
     State(state): State<SharedState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
     let did = format!("did:idprova:{id}");
     let store = state.store.lock().unwrap();
 
     match store.get(&did) {
         Ok(Some(doc)) => Ok(Json(serde_json::to_value(doc).unwrap())),
-        Ok(None) => Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": format!("AID not found: {did}") })),
-        )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("storage error: {e}") })),
-        )),
+        Ok(None) => Err(ApiError::not_found(format!("AID not found: {did}"))),
+        Err(e) => Err(ApiError::internal(format!("storage error: {e}"))),
     }
 }
 
@@ -348,28 +325,22 @@ async fn deactivate_aid(
     State(state): State<SharedState>,
     headers: axum::http::HeaderMap,
     Path(id): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
     require_write_auth(&state, &headers)?;
     let did = format!("did:idprova:{id}");
     let store = state.store.lock().unwrap();
 
     match store.delete(&did) {
         Ok(true) => Ok(Json(json!({ "id": did, "status": "deactivated" }))),
-        Ok(false) => Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": format!("AID not found: {did}") })),
-        )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("storage error: {e}") })),
-        )),
+        Ok(false) => Err(ApiError::not_found(format!("AID not found: {did}"))),
+        Err(e) => Err(ApiError::internal(format!("storage error: {e}"))),
     }
 }
 
 async fn get_public_key(
     State(state): State<SharedState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
     let did = format!("did:idprova:{id}");
     let store = state.store.lock().unwrap();
 
@@ -388,14 +359,8 @@ async fn get_public_key(
                 .collect();
             Ok(Json(json!({ "id": did, "keys": keys })))
         }
-        Ok(None) => Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": format!("AID not found: {did}") })),
-        )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("storage error: {e}") })),
-        )),
+        Ok(None) => Err(ApiError::not_found(format!("AID not found: {did}"))),
+        Err(e) => Err(ApiError::internal(format!("storage error: {e}"))),
     }
 }
 
@@ -600,31 +565,21 @@ async fn revoke_dat(
     State(state): State<SharedState>,
     headers: axum::http::HeaderMap,
     Json(req): Json<RevokeRequest>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
     require_write_auth(&state, &headers)?;
 
     if req.jti.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "jti must not be empty" })),
-        ));
+        return Err(ApiError::bad_request("jti must not be empty"));
     }
     if req.jti.len() > 128 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "jti exceeds maximum length of 128 characters" })),
-        ));
+        return Err(ApiError::bad_request("jti exceeds maximum length of 128 characters"));
     }
     if req.reason.len() > 512 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "reason exceeds maximum length of 512 characters" })),
-        ));
+        return Err(ApiError::bad_request("reason exceeds maximum length of 512 characters"));
     }
     if req.revoked_by.len() > 256 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "revoked_by exceeds maximum length of 256 characters" })),
+        return Err(ApiError::bad_request(
+            "revoked_by exceeds maximum length of 256 characters",
         ));
     }
 
@@ -643,10 +598,7 @@ async fn revoke_dat(
             "jti": req.jti,
             "status": "already_revoked"
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("store error: {e}") })),
-        )),
+        Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
     }
 }
 
@@ -657,7 +609,7 @@ async fn revoke_dat(
 async fn check_revocation(
     State(state): State<SharedState>,
     Path(jti): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
     let store = state.store.lock().unwrap();
 
     match store.get_revocation(&jti) {
@@ -671,9 +623,6 @@ async fn check_revocation(
             })))
         }
         Ok(None) => Ok(Json(json!({ "revoked": false, "jti": jti }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("store error: {e}") })),
-        )),
+        Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
     }
 }
