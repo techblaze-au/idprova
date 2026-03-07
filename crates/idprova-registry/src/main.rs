@@ -574,18 +574,20 @@ async fn verify_dat(
             scopes: Some(scopes),
             jti: Some(jti),
             error: None,
-        })),
-        Err(e) => {
-            tracing::warn!("DAT verification failed for jti={jti}: {e}");
-            Ok(Json(DatVerifyResponse {
-                valid: false,
-                issuer: Some(issuer_did),
-                subject: Some(subject),
-                scopes: Some(scopes),
-                jti: Some(jti),
-                error: Some(e.to_string()),
-            }))
-        }
+        }))
+    } else {
+        let reason = decision.denial_reason()
+            .map(|r| format!("{:?}", r))
+            .unwrap_or_else(|| "unknown".to_string());
+        tracing::warn!("DAT verification failed for jti={jti}: {reason}");
+        Ok(Json(DatVerifyResponse {
+            valid: false,
+            issuer: Some(issuer_did),
+            subject: Some(subject),
+            scopes: Some(scopes),
+            jti: Some(jti),
+            error: Some(reason),
+        }))
     }
 }
 

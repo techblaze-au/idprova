@@ -208,11 +208,14 @@ pub fn inspect(token: &str) -> Result<()> {
         if let Some(max) = c.max_actions {
             println!("│  Max Actions (lifetime):  {max}");
         }
-        if let Some(ref rl) = c.rate_limit {
-            println!(
-                "│  Rate Limit:              {} actions / {}s window",
-                rl.max_actions, rl.window_secs
-            );
+        if let Some(max_hr) = c.max_calls_per_hour {
+            println!("│  Max Calls/Hour:          {max_hr}");
+        }
+        if let Some(max_day) = c.max_calls_per_day {
+            println!("│  Max Calls/Day:           {max_day}");
+        }
+        if let Some(max_conc) = c.max_concurrent {
+            println!("│  Max Concurrent:          {max_conc}");
         }
         if let Some(ref servers) = c.allowed_servers {
             println!("│  Allowed Servers:         {:?}", servers);
@@ -220,26 +223,26 @@ pub fn inspect(token: &str) -> Result<()> {
         if let Some(receipt) = c.require_receipt {
             println!("│  Require Receipt:         {receipt}");
         }
-        if let Some(ref allowlist) = c.ip_allowlist {
+        if let Some(ref allowlist) = c.allowed_ips {
             println!("│  IP Allowlist (CIDR):     {:?}", allowlist);
         }
-        if let Some(ref denylist) = c.ip_denylist {
+        if let Some(ref denylist) = c.denied_ips {
             println!("│  IP Denylist (CIDR):      {:?}", denylist);
         }
-        if let Some(min_trust) = c.min_trust_level {
-            println!("│  Min Trust Level:         {min_trust}");
+        if let Some(ref trust) = c.required_trust_level {
+            println!("│  Required Trust Level:    {trust}");
         }
         if let Some(max_depth) = c.max_delegation_depth {
             println!("│  Max Delegation Depth:    {max_depth}");
         }
-        if let Some(ref countries) = c.allowed_countries {
+        if let Some(ref countries) = c.geofence {
             println!("│  Geofence (countries):    {:?}", countries);
         }
         if let Some(ref windows) = c.time_windows {
             println!("│  Time Windows (UTC):");
             for w in windows {
                 let days = w
-                    .days_of_week
+                    .days
                     .as_ref()
                     .map(|d| format!("{:?}", d))
                     .unwrap_or_else(|| "every day".to_string());
@@ -249,7 +252,7 @@ pub fn inspect(token: &str) -> Result<()> {
                 );
             }
         }
-        if let Some(ref hash) = c.required_config_hash {
+        if let Some(ref hash) = c.required_config_attestation {
             println!("│  Required Config Hash:    {hash}");
         }
     }
