@@ -113,7 +113,7 @@ mod tests {
             agent: "did:idprova:test:agent".to_string(),
             dat: "dat_test".to_string(),
             action: ActionDetails {
-                action_type: "mcp:tool-call".to_string(),
+                action_type: "mcp:tool:call:execute".to_string(),
                 server: None,
                 tool: Some("test_tool".to_string()),
                 input_hash: "blake3:abc123".to_string(),
@@ -133,11 +133,11 @@ mod tests {
     #[test]
     fn test_verify_dat_happy_path() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
-        let ctx = make_ctx("mcp:tool:read");
+        let ctx = make_ctx("mcp:tool:filesystem:read");
 
-        let result = verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:read", &ctx);
+        let result = verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx);
         assert!(result.is_ok(), "expected Ok, got: {:?}", result.err());
         let verified = result.unwrap();
         assert_eq!(verified.claims.iss, "did:idprova:test:issuer");
@@ -148,49 +148,49 @@ mod tests {
     fn test_verify_dat_wrong_key_fails() {
         let kp = KeyPair::generate();
         let kp2 = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
-        let ctx = make_ctx("mcp:tool:read");
+        let ctx = make_ctx("mcp:tool:filesystem:read");
 
-        assert!(verify_dat(&compact, &kp2.public_key_bytes(), "mcp:tool:read", &ctx).is_err());
+        assert!(verify_dat(&compact, &kp2.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_err());
     }
 
     #[test]
     fn test_verify_dat_expired_fails() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", false);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", false);
         let compact = dat.to_compact().unwrap();
-        let ctx = make_ctx("mcp:tool:read");
+        let ctx = make_ctx("mcp:tool:filesystem:read");
 
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:read", &ctx).is_err());
+        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_err());
     }
 
     #[test]
     fn test_verify_dat_scope_denied_fails() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
-        let ctx = make_ctx("mcp:tool:write");
+        let ctx = make_ctx("mcp:tool:filesystem:write");
 
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:write", &ctx).is_err());
+        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx).is_err());
     }
 
     #[test]
     fn test_verify_dat_wildcard_scope_passes() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:*:*", true);
+        let dat = make_dat(&kp, "mcp:*:*:*", true);
         let compact = dat.to_compact().unwrap();
 
-        let ctx1 = make_ctx("mcp:tool:write");
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:write", &ctx1).is_ok());
-        let ctx2 = make_ctx("mcp:resource:read");
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:resource:read", &ctx2).is_ok());
+        let ctx1 = make_ctx("mcp:tool:filesystem:write");
+        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx1).is_ok());
+        let ctx2 = make_ctx("mcp:resource:data:read");
+        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:resource:data:read", &ctx2).is_ok());
     }
 
     #[test]
     fn test_verify_dat_empty_scope_skips_check() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
         let ctx = make_ctx("");
 
@@ -203,7 +203,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:test:issuer",
             "did:idprova:test:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() + Duration::hours(24),
             Some(DatConstraints {
                 max_calls_per_hour: Some(5),
@@ -214,11 +214,11 @@ mod tests {
         )
         .unwrap();
         let compact = dat.to_compact().unwrap();
-        let ctx = EvaluationContext::builder("mcp:tool:read")
+        let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
             .actions_this_hour(10)
             .build();
 
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:read", &ctx).is_err());
+        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_err());
     }
 
     #[test]
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_verify_dat_from_jws_happy_path() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
 
         let result = verify_dat_from_jws(&compact, &kp.public_key_bytes());
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_verify_dat_from_jws_skips_scope_check() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
 
         assert!(verify_dat_from_jws(&compact, &kp.public_key_bytes()).is_ok());
@@ -255,7 +255,7 @@ mod tests {
     fn test_verify_dat_from_jws_wrong_key_fails() {
         let kp = KeyPair::generate();
         let kp2 = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", true);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", true);
         let compact = dat.to_compact().unwrap();
 
         assert!(verify_dat_from_jws(&compact, &kp2.public_key_bytes()).is_err());
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_verify_dat_from_jws_expired_fails() {
         let kp = KeyPair::generate();
-        let dat = make_dat(&kp, "mcp:tool:read", false);
+        let dat = make_dat(&kp, "mcp:tool:filesystem:read", false);
         let compact = dat.to_compact().unwrap();
 
         assert!(verify_dat_from_jws(&compact, &kp.public_key_bytes()).is_err());
@@ -309,7 +309,7 @@ mod tests {
             agent: "did:idprova:test:agent".to_string(),
             dat: "dat_test".to_string(),
             action: ActionDetails {
-                action_type: "mcp:tool-call".to_string(),
+                action_type: "mcp:tool:call:execute".to_string(),
                 server: None,
                 tool: None,
                 input_hash: "blake3:bad".to_string(),
