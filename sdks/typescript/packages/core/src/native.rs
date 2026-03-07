@@ -496,7 +496,7 @@ impl DAT {
         key.copy_from_slice(bytes);
         let scope = required_scope.as_deref().unwrap_or("");
         let default_ctx = EvaluationContext::new();
-        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust();
+        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust(scope);
         {
             self.inner.verify_signature(&key).map_err(to_napi_err)?;
             let evaluator = idprova_core::policy::PolicyEvaluator::new();
