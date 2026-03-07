@@ -53,7 +53,8 @@ pub fn resolve(id: &str, registry: &str) -> Result<()> {
     // Strip trailing slash, build endpoint URL
     let base = registry.trim_end_matches('/');
     // The DID path segment is the part after "did:idprova:" — use the full id as path param
-    let url = format!("{base}/v1/aid/{id}");
+    let aid_id = id.strip_prefix("did:idprova:").unwrap_or(id);
+    let url = format!("{base}/v1/aid/{aid_id}");
 
     eprintln!("Resolving {id} from {base}...");
 

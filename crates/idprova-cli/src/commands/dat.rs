@@ -107,7 +107,8 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
 
             let base = registry.trim_end_matches('/');
             let issuer_did = &dat.claims.iss;
-            let key_url = format!("{base}/v1/aid/{issuer_did}/key");
+            let aid_id = issuer_did.strip_prefix("did:idprova:").unwrap_or(issuer_did);
+            let key_url = format!("{base}/v1/aid/{aid_id}/key");
 
             eprintln!("No key supplied — resolving issuer public key from registry...");
             eprintln!("  GET {key_url}");
