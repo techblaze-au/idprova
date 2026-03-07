@@ -1,26 +1,26 @@
-# Roadmap: IDProva Track E — Infrastructure & CI/CD
+# Roadmap: IDProva Track D — Documentation & Website
 
 ## Overview
 
-Set up CI/CD pipelines, Docker build optimization, compose stack, release workflow, and developer scripts for IDProva.
+Create comprehensive documentation for IDProva: README, getting started, API reference, core library guide, concepts, security model, and SDK guides.
 
 ## Phases
 
-- [ ] **Phase 1: Infrastructure** - 6 tasks covering CI, audit, Docker, compose, release, scripts
+- [ ] **Phase 1: Documentation** - 7 tasks covering README, guides, API docs, concepts, security, SDKs
 
 ## Phase Details
 
-### Phase 1: Infrastructure
-**Goal**: Production CI/CD and container infrastructure
+### Phase 1: Documentation
+**Goal**: Complete project documentation
 **Depends on**: Track A complete (v0.1)
-**Research**: Unlikely (established GitHub Actions patterns)
+**Research**: Unlikely (documenting existing code)
 **Plans**: 1 plan (01-01)
 
 Plans:
-- [ ] 01-01: Full infrastructure setup (6 tasks)
+- [ ] 01-01: Full documentation suite (7 tasks)
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 0/1 | Not started | - |
+| 1. Documentation | 0/1 | Not started | - |

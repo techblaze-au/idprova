@@ -1,66 +1,43 @@
-# Track E Handover
+# Track D — Handover
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
-**Branch:** `idprova/track-e-infra`
-**Status: COMPLETE — all 6 tasks done**
-**Progress:** 6 of 6 tasks complete
+**Status:** COMPLETE — all 7 tasks done
 
----
+## Completed
 
-## All Tasks Completed
+| Task | Commit | Notes |
+|------|--------|-------|
+| Task 1: README Overhaul | 4733677 | 185 lines, mermaid diagram, register step, docs links |
+| Task 2: Getting Started Guide | 5f23d0f | `docs/getting-started.md` — full CLI workflow, 8 steps |
+| Task 3: API Reference | 5b83c57 | `docs/api-reference.md` — all 9 registry endpoints with curl examples |
+| Task 4: Core Library API Guide | 69f51fa | `docs/core-api.md` — KeyPair, AidBuilder, Dat, ReceiptLog, PolicyEvaluator |
+| Task 5: Protocol Concepts Guide | 902be4a | `docs/concepts.md` — mermaid diagrams for AID lifecycle, DAT flow, trust levels, receipt chains |
+| Task 6: Security Model | ccfcd39 | `docs/security.md` — threat summary, crypto rationale, key mgmt best practices, security checklist |
+| Task 7: SDK Quick-Start Guides | 06945ce | `docs/sdk-python.md` + `docs/sdk-typescript.md` — installation, AgentIdentity, DAT, Scope, complete examples |
 
-### Task 1: CI Pipeline — Build & Test (826ce41)
-- `.github/workflows/ci.yml` updated
-- Matrix: `stable` + `1.75` (MSRV), ubuntu-latest
-- Excludes: `--exclude idprova-python --exclude idprova-typescript`
-- Separate lint job; improved cache paths
+## Next Task
 
-### Task 2: Security Audit (8a8369a)
-- `.github/workflows/audit.yml` created
-- Weekly schedule + triggers on Cargo.lock/Cargo.toml changes
-- Uses `rustsec/audit-check@v2`
-
-### Task 3: Dockerfile Optimization (b4e57d0)
-- 4-stage cargo-chef build: chef → planner → builder → runtime
-- `debian:bookworm-slim` runtime, non-root `idprova` user
-- HEALTHCHECK via curl against `/health` endpoint
-
-### Task 4: Docker Compose Stack (2ea471f)
-- `docker-compose.yml`: registry service with SQLite volume
-- `Caddyfile`: reverse proxy with automatic HTTPS, security headers, gzip
-- Caddy activated via `--profile proxy`; all config via env vars
-
-### Task 5: Release Workflow (7647b3b)
-- `.github/workflows/release.yml`: triggered on `v*` tag push
-- Builds 5 targets: Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64
-- Uses `cross` for Linux aarch64 cross-compilation
-- Multi-arch Docker image (amd64+arm64) pushed to GHCR
-- GitHub Release created with archives + SHA256 checksums
-- Pre-release auto-detected from tag (e.g. `v1.0.0-rc1`)
-
-### Task 6: Developer Scripts (5464af9)
-- `scripts/dev-setup.sh`: install tooling, build, lint, test; `--skip-tests` flag
-- `scripts/run-registry.sh`: build + launch registry; `--release` flag
-- Both scripts are executable and idempotent
-
----
+None — track is complete.
 
 ## Key Decisions
 
-- CI runs ubuntu-latest only; MSRV 1.75 tested alongside stable
-- SDK crates excluded from all workspace cargo commands
-- Dockerfile uses `debian:bookworm-slim` (not distroless) — curl needed for healthcheck
-- Caddy optional via Docker Compose profiles — zero overhead when not needed
-- `cross` used for Linux aarch64 (avoids maintaining separate runners)
+- README kept to 185 lines (limit 200)
+- Used mermaid for architecture diagram
+- Quick-start includes curl-based AID registration step (matches actual registry PUT endpoint)
+- DAT verify shows both offline (--key) and registry modes
+- API reference includes all 9 routes, auth requirements, rate limits, env vars
+- `aid create` saves to `{did_with_underscores}.json` (e.g. `did_idprova_example.com_my-agent.json`)
+- Scope format: `namespace:resource:action` (colon-separated, 3 parts)
+- core-api.md cross-references both `dat::constraints::EvaluationContext` (simple) and `policy::context::EvaluationContext` (full builder) — both exist in codebase
+- concepts.md uses mermaid stateDiagram for AID lifecycle, sequenceDiagram for DAT flow, flowchart for policy engine
+- security.md includes STRIDE summary table with severity ratings from STRIDE-THREAT-MODEL.md
+- sdk-python.md and sdk-typescript.md document the actual API surface from `.pyi` stubs and `.d.ts` types, cross-validated against test files
+- AgentIdentity is the recommended high-level entry point in both SDKs
+- TypeScript exports `AID`/`AIDBuilder` as aliases for `Aid`/`AidBuilder` — noted in docs
 
----
+## Session Notes
 
-## Blockers / Issues
-
-None.
-
----
-
-## Next Steps
-
-Track E is complete. No further execution required on this branch.
+- Branch: `idprova/track-d-docs-website`
+- All commits: `Authored-By: Pratyush <hello@techblaze.com.au>`
+- Do NOT modify `crates/`, `sdks/`, `.github/`, `Dockerfile`, `Cargo.*`
+- Track complete — `.planning/TRACK_COMPLETE` touched

@@ -1,8 +1,8 @@
-# Project State — Track E: Infrastructure & CI/CD
+# Project State — Track D: Documentation & Website
 
 ## Current Position
 
-Phase: 1 of 1 (Infrastructure)
+Phase: 1 of 1 (Documentation)
 Plan: 1 of 1 in current phase
 Status: Ready to execute
 Last activity: Not started
