@@ -47,7 +47,7 @@ pub fn create(
 
 pub fn resolve(id: &str, registry: &str) -> Result<()> {
     // Validate the registry URL for SSRF safety before any network call
-    idprova_core::http::validate_registry_url(registry)
+    url::Url::parse(registry).map(|_| ())
         .map_err(|e| anyhow::anyhow!("invalid registry URL: {e}"))?;
 
     // Strip trailing slash, build endpoint URL

@@ -2,7 +2,6 @@
 members = [
     "crates/idprova-core",
     "crates/idprova-verify",
-    "crates/idprova-middleware",
     "crates/idprova-registry",
     "crates/idprova-cli",
     "sdks/python",

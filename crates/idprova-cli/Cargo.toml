@@ -29,6 +29,8 @@ chrono.workspace = true
 
 # Hex encoding
 hex.workspace = true
+n# URL parsing
+url.workspace = true
 
 # Config
 toml.workspace = true

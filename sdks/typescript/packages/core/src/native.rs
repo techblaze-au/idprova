@@ -14,9 +14,8 @@ use idprova_core::aid::document::AidDocument;
 use idprova_core::crypto::hash::prefixed_blake3;
 use idprova_core::crypto::KeyPair as RustKeyPair;
 use idprova_core::dat::scope::Scope as RustScope;
-use idprova_core::dat::constraints::{
-    DatConstraints as RustDatConstraints, EvaluationContext as RustEvaluationContext,
-};
+use idprova_core::dat::DatConstraints as RustDatConstraints;
+use idprova_core::policy::EvaluationContext as RustEvaluationContext;
 use idprova_core::dat::token::Dat as RustDat;
 use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptContext};
 use idprova_core::receipt::log::ReceiptLog as RustReceiptLog;
