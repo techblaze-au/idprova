@@ -34,6 +34,9 @@ tracing-subscriber.workspace = true
 # Hex encoding
 hex.workspace = true
 
+# Unique request IDs
+ulid.workspace = true
+
 # Error handling
 anyhow.workspace = true
 thiserror.workspace = true
