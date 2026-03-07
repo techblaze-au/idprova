@@ -1,7 +1,7 @@
 # Track D — Handover
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
-**Progress:** Task 6 of 7 complete (session 2 — stopped after 3 tasks per CLAUDE.md rule)
+**Status:** COMPLETE — all 7 tasks done
 
 ## Completed
 
@@ -13,17 +13,11 @@
 | Task 4: Core Library API Guide | 69f51fa | `docs/core-api.md` — KeyPair, AidBuilder, Dat, ReceiptLog, PolicyEvaluator |
 | Task 5: Protocol Concepts Guide | 902be4a | `docs/concepts.md` — mermaid diagrams for AID lifecycle, DAT flow, trust levels, receipt chains |
 | Task 6: Security Model | ccfcd39 | `docs/security.md` — threat summary, crypto rationale, key mgmt best practices, security checklist |
+| Task 7: SDK Quick-Start Guides | 06945ce | `docs/sdk-python.md` + `docs/sdk-typescript.md` — installation, AgentIdentity, DAT, Scope, complete examples |
 
 ## Next Task
 
-**Task 7: SDK Quick-Start Guides** — Create `docs/sdk-python.md` and `docs/sdk-typescript.md`
-
-Brief guides showing PyO3/napi-rs bindings usage — create identity, issue DAT, verify, log receipt.
-Note: SDKs may not be fully built yet — document the planned API surface.
-
-Reference files:
-- `sdks/python/`
-- `sdks/typescript/`
+None — track is complete.
 
 ## Key Decisions
 
@@ -37,10 +31,13 @@ Reference files:
 - core-api.md cross-references both `dat::constraints::EvaluationContext` (simple) and `policy::context::EvaluationContext` (full builder) — both exist in codebase
 - concepts.md uses mermaid stateDiagram for AID lifecycle, sequenceDiagram for DAT flow, flowchart for policy engine
 - security.md includes STRIDE summary table with severity ratings from STRIDE-THREAT-MODEL.md
+- sdk-python.md and sdk-typescript.md document the actual API surface from `.pyi` stubs and `.d.ts` types, cross-validated against test files
+- AgentIdentity is the recommended high-level entry point in both SDKs
+- TypeScript exports `AID`/`AIDBuilder` as aliases for `Aid`/`AidBuilder` — noted in docs
 
 ## Session Notes
 
 - Branch: `idprova/track-d-docs-website`
 - All commits: `Authored-By: Pratyush <hello@techblaze.com.au>`
 - Do NOT modify `crates/`, `sdks/`, `.github/`, `Dockerfile`, `Cargo.*`
-- Task 7 is the final task — after completion, touch `.planning/TRACK_COMPLETE` and update HANDOVER to COMPLETE
+- Track complete — `.planning/TRACK_COMPLETE` touched
