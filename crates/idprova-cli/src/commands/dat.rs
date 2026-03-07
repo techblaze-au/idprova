@@ -241,11 +241,11 @@ pub fn inspect(token: &str) -> Result<()> {
         if let Some(ref windows) = c.time_windows {
             println!("│  Time Windows (UTC):");
             for w in windows {
-                let days = w
-                    .days
-                    .as_ref()
-                    .map(|d| format!("{:?}", d))
-                    .unwrap_or_else(|| "every day".to_string());
+                let days = if w.days.is_empty() {
+                    "every day".to_string()
+                } else {
+                    format!("{:?}", w.days)
+                };
                 println!(
                     "│    {:02}:00 – {:02}:00  ({})",
                     w.start_hour, w.end_hour, days
