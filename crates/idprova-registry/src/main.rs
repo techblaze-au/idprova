@@ -287,6 +287,25 @@ async fn register_aid(
         return Err(ApiError::bad_request(format!("AID validation failed: {e}")));
     }
 
+    // Ensure the document id matches the URL path (consistency check)
+    if doc.id != did {
+        return Err(ApiError::bad_request(format!(
+            "document id '{}' does not match URL path '{did}'",
+            doc.id
+        )));
+    }
+
+    // Validate each verification method's public key decodes to a valid 32-byte Ed25519 key
+    for vm in &doc.verification_method {
+        idprova_core::crypto::KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
+            .map_err(|e| {
+                ApiError::bad_request(format!(
+                    "verification method '{}' has invalid publicKeyMultibase: {e}",
+                    vm.id
+                ))
+            })?;
+    }
+
     let store = state.store.lock().unwrap();
     let is_new = store
         .put(&did, &doc)
