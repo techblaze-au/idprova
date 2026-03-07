@@ -9,13 +9,12 @@
 //! - [`dat`] — Delegation Attestation Tokens (JWS-based)
 //! - [`receipt`] — Hash-chained action receipts for audit
 //! - [`trust`] — Trust level definitions (L0-L4)
-//! - [`policy`] — RBAC policy engine (7 evaluators, constraint inheritance, rate tracking)
+//! - [`policy`] — RBAC policy evaluation engine (constraint evaluators, decisions)
 
 pub mod aid;
 pub mod crypto;
 pub mod dat;
 pub mod error;
-pub mod http;
 pub mod policy;
 pub mod receipt;
 pub mod trust;

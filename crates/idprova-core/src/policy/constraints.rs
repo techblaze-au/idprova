@@ -9,7 +9,7 @@ use std::net::IpAddr;
 use chrono::{Datelike, Timelike};
 use ipnet::IpNet;
 
-use crate::dat::constraints::DatConstraints;
+use crate::dat::token::DatConstraints;
 use crate::trust::level::TrustLevel;
 
 use super::context::EvaluationContext;
@@ -38,7 +38,7 @@ pub trait ConstraintEvaluator: Send + Sync {
 // Built-in evaluator stubs (Phase 2 sessions A-4 through A-6 will implement)
 // ---------------------------------------------------------------------------
 
-/// Evaluates `rateLimit` constraint (sliding-window action count).
+/// Evaluates `maxCallsPerHour`, `maxCallsPerDay`, `maxConcurrent` constraints.
 pub struct RateLimitEvaluator;
 
 impl ConstraintEvaluator for RateLimitEvaluator {
@@ -47,18 +47,30 @@ impl ConstraintEvaluator for RateLimitEvaluator {
         constraints: &DatConstraints,
         context: &EvaluationContext,
     ) -> PolicyDecision {
-        if let Some(ref rl) = constraints.rate_limit {
-            // Use hourly counter for windows <= 1 hour, daily counter otherwise.
-            let (count, window_label) = if rl.window_secs <= 3600 {
-                (context.actions_this_hour, "hourly")
-            } else {
-                (context.actions_this_day, "daily")
-            };
-            if count >= rl.max_actions {
+        if let Some(limit) = constraints.max_calls_per_hour {
+            if context.actions_this_hour >= limit {
                 return PolicyDecision::Deny(DenialReason::RateLimitExceeded {
-                    limit_type: window_label.into(),
-                    limit: rl.max_actions,
-                    current: count,
+                    limit_type: "hourly".into(),
+                    limit,
+                    current: context.actions_this_hour,
+                });
+            }
+        }
+        if let Some(limit) = constraints.max_calls_per_day {
+            if context.actions_this_day >= limit {
+                return PolicyDecision::Deny(DenialReason::RateLimitExceeded {
+                    limit_type: "daily".into(),
+                    limit,
+                    current: context.actions_this_day,
+                });
+            }
+        }
+        if let Some(limit) = constraints.max_concurrent {
+            if context.active_concurrent >= limit {
+                return PolicyDecision::Deny(DenialReason::RateLimitExceeded {
+                    limit_type: "concurrent".into(),
+                    limit,
+                    current: context.active_concurrent,
                 });
             }
         }
@@ -99,7 +111,7 @@ impl ConstraintEvaluator for IpConstraintEvaluator {
         };
 
         // Deny list takes priority
-        if let Some(ref denied) = constraints.ip_denylist {
+        if let Some(ref denied) = constraints.denied_ips {
             let nets = Self::parse_nets(denied);
             if nets.iter().any(|net| net.contains(&ip)) {
                 return PolicyDecision::Deny(DenialReason::IpBlocked {
@@ -110,7 +122,7 @@ impl ConstraintEvaluator for IpConstraintEvaluator {
         }
 
         // Allowed list: if present, IP must match at least one entry
-        if let Some(ref allowed) = constraints.ip_allowlist {
+        if let Some(ref allowed) = constraints.allowed_ips {
             let nets = Self::parse_nets(allowed);
             if !nets.is_empty() && !nets.iter().any(|net| net.contains(&ip)) {
                 return PolicyDecision::Deny(DenialReason::IpBlocked {
@@ -131,34 +143,20 @@ impl ConstraintEvaluator for IpConstraintEvaluator {
 /// Evaluates `requiredTrustLevel` constraint.
 pub struct TrustLevelEvaluator;
 
-impl TrustLevelEvaluator {
-    /// Convert a u8 ordinal (0=L0, 1=L1, …, 4=L4) to a TrustLevel.
-    fn ordinal_to_level(v: u8) -> Option<TrustLevel> {
-        match v {
-            0 => Some(TrustLevel::L0),
-            1 => Some(TrustLevel::L1),
-            2 => Some(TrustLevel::L2),
-            3 => Some(TrustLevel::L3),
-            4 => Some(TrustLevel::L4),
-            _ => None,
-        }
-    }
-}
-
 impl ConstraintEvaluator for TrustLevelEvaluator {
     fn evaluate(
         &self,
         constraints: &DatConstraints,
         context: &EvaluationContext,
     ) -> PolicyDecision {
-        let min_ordinal = match constraints.min_trust_level {
-            Some(v) => v,
+        let required_str = match constraints.required_trust_level {
+            Some(ref s) => s,
             None => return PolicyDecision::Allow, // No constraint — skip
         };
 
-        let required = match Self::ordinal_to_level(min_ordinal) {
+        let required = match TrustLevel::from_str_repr(required_str) {
             Some(level) => level,
-            None => return PolicyDecision::Allow, // Invalid ordinal — skip gracefully
+            None => return PolicyDecision::Allow, // Invalid string — skip gracefully
         };
 
         match context.caller_trust_level {
@@ -220,7 +218,7 @@ impl ConstraintEvaluator for GeofenceEvaluator {
         constraints: &DatConstraints,
         context: &EvaluationContext,
     ) -> PolicyDecision {
-        let allowed = match constraints.allowed_countries {
+        let allowed = match constraints.geofence {
             Some(ref countries) if !countries.is_empty() => countries,
             _ => return PolicyDecision::Allow, // No constraint — skip
         };
@@ -285,10 +283,7 @@ impl ConstraintEvaluator for TimeWindowEvaluator {
         let day = ts.weekday().num_days_from_monday() as u8;
 
         for window in windows {
-            let day_matches = window
-                .days_of_week
-                .as_ref()
-                .is_none_or(|days| days.contains(&day));
+            let day_matches = window.days.is_empty() || window.days.contains(&day);
             let hour_matches = Self::hour_in_range(hour, window.start_hour, window.end_hour);
             if day_matches && hour_matches {
                 return PolicyDecision::Allow;
@@ -314,7 +309,7 @@ impl ConstraintEvaluator for ConfigAttestationEvaluator {
         constraints: &DatConstraints,
         context: &EvaluationContext,
     ) -> PolicyDecision {
-        let required = match constraints.required_config_hash {
+        let required = match constraints.required_config_attestation {
             Some(ref hash) => hash,
             None => return PolicyDecision::Allow, // No constraint — skip
         };
@@ -353,7 +348,6 @@ pub fn default_evaluators() -> Vec<Box<dyn ConstraintEvaluator>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dat::constraints::RateLimit;
     use chrono::Utc;
 
     fn empty_constraints() -> DatConstraints {
@@ -398,10 +392,7 @@ mod tests {
 
     #[test]
     fn test_rate_limit_hourly_exceeded() {
-        let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 3600 }),
-            ..Default::default()
-        };
+        let c = DatConstraints { max_calls_per_hour: Some(100), ..Default::default() };
         let ctx = EvaluationContext::builder("scope").actions_this_hour(100).build();
         let d = RateLimitEvaluator.evaluate(&c, &ctx);
         assert!(d.is_denied());
@@ -417,10 +408,7 @@ mod tests {
 
     #[test]
     fn test_rate_limit_daily_exceeded() {
-        let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 500, window_secs: 86400 }),
-            ..Default::default()
-        };
+        let c = DatConstraints { max_calls_per_day: Some(500), ..Default::default() };
         let ctx = EvaluationContext::builder("scope").actions_this_day(501).build();
         let d = RateLimitEvaluator.evaluate(&c, &ctx);
         assert!(d.is_denied());
@@ -431,13 +419,29 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limit_concurrent_exceeded() {
+        let c = DatConstraints { max_concurrent: Some(3), ..Default::default() };
+        let ctx = EvaluationContext::builder("scope").active_concurrent(5).build();
+        let d = RateLimitEvaluator.evaluate(&c, &ctx);
+        assert!(d.is_denied());
+        match d.denial_reason().unwrap() {
+            DenialReason::RateLimitExceeded { limit_type, .. } => assert_eq!(limit_type, "concurrent"),
+            other => panic!("expected RateLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_rate_limit_within_limits() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 3600 }),
+            max_calls_per_hour: Some(100),
+            max_calls_per_day: Some(500),
+            max_concurrent: Some(5),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
             .actions_this_hour(50)
+            .actions_this_day(200)
+            .active_concurrent(2)
             .build();
         assert!(RateLimitEvaluator.evaluate(&c, &ctx).is_allowed());
     }
@@ -448,6 +452,7 @@ mod tests {
         let ctx = EvaluationContext::builder("scope")
             .actions_this_hour(9999)
             .actions_this_day(9999)
+            .active_concurrent(9999)
             .build();
         assert!(RateLimitEvaluator.evaluate(&c, &ctx).is_allowed());
     }
@@ -459,7 +464,7 @@ mod tests {
     #[test]
     fn test_ip_allowed() {
         let c = DatConstraints {
-            ip_allowlist: Some(vec!["10.0.0.0/8".into()]),
+            allowed_ips: Some(vec!["10.0.0.0/8".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -471,7 +476,7 @@ mod tests {
     #[test]
     fn test_ip_denied() {
         let c = DatConstraints {
-            ip_denylist: Some(vec!["192.168.1.0/24".into()]),
+            denied_ips: Some(vec!["192.168.1.0/24".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -491,8 +496,8 @@ mod tests {
     #[test]
     fn test_ip_deny_wins_over_allow() {
         let c = DatConstraints {
-            ip_allowlist: Some(vec!["10.0.0.0/8".into()]),
-            ip_denylist: Some(vec!["10.0.0.99/32".into()]),
+            allowed_ips: Some(vec!["10.0.0.0/8".into()]),
+            denied_ips: Some(vec!["10.0.0.99/32".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -504,7 +509,7 @@ mod tests {
     #[test]
     fn test_ip_not_in_allowed() {
         let c = DatConstraints {
-            ip_allowlist: Some(vec!["10.0.0.0/8".into()]),
+            allowed_ips: Some(vec!["10.0.0.0/8".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -521,8 +526,8 @@ mod tests {
     #[test]
     fn test_ip_no_source_ip_skips() {
         let c = DatConstraints {
-            ip_allowlist: Some(vec!["10.0.0.0/8".into()]),
-            ip_denylist: Some(vec!["0.0.0.0/0".into()]),
+            allowed_ips: Some(vec!["10.0.0.0/8".into()]),
+            denied_ips: Some(vec!["0.0.0.0/0".into()]),
             ..Default::default()
         };
         let ctx = minimal_context(); // no source_ip
@@ -536,7 +541,7 @@ mod tests {
     #[test]
     fn test_trust_level_sufficient() {
         let c = DatConstraints {
-            min_trust_level: Some(2),
+            required_trust_level: Some("L2".into()),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -548,7 +553,7 @@ mod tests {
     #[test]
     fn test_trust_level_exact_match() {
         let c = DatConstraints {
-            min_trust_level: Some(2),
+            required_trust_level: Some("L2".into()),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -560,7 +565,7 @@ mod tests {
     #[test]
     fn test_trust_level_insufficient() {
         let c = DatConstraints {
-            min_trust_level: Some(2),
+            required_trust_level: Some("L2".into()),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -589,7 +594,7 @@ mod tests {
     #[test]
     fn test_trust_level_missing_caller_level_denied() {
         let c = DatConstraints {
-            min_trust_level: Some(1),
+            required_trust_level: Some("L1".into()),
             ..Default::default()
         };
         let ctx = minimal_context(); // no caller_trust_level
@@ -659,7 +664,7 @@ mod tests {
     #[test]
     fn test_geofence_country_in_allowed() {
         let c = DatConstraints {
-            allowed_countries: Some(vec!["AU".into(), "NZ".into()]),
+            geofence: Some(vec!["AU".into(), "NZ".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope").source_country("AU").build();
@@ -669,7 +674,7 @@ mod tests {
     #[test]
     fn test_geofence_country_not_in_allowed() {
         let c = DatConstraints {
-            allowed_countries: Some(vec!["AU".into(), "NZ".into()]),
+            geofence: Some(vec!["AU".into(), "NZ".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope").source_country("US").build();
@@ -687,7 +692,7 @@ mod tests {
     #[test]
     fn test_geofence_case_insensitive() {
         let c = DatConstraints {
-            allowed_countries: Some(vec!["au".into()]),
+            geofence: Some(vec!["au".into()]),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope").source_country("AU").build();
@@ -697,7 +702,7 @@ mod tests {
     #[test]
     fn test_geofence_no_country_fail_closed() {
         let c = DatConstraints {
-            allowed_countries: Some(vec!["AU".into()]),
+            geofence: Some(vec!["AU".into()]),
             ..Default::default()
         };
         let ctx = minimal_context(); // no source_country
@@ -719,8 +724,8 @@ mod tests {
     fn test_time_window_inside() {
         use chrono::TimeZone;
         let c = DatConstraints {
-            time_windows: Some(vec![crate::dat::constraints::TimeWindow {
-                days_of_week: Some(vec![0, 1, 2, 3, 4]), // Mon-Fri
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![0, 1, 2, 3, 4], // Mon-Fri
                 start_hour: 9,
                 end_hour: 17,
             }]),
@@ -736,8 +741,8 @@ mod tests {
     fn test_time_window_outside_hour() {
         use chrono::TimeZone;
         let c = DatConstraints {
-            time_windows: Some(vec![crate::dat::constraints::TimeWindow {
-                days_of_week: Some(vec![0, 1, 2, 3, 4]),
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![0, 1, 2, 3, 4],
                 start_hour: 9,
                 end_hour: 17,
             }]),
@@ -753,8 +758,8 @@ mod tests {
     fn test_time_window_outside_day() {
         use chrono::TimeZone;
         let c = DatConstraints {
-            time_windows: Some(vec![crate::dat::constraints::TimeWindow {
-                days_of_week: Some(vec![0, 1, 2, 3, 4]), // Mon-Fri only
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![0, 1, 2, 3, 4], // Mon-Fri only
                 start_hour: 9,
                 end_hour: 17,
             }]),
@@ -770,8 +775,8 @@ mod tests {
     fn test_time_window_overnight_wrap() {
         use chrono::TimeZone;
         let c = DatConstraints {
-            time_windows: Some(vec![crate::dat::constraints::TimeWindow {
-                days_of_week: None, // any day
+            time_windows: Some(vec![crate::dat::token::TimeWindow {
+                days: vec![], // any day
                 start_hour: 22,
                 end_hour: 6, // overnight: 22-23, 0-6
             }]),
@@ -793,13 +798,13 @@ mod tests {
         use chrono::TimeZone;
         let c = DatConstraints {
             time_windows: Some(vec![
-                crate::dat::constraints::TimeWindow {
-                    days_of_week: Some(vec![0, 1, 2, 3, 4]), // weekdays
+                crate::dat::token::TimeWindow {
+                    days: vec![0, 1, 2, 3, 4], // weekdays
                     start_hour: 9,
                     end_hour: 17,
                 },
-                crate::dat::constraints::TimeWindow {
-                    days_of_week: Some(vec![5, 6]), // weekends
+                crate::dat::token::TimeWindow {
+                    days: vec![5, 6], // weekends
                     start_hour: 10,
                     end_hour: 14,
                 },
@@ -827,7 +832,7 @@ mod tests {
     fn test_config_attestation_match() {
         let hash = "sha256:abc123def456";
         let c = DatConstraints {
-            required_config_hash: Some(hash.into()),
+            required_config_attestation: Some(hash.into()),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -839,7 +844,7 @@ mod tests {
     #[test]
     fn test_config_attestation_mismatch() {
         let c = DatConstraints {
-            required_config_hash: Some("sha256:expected".into()),
+            required_config_attestation: Some("sha256:expected".into()),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -859,7 +864,7 @@ mod tests {
     #[test]
     fn test_config_attestation_missing_caller_hash() {
         let c = DatConstraints {
-            required_config_hash: Some("sha256:required".into()),
+            required_config_attestation: Some("sha256:required".into()),
             ..Default::default()
         };
         let ctx = minimal_context(); // no caller_config_attestation
