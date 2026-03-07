@@ -1,0 +1,69 @@
+# IDProva Registry — Docker Compose Stack
+# Services: registry (required) + caddy (optional reverse proxy)
+#
+# Quick start:
+#   docker compose up -d registry
+#
+# With TLS via Caddy (set CADDY_DOMAIN first):
+#   CADDY_DOMAIN=registry.example.com docker compose up -d
+
+services:
+  registry:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: idprova-registry:latest
+    container_name: idprova-registry
+    restart: unless-stopped
+    ports:
+      - "${REGISTRY_PORT:-3000}:3000"
+    environment:
+      IDPROVA_HOST: "0.0.0.0"
+      IDPROVA_PORT: "3000"
+      IDPROVA_DB_PATH: "/app/data/registry.db"
+      RUST_LOG: "${RUST_LOG:-info}"
+    volumes:
+      - registry-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    networks:
+      - idprova-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: idprova-caddy
+    restart: unless-stopped
+    profiles:
+      - proxy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CADDY_DOMAIN: "${CADDY_DOMAIN:-localhost}"
+      REGISTRY_UPSTREAM: "registry:3000"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      registry:
+        condition: service_healthy
+    networks:
+      - idprova-net
+
+volumes:
+  registry-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+networks:
+  idprova-net:
+    driver: bridge
