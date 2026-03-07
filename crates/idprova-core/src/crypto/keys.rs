@@ -47,7 +47,8 @@ impl KeyPair {
     /// This method is intentionally `pub(crate)` — external callers should never
     /// access raw private key bytes directly. Use `sign()` for cryptographic operations.
     /// For key persistence, use the encrypted export (SR-7, Phase 8).
-    pub(crate) fn secret_bytes(&self) -> &[u8; 32] {
+    #[doc(hidden)]
+    pub fn secret_bytes(&self) -> &[u8; 32] {
         self.signing_key.as_bytes()
     }
 
