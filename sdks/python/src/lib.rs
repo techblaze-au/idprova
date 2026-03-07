@@ -437,7 +437,7 @@ impl DAT {
         key.copy_from_slice(public_key_bytes);
 
         let default_ctx = EvaluationContext::default();
-        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust();
+        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust(required_scope);
 
         {
             self.inner.verify_signature(&key).map_err(to_py_err)?;
