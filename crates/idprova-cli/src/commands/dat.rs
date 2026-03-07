@@ -83,22 +83,21 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             let evaluator = idprova_core::policy::PolicyEvaluator::new();
             let decision = evaluator.evaluate(&dat, &ctx);
             if decision.is_allowed() {
-                    println!("✓ Signature:  VALID");
-                    println!("✓ Timing:     VALID");
-                    if !scope.is_empty() {
-                        println!("✓ Scope:      '{}' GRANTED", scope);
-                    }
-                    if dat.claims.constraints.is_some() {
-                        println!("✓ Constraints: ALL PASS");
-                    }
-                    println!();
-                    println!("Result: VALID");
+                println!("✓ Signature:  VALID");
+                println!("✓ Timing:     VALID");
+                if !scope.is_empty() {
+                    println!("✓ Scope:      '{}' GRANTED", scope);
                 }
+                if dat.claims.constraints.is_some() {
+                    println!("✓ Constraints: ALL PASS");
+                }
+                println!();
+                println!("Result: VALID");
             } else {
-                    let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
-                    println!("✗ Verification FAILED: {reason}");
-                    bail!("DAT verification failed");
-                }
+                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                println!("✗ Verification FAILED: {reason}");
+                bail!("DAT verification failed");
+            }
         }
         None => {
             // ── Registry-assisted verification ────────────────────────────
@@ -150,22 +149,21 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             let evaluator = idprova_core::policy::PolicyEvaluator::new();
             let decision = evaluator.evaluate(&dat, &ctx);
             if decision.is_allowed() {
-                    println!("✓ Signature:  VALID (verified via registry)");
-                    println!("✓ Timing:     VALID");
-                    if !scope.is_empty() {
-                        println!("✓ Scope:      '{}' GRANTED", scope);
-                    }
-                    if dat.claims.constraints.is_some() {
-                        println!("✓ Constraints: ALL PASS");
-                    }
-                    println!();
-                    println!("Result: VALID");
+                println!("✓ Signature:  VALID (verified via registry)");
+                println!("✓ Timing:     VALID");
+                if !scope.is_empty() {
+                    println!("✓ Scope:      '{}' GRANTED", scope);
                 }
+                if dat.claims.constraints.is_some() {
+                    println!("✓ Constraints: ALL PASS");
+                }
+                println!();
+                println!("Result: VALID");
             } else {
-                    let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
-                    println!("✗ Verification FAILED: {reason}");
-                    bail!("DAT verification failed");
-                }
+                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                println!("✗ Verification FAILED: {reason}");
+                bail!("DAT verification failed");
+            }
         }
     }
 
