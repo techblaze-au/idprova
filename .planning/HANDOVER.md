@@ -2,61 +2,65 @@
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
 **Branch:** `idprova/track-e-infra`
-**Session ended after 3 tasks (session rotation rule)**
-**Progress:** 3 of 6 tasks complete
+**Status: COMPLETE — all 6 tasks done**
+**Progress:** 6 of 6 tasks complete
 
 ---
 
-## Tasks Completed This Session
+## All Tasks Completed
 
 ### Task 1: CI Pipeline — Build & Test (826ce41)
-- Updated `.github/workflows/ci.yml`
-- Matrix: `stable` + `1.75` (MSRV) — both on ubuntu-latest
+- `.github/workflows/ci.yml` updated
+- Matrix: `stable` + `1.75` (MSRV), ubuntu-latest
 - Excludes: `--exclude idprova-python --exclude idprova-typescript`
-- Improved cache paths: `registry/index/`, `registry/cache/`, `git/db/`, `target/`
-- Split lint into separate job
+- Separate lint job; improved cache paths
 
 ### Task 2: Security Audit (8a8369a)
-- Created `.github/workflows/audit.yml`
-- Schedule: weekly Monday 08:00 UTC
-- Triggers on Cargo.lock/Cargo.toml changes and manual dispatch
+- `.github/workflows/audit.yml` created
+- Weekly schedule + triggers on Cargo.lock/Cargo.toml changes
 - Uses `rustsec/audit-check@v2`
 
 ### Task 3: Dockerfile Optimization (b4e57d0)
-- Rewrote `Dockerfile` with 4-stage cargo-chef build
-- Stages: chef → planner → builder → runtime
-- Dependency layer cached independently of source changes
-- Added `curl` to runtime for HEALTHCHECK; hardened user setup
+- 4-stage cargo-chef build: chef → planner → builder → runtime
+- `debian:bookworm-slim` runtime, non-root `idprova` user
+- HEALTHCHECK via curl against `/health` endpoint
 
----
+### Task 4: Docker Compose Stack (2ea471f)
+- `docker-compose.yml`: registry service with SQLite volume
+- `Caddyfile`: reverse proxy with automatic HTTPS, security headers, gzip
+- Caddy activated via `--profile proxy`; all config via env vars
 
-## Next Task to Execute
+### Task 5: Release Workflow (7647b3b)
+- `.github/workflows/release.yml`: triggered on `v*` tag push
+- Builds 5 targets: Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64
+- Uses `cross` for Linux aarch64 cross-compilation
+- Multi-arch Docker image (amd64+arm64) pushed to GHCR
+- GitHub Release created with archives + SHA256 checksums
+- Pre-release auto-detected from tag (e.g. `v1.0.0-rc1`)
 
-**Task 4: Docker Compose Stack**
-- Create `docker-compose.yml`
-- Registry service with SQLite volume mount
-- Optional Caddy reverse proxy with automatic HTTPS
-- Environment variable configuration
-
----
-
-## Remaining Tasks (4, 5, 6)
-
-4. `docker-compose.yml` — registry + Caddy reverse proxy
-5. `.github/workflows/release.yml` — cross-platform release binaries + GHCR Docker push
-6. `scripts/dev-setup.sh` + `scripts/run-registry.sh` — developer helper scripts
+### Task 6: Developer Scripts (5464af9)
+- `scripts/dev-setup.sh`: install tooling, build, lint, test; `--skip-tests` flag
+- `scripts/run-registry.sh`: build + launch registry; `--release` flag
+- Both scripts are executable and idempotent
 
 ---
 
 ## Key Decisions
 
-- CI runs on ubuntu-latest only (not matrix across OS) to keep costs down; MSRV tested on same platform
-- SDK crates (`idprova-python`, `idprova-typescript`) excluded from all workspace commands in CI
-- Dockerfile uses `debian:bookworm-slim` runtime (not distroless) — curl needed for HEALTHCHECK
-- `cargo-chef cook` scoped to `--package idprova-registry` to avoid building SDK plumbing
+- CI runs ubuntu-latest only; MSRV 1.75 tested alongside stable
+- SDK crates excluded from all workspace cargo commands
+- Dockerfile uses `debian:bookworm-slim` (not distroless) — curl needed for healthcheck
+- Caddy optional via Docker Compose profiles — zero overhead when not needed
+- `cross` used for Linux aarch64 (avoids maintaining separate runners)
 
 ---
 
 ## Blockers / Issues
 
 None.
+
+---
+
+## Next Steps
+
+Track E is complete. No further execution required on this branch.
