@@ -148,6 +148,12 @@ impl AidStore {
         Ok(Self { conn })
     }
 
+    /// Ping the database — returns Ok(()) if the connection is alive.
+    pub fn ping(&self) -> Result<()> {
+        self.conn.execute_batch("SELECT 1")?;
+        Ok(())
+    }
+
     /// Return the revocation record for a JTI, if one exists.
     pub fn get_revocation(&self, jti: &str) -> Result<Option<RevocationRecord>> {
         let result = self.conn.query_row(

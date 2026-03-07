@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     http::{HeaderValue, Request, StatusCode},
     middleware::{self, Next},
-    response::{Json, Response},
+    response::{IntoResponse, Json, Response},
     routing::{delete, get, post, put},
     Router,
 };
@@ -104,6 +104,7 @@ async fn main() -> Result<()> {
     // Build the router
     let app = Router::new()
         .route("/health", get(health))
+        .route("/ready", get(ready))
         .route("/v1/meta", get(meta))
         .route("/v1/aid/:id", put(register_aid))
         .route("/v1/aid/:id", get(resolve_aid))
@@ -244,6 +245,24 @@ async fn health() -> Json<Value> {
         "version": env!("CARGO_PKG_VERSION"),
         "protocol": "idprova/0.1"
     }))
+}
+
+/// GET /ready — returns 200 if the SQLite store is reachable, 503 otherwise.
+async fn ready(State(state): State<SharedState>) -> Response {
+    let ok = state.store.lock().unwrap().ping().is_ok();
+    if ok {
+        (
+            StatusCode::OK,
+            Json(json!({ "status": "ready", "db": "ok" })),
+        )
+            .into_response()
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({ "status": "not_ready", "db": "error" })),
+        )
+            .into_response()
+    }
 }
 
 async fn meta() -> Json<Value> {
