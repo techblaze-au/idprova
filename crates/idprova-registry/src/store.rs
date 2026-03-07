@@ -113,6 +113,29 @@ impl AidStore {
         Ok(rows > 0)
     }
 
+    /// List revocation records with pagination, ordered by `revoked_at` descending.
+    pub fn list_revocations(&self, limit: usize, offset: usize) -> Result<Vec<RevocationRecord>> {
+        let limit = limit.min(1000) as i64;
+        let offset = offset as i64;
+        let mut stmt = self.conn.prepare(
+            "SELECT jti, reason, revoked_by, revoked_at \
+             FROM dat_revocations \
+             ORDER BY revoked_at DESC \
+             LIMIT ? OFFSET ?",
+        )?;
+        let records = stmt
+            .query_map(rusqlite::params![limit, offset], |row| {
+                Ok(RevocationRecord {
+                    jti: row.get(0)?,
+                    reason: row.get(1)?,
+                    revoked_by: row.get(2)?,
+                    revoked_at: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(records)
+    }
+
     /// Return true if the given JTI has been revoked.
     #[allow(dead_code)]
     pub fn is_revoked(&self, jti: &str) -> Result<bool> {
