@@ -4,6 +4,7 @@ members = [
     "crates/idprova-verify",
     "crates/idprova-registry",
     "crates/idprova-cli",
+    "crates/idprova-mcp-demo",
     "sdks/python",
     "sdks/typescript/packages/core",
 ]
@@ -80,6 +81,7 @@ hex = "0.4"
 
 # Config
 toml = "0.8"
+tempfile = "3"
 
 [profile.release]
 lto = true
