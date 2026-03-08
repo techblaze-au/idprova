@@ -1,0 +1,22 @@
+[package]
+name = "idprova-mcp-demo"
+version = "0.1.0"
+edition = "2021"
+description = "IDProva MCP demo server — JSON-RPC 2.0 with DAT bearer auth and BLAKE3 receipt chain"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
+reqwest = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+ulid = { workspace = true }
+tower-http = { workspace = true }
+hex = { workspace = true }
+tempfile = { workspace = true }
+
