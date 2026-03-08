@@ -189,6 +189,7 @@ async fn verify_with_registry(
 struct AppState {
     registry_url: String,
     receipts: Arc<Mutex<ReceiptLog>>,
+    public_dir: PathBuf,
 }
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -201,6 +202,70 @@ pub fn handle_echo(params: &Value) -> Result<Value, String> {
 
     Ok(json!({
         "content": [{ "type": "text", "text": format!("echo: {} — Verified by IDProva DAT", msg) }]
+    }))
+}
+
+pub fn handle_calculate(params: &Value) -> Result<Value, String> {
+    let expr = params
+        .get("expression")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "calculate requires params.expression (string)".to_string())?;
+
+    if expr.len() > 200 {
+        return Err(format!("expression too long: {} chars (max 200)", expr.len()));
+    }
+
+    let result = evalexpr::eval(expr)
+        .map_err(|e| format!("evaluation error: {e}"))?;
+
+    Ok(json!({
+        "content": [{ "type": "text", "text": format!("{} = {}", expr, result) }]
+    }))
+}
+
+pub fn handle_read_public_file(params: &Value, public_dir: &std::path::Path) -> Result<Value, String> {
+    let filename = params
+        .get("filename")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "read_public_file requires params.filename (string)".to_string())?;
+
+    // Security: reject path traversal, absolute paths, backslashes
+    if filename.contains("..") {
+        return Err("path traversal not allowed".to_string());
+    }
+    if filename.contains('\\') {
+        return Err("backslashes not allowed in filename".to_string());
+    }
+    if filename.starts_with('/') {
+        return Err("absolute paths not allowed".to_string());
+    }
+
+    let target = public_dir.join(filename);
+
+    // Canonicalize to detect any remaining traversal or symlinks
+    let canonical = std::fs::canonicalize(&target)
+        .map_err(|_| format!("file not found: {filename}"))?;
+
+    let canonical_public = std::fs::canonicalize(public_dir)
+        .map_err(|_| "public directory not accessible".to_string())?;
+
+    if !canonical.starts_with(&canonical_public) {
+        return Err("access denied: file outside public directory".to_string());
+    }
+
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|_| format!("file not found: {filename}"))?;
+
+    const MAX_SIZE: u64 = 100 * 1024; // 100 KB
+    if metadata.len() > MAX_SIZE {
+        return Err(format!("file too large: {} bytes (max 100KB)", metadata.len()));
+    }
+
+    let content = std::fs::read_to_string(&canonical)
+        .map_err(|e| format!("error reading file: {e}"))?;
+
+    Ok(json!({
+        "content": [{ "type": "text", "text": content }]
     }))
 }
 
@@ -266,6 +331,19 @@ async fn handle_rpc(
     // Dispatch to tool
     let result_value = match req.method.as_str() {
         "echo" => match handle_echo(&req.params) {
+            Ok(v) => v,
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, Json(McpResponse::err(id, -32602, e))).into_response();
+            }
+        },
+        "calculate" => match handle_calculate(&req.params) {
+            Ok(v) => v,
+            Err(e) => {
+                // Tool errors (bad expression etc.) are JSON-RPC errors, not HTTP errors
+                return Json(McpResponse::err(id, -32602, e)).into_response();
+            }
+        },
+        "read_file" => match handle_read_public_file(&req.params, &state.public_dir) {
             Ok(v) => v,
             Err(e) => {
                 return (StatusCode::BAD_REQUEST, Json(McpResponse::err(id, -32602, e))).into_response();
@@ -338,13 +416,19 @@ async fn main() -> Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("receipts.jsonl"));
 
+    let public_dir = std::env::var("PUBLIC_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("public"));
+
     tracing::info!("IDProva MCP Demo v{}", env!("CARGO_PKG_VERSION"));
     tracing::info!("Registry: {registry_url}");
     tracing::info!("Receipts: {}", receipts_path.display());
+    tracing::info!("Public dir: {}", public_dir.display());
 
     let state = AppState {
         registry_url,
         receipts: Arc::new(Mutex::new(ReceiptLog::new(receipts_path))),
+        public_dir,
     };
 
     let app = Router::new()
@@ -366,6 +450,9 @@ async fn main() -> Result<()> {
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;
+    use tempfile::TempDir;
+
+    // ── ReceiptLog tests ──────────────────────────────────────────────────────
 
     #[test]
     fn test_receipt_chain_genesis() {
@@ -409,20 +496,6 @@ mod tests {
     }
 
     #[test]
-    fn test_echo_tool_success() {
-        let params = json!({ "message": "hello world" });
-        let result = handle_echo(&params).unwrap();
-        let text = result["content"][0]["text"].as_str().unwrap();
-        assert!(text.starts_with("echo: hello world"));
-        assert!(text.contains("Verified by IDProva DAT"));
-    }
-
-    #[test]
-    fn test_echo_missing_message() {
-        assert!(handle_echo(&json!({})).is_err());
-    }
-
-    #[test]
     fn test_receipt_last_n() {
         let tmp = NamedTempFile::new().unwrap();
         let log = ReceiptLog::new(tmp.path().to_path_buf());
@@ -441,15 +514,123 @@ mod tests {
         assert_eq!(log.last_n(100).len(), 5);
     }
 
+    // ── Echo tool tests ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_echo_tool_success() {
+        let params = json!({ "message": "hello world" });
+        let result = handle_echo(&params).unwrap();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.starts_with("echo: hello world"));
+        assert!(text.contains("Verified by IDProva DAT"));
+    }
+
+    #[test]
+    fn test_echo_missing_message() {
+        assert!(handle_echo(&json!({})).is_err());
+    }
+
+    // ── Calculate tool tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_calculate_basic_arithmetic() {
+        let result = handle_calculate(&json!({ "expression": "2+2*3" })).unwrap();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("= 8"), "expected '= 8', got: {text}");
+    }
+
+    #[test]
+    fn test_calculate_division_by_zero() {
+        let err = handle_calculate(&json!({ "expression": "1/0" })).unwrap_err();
+        assert!(err.contains("evaluation error") || err.contains("division") || err.contains("zero"),
+            "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_calculate_expression_too_long() {
+        let long_expr = "1+".repeat(101); // 202 chars
+        let err = handle_calculate(&json!({ "expression": long_expr })).unwrap_err();
+        assert!(err.contains("too long"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_calculate_missing_expression() {
+        assert!(handle_calculate(&json!({})).is_err());
+    }
+
+    #[test]
+    fn test_calculate_complex_expression() {
+        let result = handle_calculate(&json!({ "expression": "(10 + 5) * 2 - 3" })).unwrap();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("= 27"), "expected '= 27', got: {text}");
+    }
+
+    // ── read_public_file tool tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_read_file_path_traversal_dotdot() {
+        let tmp = TempDir::new().unwrap();
+        let err = handle_read_public_file(
+            &json!({ "filename": "../etc/passwd" }),
+            tmp.path(),
+        ).unwrap_err();
+        assert!(err.contains("path traversal"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_read_file_absolute_path() {
+        let tmp = TempDir::new().unwrap();
+        let err = handle_read_public_file(
+            &json!({ "filename": "/etc/passwd" }),
+            tmp.path(),
+        ).unwrap_err();
+        assert!(err.contains("absolute paths"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_read_file_backslash_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let err = handle_read_public_file(
+            &json!({ "filename": "..\\etc\\passwd" }),
+            tmp.path(),
+        ).unwrap_err();
+        assert!(err.contains("backslash") || err.contains("path traversal"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_read_file_success() {
+        let tmp = TempDir::new().unwrap();
+        let file_path = tmp.path().join("readme.txt");
+        std::fs::write(&file_path, "Hello from IDProva public file!").unwrap();
+
+        let result = handle_read_public_file(
+            &json!({ "filename": "readme.txt" }),
+            tmp.path(),
+        ).unwrap();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert_eq!(text, "Hello from IDProva public file!");
+    }
+
+    #[test]
+    fn test_read_file_not_found() {
+        let tmp = TempDir::new().unwrap();
+        let err = handle_read_public_file(
+            &json!({ "filename": "nonexistent.txt" }),
+            tmp.path(),
+        ).unwrap_err();
+        assert!(err.contains("not found") || err.contains("nonexistent"), "unexpected error: {err}");
+    }
+
+    // ── Scope format test ─────────────────────────────────────────────────────
+
     #[test]
     fn test_scope_format() {
-        let method = "echo";
-        let scope = format!("mcp:tool:{method}");
-        // Verify 3-part grammar
-        let parts: Vec<&str> = scope.split(':').collect();
-        assert_eq!(parts.len(), 3);
-        assert_eq!(parts[0], "mcp");
-        assert_eq!(parts[1], "tool");
-        assert_eq!(parts[2], "echo");
+        for method in ["echo", "calculate", "read_file"] {
+            let scope = format!("mcp:tool:{method}");
+            let parts: Vec<&str> = scope.split(':').collect();
+            assert_eq!(parts.len(), 3, "scope must be 3-part for method {method}");
+            assert_eq!(parts[0], "mcp");
+            assert_eq!(parts[1], "tool");
+        }
     }
 }
