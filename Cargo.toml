@@ -24,6 +24,7 @@ rust-version = "1.75"
 ed25519-dalek = { version = "=2.1.1", features = ["serde", "rand_core", "zeroize"] }
 blake3 = "=1.5.4"
 sha2 = "=0.10.8"
+evalexpr = "11"
 # hkdf removed (S7: unused dependency, increases attack surface)
 rand = "0.8"
 # Zeroize — SR-1: secure memory erasure of private keys
