@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     http::{HeaderValue, Request, StatusCode},
     middleware::{self, Next},
-    response::{IntoResponse, Json, Response},
+    response::{Json, Response},
     routing::{delete, get, post, put},
     Router,
 };
@@ -16,15 +16,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
-use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
-use ulid::Ulid;
 
-mod error;
 mod store;
 
-use error::ApiError;
-use store::{AidStore, RevocationRecord};
+use store::{AidListEntry, AidStore, RevocationRecord};
 
 // ── Registry admin public key ─────────────────────────────────────────────────
 
@@ -108,25 +104,20 @@ async fn main() -> Result<()> {
     // Build the router
     let app = Router::new()
         .route("/health", get(health))
-        .route("/ready", get(ready))
         .route("/v1/meta", get(meta))
+        .route("/v1/aids", get(list_aids))
         .route("/v1/aid/:id", put(register_aid))
         .route("/v1/aid/:id", get(resolve_aid))
         .route("/v1/aid/:id", delete(deactivate_aid))
         .route("/v1/aid/:id/key", get(get_public_key))
         .route("/v1/dat/verify", post(verify_dat))
         .route("/v1/dat/revoke", post(revoke_dat))
-        .route("/v1/dat/revocations", get(list_revocations))
         .route("/v1/dat/revoked/:jti", get(check_revocation))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn(security_headers))
         // 1 MB body limit on all requests
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .layer(cors)
-        // Attach X-Request-ID header to every response
-        .layer(middleware::from_fn(request_id_middleware))
-        // Structured request/response tracing (method, path, status, latency)
-        .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let port = std::env::var("REGISTRY_PORT")
@@ -161,18 +152,6 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
     response
 }
 
-/// Axum middleware that generates a unique ULID request ID and attaches it as
-/// the `X-Request-ID` response header. This allows log correlation between
-/// client errors and server-side traces.
-async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
-    let id = Ulid::new().to_string();
-    let mut response = next.run(req).await;
-    if let Ok(val) = axum::http::HeaderValue::from_str(&id) {
-        response.headers_mut().insert("X-Request-ID", val);
-    }
-    response
-}
-
 // ── Write authorization helper ────────────────────────────────────────────────
 
 /// Verify that the request carries a valid admin DAT Bearer token.
@@ -183,25 +162,35 @@ async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
 fn require_write_auth(
     state: &AppState,
     headers: &axum::http::HeaderMap,
-) -> Result<(), (StatusCode, Json<ApiError>)> {
+) -> Result<(), (StatusCode, Json<Value>)> {
     let pubkey = match state.admin_pubkey {
         Some(k) => k,
         None => return Ok(()), // dev mode — open writes
     };
 
-    let auth = headers
-        .get("Authorization")
-        .ok_or_else(|| ApiError::unauthorized("Authorization header required for write operations"))?;
+    let auth = headers.get("Authorization").ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Authorization header required for write operations" })),
+        )
+    })?;
 
     let auth_str = auth.to_str().unwrap_or("");
     let token = auth_str.strip_prefix("Bearer ").unwrap_or("").trim();
     if token.is_empty() {
-        return Err(ApiError::unauthorized("Bearer token required"));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Bearer token required" })),
+        ));
     }
 
-    let ctx = idprova_core::policy::EvaluationContext::builder("").build();
-    idprova_verify::verify_dat(token, &pubkey, "", &ctx)
-        .map_err(|e| ApiError::unauthorized(format!("invalid admin token: {e}")))?;
+    let ctx = idprova_core::dat::constraints::EvaluationContext::default();
+    idprova_verify::verify_dat(token, &pubkey, "", &ctx).map_err(|e| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": format!("invalid admin token: {e}") })),
+        )
+    })?;
 
     Ok(())
 }
@@ -237,11 +226,10 @@ async fn rate_limit_middleware(
     if allowed {
         next.run(req).await
     } else {
-        let err = ApiError::new(
-            "RATE_LIMITED",
-            "rate limit exceeded — max 120 requests per 60 seconds per IP",
-        );
-        let body = serde_json::to_string(&err).unwrap_or_default();
+        let body = serde_json::to_string(&json!({
+            "error": "rate limit exceeded — max 120 requests per 60 seconds per IP"
+        }))
+        .unwrap_or_default();
         Response::builder()
             .status(StatusCode::TOO_MANY_REQUESTS)
             .header("Content-Type", "application/json")
@@ -259,24 +247,6 @@ async fn health() -> Json<Value> {
     }))
 }
 
-/// GET /ready — returns 200 if the SQLite store is reachable, 503 otherwise.
-async fn ready(State(state): State<SharedState>) -> Response {
-    let ok = state.store.lock().unwrap().ping().is_ok();
-    if ok {
-        (
-            StatusCode::OK,
-            Json(json!({ "status": "ready", "db": "ok" })),
-        )
-            .into_response()
-    } else {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({ "status": "not_ready", "db": "error" })),
-        )
-            .into_response()
-    }
-}
-
 async fn meta() -> Json<Value> {
     Json(json!({
         "protocolVersion": "0.1",
@@ -287,48 +257,55 @@ async fn meta() -> Json<Value> {
     }))
 }
 
+async fn list_aids(
+    State(state): State<SharedState>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let store = state.store.lock().unwrap();
+    let entries: Vec<AidListEntry> = store.list_active().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("storage error: {e}") })),
+        )
+    })?;
+    Ok(Json(json!({
+        "total": entries.len(),
+        "aids": entries
+    })))
+}
+
 async fn register_aid(
     State(state): State<SharedState>,
     headers: axum::http::HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<Value>,
-) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<ApiError>)> {
+) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
     // Require valid DAT for write operations
     require_write_auth(&state, &headers)?;
 
     let did = format!("did:idprova:{id}");
 
     // Validate the AID document
-    let doc: idprova_core::aid::AidDocument = serde_json::from_value(body)
-        .map_err(|e| ApiError::bad_request(format!("invalid AID document: {e}")))?;
+    let doc: idprova_core::aid::AidDocument = serde_json::from_value(body).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": format!("invalid AID document: {e}") })),
+        )
+    })?;
 
     if let Err(e) = doc.validate() {
-        return Err(ApiError::bad_request(format!("AID validation failed: {e}")));
-    }
-
-    // Ensure the document id matches the URL path (consistency check)
-    if doc.id != did {
-        return Err(ApiError::bad_request(format!(
-            "document id '{}' does not match URL path '{did}'",
-            doc.id
-        )));
-    }
-
-    // Validate each verification method's public key decodes to a valid 32-byte Ed25519 key
-    for vm in &doc.verification_method {
-        idprova_core::crypto::KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
-            .map_err(|e| {
-                ApiError::bad_request(format!(
-                    "verification method '{}' has invalid publicKeyMultibase: {e}",
-                    vm.id
-                ))
-            })?;
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": format!("AID validation failed: {e}") })),
+        ));
     }
 
     let store = state.store.lock().unwrap();
-    let is_new = store
-        .put(&did, &doc)
-        .map_err(|e| ApiError::internal(format!("storage error: {e}")))?;
+    let is_new = store.put(&did, &doc).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("storage error: {e}") })),
+        )
+    })?;
 
     let status = if is_new {
         StatusCode::CREATED
@@ -348,14 +325,20 @@ async fn register_aid(
 async fn resolve_aid(
     State(state): State<SharedState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let did = format!("did:idprova:{id}");
     let store = state.store.lock().unwrap();
 
     match store.get(&did) {
         Ok(Some(doc)) => Ok(Json(serde_json::to_value(doc).unwrap())),
-        Ok(None) => Err(ApiError::not_found(format!("AID not found: {did}"))),
-        Err(e) => Err(ApiError::internal(format!("storage error: {e}"))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": format!("AID not found: {did}") })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("storage error: {e}") })),
+        )),
     }
 }
 
@@ -363,22 +346,28 @@ async fn deactivate_aid(
     State(state): State<SharedState>,
     headers: axum::http::HeaderMap,
     Path(id): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     require_write_auth(&state, &headers)?;
     let did = format!("did:idprova:{id}");
     let store = state.store.lock().unwrap();
 
     match store.delete(&did) {
         Ok(true) => Ok(Json(json!({ "id": did, "status": "deactivated" }))),
-        Ok(false) => Err(ApiError::not_found(format!("AID not found: {did}"))),
-        Err(e) => Err(ApiError::internal(format!("storage error: {e}"))),
+        Ok(false) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": format!("AID not found: {did}") })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("storage error: {e}") })),
+        )),
     }
 }
 
 async fn get_public_key(
     State(state): State<SharedState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let did = format!("did:idprova:{id}");
     let store = state.store.lock().unwrap();
 
@@ -397,8 +386,14 @@ async fn get_public_key(
                 .collect();
             Ok(Json(json!({ "id": did, "keys": keys })))
         }
-        Ok(None) => Err(ApiError::not_found(format!("AID not found: {did}"))),
-        Err(e) => Err(ApiError::internal(format!("storage error: {e}"))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": format!("AID not found: {did}") })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("storage error: {e}") })),
+        )),
     }
 }
 
@@ -467,7 +462,7 @@ async fn verify_dat(
     Json(req): Json<DatVerifyRequest>,
 ) -> Result<Json<DatVerifyResponse>, (StatusCode, Json<DatVerifyResponse>)> {
     use idprova_core::crypto::KeyPair;
-    use idprova_core::policy::EvaluationContext;
+    use idprova_core::dat::constraints::EvaluationContext;
     use idprova_core::dat::Dat;
 
     let err_resp = |msg: String| {
@@ -534,13 +529,19 @@ async fn verify_dat(
     };
 
     // 4. Find the verification key matching the kid
+    // Match key ID: handle both absolute DID URLs and relative fragment IDs
+    let kid_fragment = kid.split('#').nth(1).unwrap_or("");
     let vm = doc
         .verification_method
         .iter()
-        .find(|vm| vm.id == *kid || vm.id == format!("{issuer_from_kid}#key-ed25519"))
+        .find(|vm| {
+            vm.id == *kid
+                || vm.id == format!("{issuer_from_kid}#key-ed25519")
+                || vm.id == format!("#{kid_fragment}")
+        })
         .ok_or_else(|| err_resp(format!("key '{kid}' not found in issuer AID")))?;
 
-    let _pub_key_bytes = KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
+    let pub_key_bytes = KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
         .map_err(|e| err_resp(format!("key decode error: {e}")))?;
 
     // 5. Build evaluation context from request fields
@@ -549,45 +550,37 @@ async fn verify_dat(
         .as_deref()
         .and_then(|s| s.parse().ok());
 
-    let mut builder = EvaluationContext::builder(&req.scope);
-    builder = builder.actions_this_hour(req.actions_in_window);
-    if let Some(ip) = request_ip {
-        builder = builder.source_ip(ip);
-    }
-    builder = builder.delegation_depth(req.delegation_depth);
-    if let Some(ref cc) = req.country_code {
-        builder = builder.source_country(cc.clone());
-    }
-    if let Some(ref hash) = req.agent_config_hash {
-        builder = builder.caller_config_attestation(hash.clone());
-    }
-    let ctx = builder.build();
+    let ctx = EvaluationContext {
+        actions_in_window: req.actions_in_window,
+        request_ip,
+        agent_trust_level: req.trust_level,
+        delegation_depth: req.delegation_depth,
+        country_code: req.country_code,
+        current_timestamp: None, // use Utc::now() inside evaluators
+        agent_config_hash: req.agent_config_hash,
+    };
 
     // 6. Full verification pipeline
-    let evaluator = idprova_core::policy::PolicyEvaluator::new();
-    let decision = evaluator.evaluate(&dat, &ctx);
-    if decision.is_allowed() {
-        Ok(Json(DatVerifyResponse {
+    match dat.verify(&pub_key_bytes, &req.scope, &ctx) {
+        Ok(()) => Ok(Json(DatVerifyResponse {
             valid: true,
             issuer: Some(issuer_did),
             subject: Some(subject),
             scopes: Some(scopes),
             jti: Some(jti),
             error: None,
-        }))
-    } else {
-        let reason = decision.denial_reason()
-            .map(|r| format!("{:?}", r))
-            .unwrap_or_else(|| "unknown".to_string());
-        tracing::warn!("DAT verification failed for jti={jti}: {reason}");
-        Ok(Json(DatVerifyResponse {
-            valid: false,
-            issuer: Some(issuer_did),
-            subject: Some(subject),
-            scopes: Some(scopes),
-            jti: Some(jti),
-            error: Some(reason),
-        }))
+        })),
+        Err(e) => {
+            tracing::warn!("DAT verification failed for jti={jti}: {e}");
+            Ok(Json(DatVerifyResponse {
+                valid: false,
+                issuer: Some(issuer_did),
+                subject: Some(subject),
+                scopes: Some(scopes),
+                jti: Some(jti),
+                error: Some(e.to_string()),
+            }))
+        }
     }
 }
 
@@ -605,79 +598,38 @@ pub struct RevokeRequest {
     /// DID or identifier of the party performing the revocation.
     #[serde(default)]
     pub revoked_by: String,
-    /// Optional compact JWS DAT token being revoked. When provided, its Ed25519
-    /// signature is validated against the issuer's registered AID — proving the
-    /// token is genuine before recording the revocation.
-    pub token: Option<String>,
 }
 
 async fn revoke_dat(
     State(state): State<SharedState>,
     headers: axum::http::HeaderMap,
     Json(req): Json<RevokeRequest>,
-) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     require_write_auth(&state, &headers)?;
 
     if req.jti.is_empty() {
-        return Err(ApiError::bad_request("jti must not be empty"));
-    }
-    if req.jti.len() > 128 {
-        return Err(ApiError::bad_request("jti exceeds maximum length of 128 characters"));
-    }
-    if req.reason.len() > 512 {
-        return Err(ApiError::bad_request("reason exceeds maximum length of 512 characters"));
-    }
-    if req.revoked_by.len() > 256 {
-        return Err(ApiError::bad_request(
-            "revoked_by exceeds maximum length of 256 characters",
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "jti must not be empty" })),
         ));
     }
-
-    // If the caller supplied the original DAT token, validate its Ed25519 signature
-    // against the issuer's registered AID. This prevents revoking tokens the caller
-    // never possessed (e.g. guessed JTIs). Expiry is intentionally not checked —
-    // admins must be able to revoke already-expired compromised tokens.
-    if let Some(ref token) = req.token {
-        use idprova_core::crypto::KeyPair;
-        use idprova_core::dat::Dat;
-
-        let dat = Dat::from_compact(token)
-            .map_err(|e| ApiError::bad_request(format!("token parse error: {e}")))?;
-
-        if dat.claims.jti != req.jti {
-            return Err(ApiError::bad_request(format!(
-                "token jti '{}' does not match request jti '{}'",
-                dat.claims.jti, req.jti
-            )));
-        }
-
-        // Resolve issuer AID from the `kid` header claim
-        let kid = &dat.header.kid;
-        let issuer_did = kid.split('#').next().unwrap_or("").to_string();
-        let doc = {
-            let store = state.store.lock().unwrap();
-            store
-                .get(&issuer_did)
-                .map_err(|e| ApiError::internal(format!("store error: {e}")))?
-                .ok_or_else(|| {
-                    ApiError::bad_request(format!("issuer AID not found: {issuer_did}"))
-                })?
-        };
-
-        let vm = doc
-            .verification_method
-            .iter()
-            .find(|vm| vm.id == *kid || vm.id == format!("{issuer_did}#key-ed25519"))
-            .ok_or_else(|| {
-                ApiError::bad_request(format!("key '{kid}' not found in issuer AID"))
-            })?;
-
-        let pub_key_bytes = KeyPair::decode_multibase_pubkey(&vm.public_key_multibase)
-            .map_err(|e| ApiError::bad_request(format!("key decode error: {e}")))?;
-
-        // Signature-only check — timing/scope/constraints intentionally skipped
-        dat.verify_signature(&pub_key_bytes)
-            .map_err(|e| ApiError::bad_request(format!("token signature invalid: {e}")))?;
+    if req.jti.len() > 128 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "jti exceeds maximum length of 128 characters" })),
+        ));
+    }
+    if req.reason.len() > 512 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "reason exceeds maximum length of 512 characters" })),
+        ));
+    }
+    if req.revoked_by.len() > 256 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "revoked_by exceeds maximum length of 256 characters" })),
+        ));
     }
 
     let store = state.store.lock().unwrap();
@@ -695,50 +647,10 @@ async fn revoke_dat(
             "jti": req.jti,
             "status": "already_revoked"
         }))),
-        Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
-    }
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// GET /v1/dat/revocations
-// ────────────────────────────────────────────────────────────────────────────
-
-/// Query parameters for paginated list endpoints.
-#[derive(Debug, Deserialize)]
-struct PaginationParams {
-    /// Maximum number of records to return (capped at 200). Default: 50.
-    #[serde(default = "default_page_limit")]
-    limit: usize,
-    /// Number of records to skip. Default: 0.
-    #[serde(default)]
-    offset: usize,
-}
-
-fn default_page_limit() -> usize {
-    50
-}
-
-/// List recorded DAT revocations with cursor-style pagination.
-///
-/// Returns revocations ordered by `revoked_at` descending (newest first).
-/// Supports `?limit=N&offset=M` query parameters.
-async fn list_revocations(
-    State(state): State<SharedState>,
-    axum::extract::Query(params): axum::extract::Query<PaginationParams>,
-) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let limit = params.limit.min(200);
-    let store = state.store.lock().unwrap();
-    match store.list_revocations(limit, params.offset) {
-        Ok(records) => {
-            let count = records.len();
-            Ok(Json(json!({
-                "revocations": records,
-                "count": count,
-                "limit": limit,
-                "offset": params.offset
-            })))
-        }
-        Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("store error: {e}") })),
+        )),
     }
 }
 
@@ -749,7 +661,7 @@ async fn list_revocations(
 async fn check_revocation(
     State(state): State<SharedState>,
     Path(jti): Path<String>,
-) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let store = state.store.lock().unwrap();
 
     match store.get_revocation(&jti) {
@@ -763,6 +675,9 @@ async fn check_revocation(
             })))
         }
         Ok(None) => Ok(Json(json!({ "revoked": false, "jti": jti }))),
-        Err(e) => Err(ApiError::internal(format!("store error: {e}"))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("store error: {e}") })),
+        )),
     }
 }

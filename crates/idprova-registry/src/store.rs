@@ -4,6 +4,14 @@ use serde::Serialize;
 
 use idprova_core::aid::AidDocument;
 
+/// Summary entry returned by list_active().
+#[derive(Debug, Clone, Serialize)]
+pub struct AidListEntry {
+    pub did: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// SQLite-backed store for AID documents and DAT revocations.
 pub struct AidStore {
     conn: Connection,
@@ -113,29 +121,6 @@ impl AidStore {
         Ok(rows > 0)
     }
 
-    /// List revocation records with pagination, ordered by `revoked_at` descending.
-    pub fn list_revocations(&self, limit: usize, offset: usize) -> Result<Vec<RevocationRecord>> {
-        let limit = limit.min(1000) as i64;
-        let offset = offset as i64;
-        let mut stmt = self.conn.prepare(
-            "SELECT jti, reason, revoked_by, revoked_at \
-             FROM dat_revocations \
-             ORDER BY revoked_at DESC \
-             LIMIT ? OFFSET ?",
-        )?;
-        let records = stmt
-            .query_map(rusqlite::params![limit, offset], |row| {
-                Ok(RevocationRecord {
-                    jti: row.get(0)?,
-                    reason: row.get(1)?,
-                    revoked_by: row.get(2)?,
-                    revoked_at: row.get(3)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(records)
-    }
-
     /// Return true if the given JTI has been revoked.
     #[allow(dead_code)]
     pub fn is_revoked(&self, jti: &str) -> Result<bool> {
@@ -171,10 +156,21 @@ impl AidStore {
         Ok(Self { conn })
     }
 
-    /// Ping the database — returns Ok(()) if the connection is alive.
-    pub fn ping(&self) -> Result<()> {
-        self.conn.execute_batch("SELECT 1")?;
-        Ok(())
+    /// Return all active AIDs (did + created_at + updated_at).
+    pub fn list_active(&self) -> Result<Vec<AidListEntry>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT did, created_at, updated_at FROM aids WHERE active = 1 ORDER BY created_at DESC",
+        )?;
+        let entries = stmt
+            .query_map([], |row| {
+                Ok(AidListEntry {
+                    did: row.get(0)?,
+                    created_at: row.get(1)?,
+                    updated_at: row.get(2)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(entries)
     }
 
     /// Return the revocation record for a JTI, if one exists.
