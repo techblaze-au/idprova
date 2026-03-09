@@ -2,36 +2,55 @@
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
 **Branch:** `idprova/track-d-docs`
-**Status:** IN PROGRESS (3 of 7 tasks complete)
+**Status:** IN PROGRESS (6 of 7 tasks complete)
 
 ## Tasks Completed
 
 ### Task 1: README Overhaul (aa4fbde)
-- README already existed with tagline, features, quick-start, mermaid diagram, doc links (186 lines, under 200 limit)
-- Updated endpoint summary line to include all 11 registry endpoints (was missing GET /ready, GET /v1/aid/:id/key, GET /v1/dat/revocations, GET /v1/dat/revoked/:jti)
+- Updated endpoint summary line to include all 11 registry endpoints
 
 ### Task 2: Getting Started Guide — NO CHANGES NEEDED
-- `docs/getting-started.md` already exists (330 lines), covers all plan requirements: install from source, generate keypair, create AID, issue DAT, verify DAT, start registry, complete example flow
-- Cross-referenced with CLI source — commands are accurate
+- `docs/getting-started.md` already existed and was complete
 
 ### Task 3: API Reference — Registry Endpoints (5372af6)
-- `docs/api-reference.md` already existed but was missing 2 of 11 endpoints
-- Added `GET /ready` (readiness probe, 200/503 responses)
-- Added `GET /v1/dat/revocations` (paginated listing, query params limit/offset)
-- Updated route summary table to include all 11 endpoints
+- Added missing `GET /ready` and `GET /v1/dat/revocations` endpoints
+
+### Task 4: Core Library API Guide — FIXES (3c78dfa)
+- `docs/core-api.md` already existed but had significant inaccuracies
+- Fixed: `dat.verify()` → `verify_signature()` (verify() doesn't exist on Dat)
+- Fixed: DatConstraints field names (rate_limit → max_calls_per_hour, ip_allowlist → allowed_ips, etc.)
+- Fixed: DenialReason variant names (IpNotAllowed → IpBlocked, TrustLevelInsufficient → InsufficientTrustLevel, etc.)
+- Fixed: Added missing variants (Revoked, ChainValidationFailed, SignatureInvalid)
+- Fixed: Scope grammar from 3-part to 4-part format
+- Fixed: Import paths (dat::constraints:: → dat::token::)
+- Fixed: Complete example to use correct APIs
+- Fixed: Error enum to include all actual variants
+
+### Task 5: Protocol Concepts Guide — FIXES (cf8eda0)
+- `docs/concepts.md` already existed but had inaccuracies
+- Fixed: Scope grammar from 3-part to 4-part (namespace:protocol:resource:action)
+- Fixed: Removed trust level numeric equivalents (0/25/50/75/100) — not in spec or code
+- Fixed: Constraint evaluator table — 7 evaluators (not 8), correct field names
+- Fixed: DatConstraints field names (min_trust_level → required_trust_level)
+- Fixed: All scope examples throughout the document
+
+### Task 6: Security Model Documentation — FIXES (f0a7dcb)
+- `docs/security.md` already existed but had one major inaccuracy
+- Fixed: ML-DSA-65 presented as implemented → clarified as "Planned" (not yet in codebase)
+- Fixed: Added status column to algorithm table
+- Fixed: Scope examples to 4-part format
+- Fixed: verify() reference → PolicyEvaluator::evaluate()
 
 ## Next Tasks (for next session)
 
-- **Task 4:** Core Library API Guide (`docs/core-api.md`) — document idprova-core public API
-- **Task 5:** Protocol Concepts Guide (`docs/concepts.md`) — explain DID method, AID lifecycle, DAT model
-- **Task 6:** Security Model Documentation (`docs/security.md`) — threat model, crypto choices
 - **Task 7:** SDK Quick-Start Guides (`docs/sdk-python.md`, `docs/sdk-typescript.md`)
 
 ## Key Decisions
 
-- Existing docs were already written in a prior session; this session focused on gap-filling rather than full rewrites
-- No Rust toolchain available in this environment; skipped `cargo test` (docs-only changes)
-- Task 2 required no changes — the guide was already complete and accurate
+- All docs already existed from a prior session; this session focused on verifying accuracy against source code and fixing discrepancies
+- Major finding: scope grammar is 4-part (namespace:protocol:resource:action) not 3-part — was wrong in all three docs
+- Major finding: Dat has no `verify()` method — only `verify_signature()` for sig checks, `PolicyEvaluator::evaluate()` for full pipeline
+- ML-DSA-65 post-quantum crypto is planned but not implemented (commented out in Cargo.toml)
 
 ## Blockers
 
