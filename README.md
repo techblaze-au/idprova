@@ -139,19 +139,21 @@ docker run -p 3000:3000 idprova/registry
 REGISTRY_ADMIN_PUBKEY=<hex-32-bytes> cargo run -p idprova-registry
 ```
 
-Registry endpoints: `GET /health` · `GET /v1/meta` · `GET|PUT|DELETE /v1/aid/:id` · `POST /v1/dat/verify` · `POST /v1/dat/revoke`
+Registry endpoints: `GET /health` · `GET /ready` · `GET /v1/meta` · `GET|PUT|DELETE /v1/aid/:id` · `GET /v1/aid/:id/key` · `POST /v1/dat/verify` · `POST /v1/dat/revoke` · `GET /v1/dat/revocations` · `GET /v1/dat/revoked/:jti`
 
 ## Workspace
 
 ```
 crates/
   idprova-core/       # Core library (crypto, AID, DAT, receipts, trust, policy)
+  idprova-verify/     # High-level verification utilities
   idprova-cli/        # Command-line tool
   idprova-registry/   # Registry server (Axum + SQLite)
-  idprova-middleware/ # Tower/Axum DAT verification middleware
+  idprova-middleware/  # Tower/Axum DAT verification middleware
+  idprova-mcp-demo/   # MCP protocol demo/integration
 sdks/
-  python/             # Python SDK (PyO3) — coming soon
-  typescript/         # TypeScript SDK — planned
+  python/             # Python SDK (PyO3)
+  typescript/         # TypeScript SDK (napi-rs)
 docs/                 # Protocol specification and guides
 ```
 
