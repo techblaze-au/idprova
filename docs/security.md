@@ -148,21 +148,23 @@ DATs are time-bounded via `exp` (expiry) and `nbf` (not-before). Verifiers **mus
 ```rust
 dat.validate_timing()?;
 // or via the full pipeline:
-dat.verify(&pub_bytes, "mcp:tool:read", &ctx)?;
+dat.verify_signature(&pub_bytes)?;
+let decision = PolicyEvaluator::new().evaluate(&dat, &ctx);
 ```
 
 For high-security scenarios, combine short expiry windows (minutes, not hours) with a JTI blocklist of recently seen tokens to prevent within-window replay.
 
 ### Scope containment
 
-Wildcard scopes (`mcp:*:*`) are powerful and should be granted sparingly:
+Wildcard scopes (`mcp:*:*:*`) are powerful and should be granted sparingly:
 
 | Pattern | Grants |
 |---------|--------|
-| `mcp:tool:read` | Single specific action |
-| `mcp:tool:*` | All actions on MCP tools |
-| `mcp:*:*` | All MCP resources and all actions |
-| `*:*:*` | Unrestricted — avoid entirely in production |
+| `mcp:tool:filesystem:read` | Single specific action |
+| `mcp:tool:filesystem:*` | All actions on the filesystem tool |
+| `mcp:tool:*:*` | All MCP tools, any action |
+| `mcp:*:*:*` | All MCP resources and all actions |
+| `*:*:*:*` | Unrestricted — avoid entirely in production |
 
 When re-delegating, child DAT scopes must be a **strict subset** of the parent's scope set. The delegation chain enforces this — a verifier should reject any delegation where the child claims broader scope than the parent.
 
@@ -229,7 +231,7 @@ All communication with the registry must use **TLS 1.3+**. The registry does not
 
 ### Authentication
 
-Registry write endpoints (`PUT /aids/{did}`, `DELETE /aids/{did}`) require an `Authorization: Bearer <DAT>` header. The DAT must be issued by the DID's controller and scoped to `idprova:registry:write`.
+Registry write endpoints (`PUT /aids/{did}`, `DELETE /aids/{did}`) require an `Authorization: Bearer <DAT>` header. The DAT must be issued by the DID's controller and scoped to `idprova:registry:aid:write`.
 
 Read endpoints (`GET /aids/{did}`, `GET /health`) are unauthenticated.
 
