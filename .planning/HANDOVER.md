@@ -3,7 +3,7 @@
 ## Status: IN_PROGRESS
 ## Plan: `.planning/phases/01/01-01-PLAN.md`
 ## Branch: `idprova/track-s-python-sdk`
-## Progress: Task 2 of 5
+## Progress: Task 3 of 5
 
 ## Completed Tasks
 1. **Task 1: `sdks/python/idprova_http.py`** — commit `d3c0d21`
@@ -12,13 +12,16 @@
 2. **Task 2: `sdks/python/idprova_langchain.py`** — commit `4f37357`
    - LangChain BaseCallbackHandler for audit receipts
    - Hash-chained JSONL receipt logging with on_tool_start/end/error
+3. **Task 3: Requirements files** — commit `139cc6b`
+   - `examples/python/requirements.txt` (httpx)
+   - `examples/python/requirements-langchain.txt` (httpx + langchain-core)
 
 ## Current Task
-Task 3: Create requirements files
+None — session limit reached (3 tasks)
 
-## Next Tasks
+## Next Tasks (for next session)
 - Task 4: Create `examples/python/issue_verify.py`
-- Task 5: Commit and finalize
+- Task 5: Final commit and TRACK_COMPLETE
 
 ## Notes
 - No Rust toolchain available in this environment — cannot run `cargo test`
