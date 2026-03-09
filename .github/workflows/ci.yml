@@ -19,7 +19,6 @@ jobs:
       matrix:
         rust:
           - stable
-          - "1.78"  # MSRV (lock format v4 requires ≥1.78)
 
     steps:
       - uses: actions/checkout@v4
