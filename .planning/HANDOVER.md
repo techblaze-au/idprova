@@ -1,43 +1,38 @@
-# Track D — Handover
+# HANDOVER — Track D: Documentation & Website
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
-**Status:** COMPLETE — all 7 tasks done
+**Branch:** `idprova/track-d-docs`
+**Status:** IN PROGRESS (3 of 7 tasks complete)
 
-## Completed
+## Tasks Completed
 
-| Task | Commit | Notes |
-|------|--------|-------|
-| Task 1: README Overhaul | 4733677 | 185 lines, mermaid diagram, register step, docs links |
-| Task 2: Getting Started Guide | 5f23d0f | `docs/getting-started.md` — full CLI workflow, 8 steps |
-| Task 3: API Reference | 5b83c57 | `docs/api-reference.md` — all 9 registry endpoints with curl examples |
-| Task 4: Core Library API Guide | 69f51fa | `docs/core-api.md` — KeyPair, AidBuilder, Dat, ReceiptLog, PolicyEvaluator |
-| Task 5: Protocol Concepts Guide | 902be4a | `docs/concepts.md` — mermaid diagrams for AID lifecycle, DAT flow, trust levels, receipt chains |
-| Task 6: Security Model | ccfcd39 | `docs/security.md` — threat summary, crypto rationale, key mgmt best practices, security checklist |
-| Task 7: SDK Quick-Start Guides | 06945ce | `docs/sdk-python.md` + `docs/sdk-typescript.md` — installation, AgentIdentity, DAT, Scope, complete examples |
+### Task 1: README Overhaul (aa4fbde)
+- README already existed with tagline, features, quick-start, mermaid diagram, doc links (186 lines, under 200 limit)
+- Updated endpoint summary line to include all 11 registry endpoints (was missing GET /ready, GET /v1/aid/:id/key, GET /v1/dat/revocations, GET /v1/dat/revoked/:jti)
 
-## Next Task
+### Task 2: Getting Started Guide — NO CHANGES NEEDED
+- `docs/getting-started.md` already exists (330 lines), covers all plan requirements: install from source, generate keypair, create AID, issue DAT, verify DAT, start registry, complete example flow
+- Cross-referenced with CLI source — commands are accurate
 
-None — track is complete.
+### Task 3: API Reference — Registry Endpoints (5372af6)
+- `docs/api-reference.md` already existed but was missing 2 of 11 endpoints
+- Added `GET /ready` (readiness probe, 200/503 responses)
+- Added `GET /v1/dat/revocations` (paginated listing, query params limit/offset)
+- Updated route summary table to include all 11 endpoints
+
+## Next Tasks (for next session)
+
+- **Task 4:** Core Library API Guide (`docs/core-api.md`) — document idprova-core public API
+- **Task 5:** Protocol Concepts Guide (`docs/concepts.md`) — explain DID method, AID lifecycle, DAT model
+- **Task 6:** Security Model Documentation (`docs/security.md`) — threat model, crypto choices
+- **Task 7:** SDK Quick-Start Guides (`docs/sdk-python.md`, `docs/sdk-typescript.md`)
 
 ## Key Decisions
 
-- README kept to 185 lines (limit 200)
-- Used mermaid for architecture diagram
-- Quick-start includes curl-based AID registration step (matches actual registry PUT endpoint)
-- DAT verify shows both offline (--key) and registry modes
-- API reference includes all 9 routes, auth requirements, rate limits, env vars
-- `aid create` saves to `{did_with_underscores}.json` (e.g. `did_idprova_example.com_my-agent.json`)
-- Scope format: `namespace:resource:action` (colon-separated, 3 parts)
-- core-api.md cross-references both `dat::constraints::EvaluationContext` (simple) and `policy::context::EvaluationContext` (full builder) — both exist in codebase
-- concepts.md uses mermaid stateDiagram for AID lifecycle, sequenceDiagram for DAT flow, flowchart for policy engine
-- security.md includes STRIDE summary table with severity ratings from STRIDE-THREAT-MODEL.md
-- sdk-python.md and sdk-typescript.md document the actual API surface from `.pyi` stubs and `.d.ts` types, cross-validated against test files
-- AgentIdentity is the recommended high-level entry point in both SDKs
-- TypeScript exports `AID`/`AIDBuilder` as aliases for `Aid`/`AidBuilder` — noted in docs
+- Existing docs were already written in a prior session; this session focused on gap-filling rather than full rewrites
+- No Rust toolchain available in this environment; skipped `cargo test` (docs-only changes)
+- Task 2 required no changes — the guide was already complete and accurate
 
-## Session Notes
+## Blockers
 
-- Branch: `idprova/track-d-docs-website`
-- All commits: `Authored-By: Pratyush <hello@techblaze.com.au>`
-- Do NOT modify `crates/`, `sdks/`, `.github/`, `Dockerfile`, `Cargo.*`
-- Track complete — `.planning/TRACK_COMPLETE` touched
+- None
