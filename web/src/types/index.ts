@@ -202,3 +202,15 @@ export interface RevocationCheckResponse {
   revoked_by?: string;
   revoked_at?: string;
 }
+
+// ── AID list types (Track V-2) ────────────────────────────────────────────
+
+export interface AidListEntry {
+  id: string;
+  version?: number;
+}
+
+export interface AidListResponse {
+  total: number;
+  aids: AidListEntry[];
+}

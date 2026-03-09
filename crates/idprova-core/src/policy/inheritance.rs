@@ -4,7 +4,7 @@
 //! **at least as restrictive** as the parent's. This module validates
 //! that invariant for all constraint fields.
 
-use crate::dat::constraints::DatConstraints;
+use crate::dat::token::DatConstraints;
 use crate::{IdprovaError, Result};
 
 /// Validate that child constraints are at least as restrictive as parent constraints.
@@ -22,10 +22,10 @@ pub fn validate_constraint_inheritance(
     parent: &DatConstraints,
     child: &DatConstraints,
 ) -> Result<()> {
-    // Rate limit: child max_actions must be <= parent max_actions
-    let parent_rl = parent.rate_limit.as_ref().map(|r| r.max_actions);
-    let child_rl = child.rate_limit.as_ref().map(|r| r.max_actions);
-    validate_numeric_le("rateLimit.maxActions", parent_rl, child_rl)?;
+    // Rate limits: child must be <= parent
+    validate_numeric_le("maxCallsPerHour", parent.max_calls_per_hour, child.max_calls_per_hour)?;
+    validate_numeric_le("maxCallsPerDay", parent.max_calls_per_day, child.max_calls_per_day)?;
+    validate_numeric_le("maxConcurrent", parent.max_concurrent, child.max_concurrent)?;
 
     // Delegation depth: child must be <= parent
     validate_numeric_le_u32(
@@ -34,24 +34,24 @@ pub fn validate_constraint_inheritance(
         child.max_delegation_depth,
     )?;
 
-    // Trust level: child min_trust_level must be >= parent (more restrictive = higher ordinal)
+    // Trust level: child must be >= parent (more restrictive)
     validate_trust_level(parent, child)?;
 
     // Geofence: child countries must be subset of parent countries
-    validate_set_subset("allowedCountries", &parent.allowed_countries, &child.allowed_countries)?;
+    validate_set_subset("geofence", &parent.geofence, &child.geofence)?;
 
-    // Config attestation: if parent requires it, child must require the same hash
-    if let Some(ref parent_hash) = parent.required_config_hash {
-        match child.required_config_hash {
+    // Config attestation: if parent requires it, child must require the same
+    if let Some(ref parent_hash) = parent.required_config_attestation {
+        match child.required_config_attestation {
             Some(ref child_hash) if child_hash == parent_hash => {} // OK
             Some(ref child_hash) => {
                 return Err(IdprovaError::ConstraintViolated(format!(
-                    "child config hash '{child_hash}' differs from parent '{parent_hash}'"
+                    "child config attestation '{child_hash}' differs from parent '{parent_hash}'"
                 )));
             }
             None => {
                 return Err(IdprovaError::ConstraintViolated(
-                    "child must require config hash when parent does".into(),
+                    "child must require config attestation when parent does".into(),
                 ));
             }
         }
@@ -94,15 +94,28 @@ fn validate_numeric_le_u32(name: &str, parent: Option<u32>, child: Option<u32>) 
 }
 
 fn validate_trust_level(parent: &DatConstraints, child: &DatConstraints) -> Result<()> {
-    if let Some(parent_min) = parent.min_trust_level {
-        match child.min_trust_level {
-            Some(child_min) if child_min >= parent_min => Ok(()),
-            Some(child_min) => Err(IdprovaError::ConstraintViolated(format!(
-                "child min_trust_level ({child_min}) is less restrictive than parent ({parent_min})"
-            ))),
-            None => Err(IdprovaError::ConstraintViolated(
-                "child must set min_trust_level when parent does".into(),
+    use crate::trust::level::TrustLevel;
+
+    if let Some(ref parent_str) = parent.required_trust_level {
+        let parent_level = TrustLevel::from_str_repr(parent_str);
+        match (&child.required_trust_level, parent_level) {
+            (Some(child_str), Some(pl)) => {
+                if let Some(cl) = TrustLevel::from_str_repr(child_str) {
+                    if cl.meets_minimum(pl) {
+                        Ok(())
+                    } else {
+                        Err(IdprovaError::ConstraintViolated(format!(
+                            "child trust level {child_str} is less restrictive than parent {parent_str}"
+                        )))
+                    }
+                } else {
+                    Ok(()) // Unparseable child level — skip validation
+                }
+            }
+            (None, Some(_)) => Err(IdprovaError::ConstraintViolated(
+                "child must require trust level when parent does".into(),
             )),
+            _ => Ok(()),
         }
     } else {
         Ok(())
@@ -140,14 +153,9 @@ fn validate_set_subset(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dat::constraints::RateLimit;
 
     fn empty() -> DatConstraints {
         DatConstraints::default()
-    }
-
-    fn rl(max: u64) -> Option<RateLimit> {
-        Some(RateLimit { max_actions: max, window_secs: 3600 })
     }
 
     #[test]
@@ -156,57 +164,101 @@ mod tests {
     }
 
     #[test]
-    fn test_child_narrower_rate_limit() {
-        let parent = DatConstraints { rate_limit: rl(100), ..Default::default() };
-        let child = DatConstraints { rate_limit: rl(50), ..Default::default() };
+    fn test_child_narrower_rate_limits() {
+        let parent = DatConstraints {
+            max_calls_per_hour: Some(100),
+            max_calls_per_day: Some(1000),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            max_calls_per_hour: Some(50),
+            max_calls_per_day: Some(500),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
     }
 
     #[test]
     fn test_child_wider_rate_limit_rejected() {
-        let parent = DatConstraints { rate_limit: rl(100), ..Default::default() };
-        let child = DatConstraints { rate_limit: rl(200), ..Default::default() };
+        let parent = DatConstraints {
+            max_calls_per_hour: Some(100),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            max_calls_per_hour: Some(200), // wider
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_missing_rate_limit_rejected() {
-        let parent = DatConstraints { rate_limit: rl(100), ..Default::default() };
-        let child = empty();
+        let parent = DatConstraints {
+            max_calls_per_hour: Some(100),
+            ..Default::default()
+        };
+        let child = empty(); // no rate limit = unlimited
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_narrower_delegation_depth() {
-        let parent = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
-        let child = DatConstraints { max_delegation_depth: Some(3), ..Default::default() };
+        let parent = DatConstraints {
+            max_delegation_depth: Some(5),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            max_delegation_depth: Some(3),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
     }
 
     #[test]
     fn test_child_wider_delegation_depth_rejected() {
-        let parent = DatConstraints { max_delegation_depth: Some(3), ..Default::default() };
-        let child = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
+        let parent = DatConstraints {
+            max_delegation_depth: Some(3),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            max_delegation_depth: Some(5),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_higher_trust_level_ok() {
-        let parent = DatConstraints { min_trust_level: Some(1), ..Default::default() };
-        let child = DatConstraints { min_trust_level: Some(3), ..Default::default() }; // more restrictive
+        let parent = DatConstraints {
+            required_trust_level: Some("L1".into()),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            required_trust_level: Some("L3".into()), // more restrictive
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
     }
 
     #[test]
     fn test_child_lower_trust_level_rejected() {
-        let parent = DatConstraints { min_trust_level: Some(2), ..Default::default() };
-        let child = DatConstraints { min_trust_level: Some(0), ..Default::default() }; // less restrictive
+        let parent = DatConstraints {
+            required_trust_level: Some("L2".into()),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            required_trust_level: Some("L0".into()), // less restrictive
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_missing_trust_level_rejected() {
-        let parent = DatConstraints { min_trust_level: Some(1), ..Default::default() };
+        let parent = DatConstraints {
+            required_trust_level: Some("L1".into()),
+            ..Default::default()
+        };
         let child = empty();
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
@@ -214,11 +266,11 @@ mod tests {
     #[test]
     fn test_geofence_subset_ok() {
         let parent = DatConstraints {
-            allowed_countries: Some(vec!["AU".into(), "NZ".into(), "US".into()]),
+            geofence: Some(vec!["AU".into(), "NZ".into(), "US".into()]),
             ..Default::default()
         };
         let child = DatConstraints {
-            allowed_countries: Some(vec!["AU".into()]),
+            geofence: Some(vec!["AU".into()]),
             ..Default::default()
         };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
@@ -227,11 +279,11 @@ mod tests {
     #[test]
     fn test_geofence_superset_rejected() {
         let parent = DatConstraints {
-            allowed_countries: Some(vec!["AU".into()]),
+            geofence: Some(vec!["AU".into()]),
             ..Default::default()
         };
         let child = DatConstraints {
-            allowed_countries: Some(vec!["AU".into(), "US".into()]),
+            geofence: Some(vec!["AU".into(), "US".into()]),
             ..Default::default()
         };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
@@ -240,7 +292,7 @@ mod tests {
     #[test]
     fn test_geofence_missing_child_rejected() {
         let parent = DatConstraints {
-            allowed_countries: Some(vec!["AU".into()]),
+            geofence: Some(vec!["AU".into()]),
             ..Default::default()
         };
         let child = empty();
@@ -250,11 +302,11 @@ mod tests {
     #[test]
     fn test_config_attestation_same_ok() {
         let parent = DatConstraints {
-            required_config_hash: Some("sha256:abc".into()),
+            required_config_attestation: Some("sha256:abc".into()),
             ..Default::default()
         };
         let child = DatConstraints {
-            required_config_hash: Some("sha256:abc".into()),
+            required_config_attestation: Some("sha256:abc".into()),
             ..Default::default()
         };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
@@ -263,11 +315,11 @@ mod tests {
     #[test]
     fn test_config_attestation_different_rejected() {
         let parent = DatConstraints {
-            required_config_hash: Some("sha256:abc".into()),
+            required_config_attestation: Some("sha256:abc".into()),
             ..Default::default()
         };
         let child = DatConstraints {
-            required_config_hash: Some("sha256:xyz".into()),
+            required_config_attestation: Some("sha256:xyz".into()),
             ..Default::default()
         };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
@@ -276,7 +328,7 @@ mod tests {
     #[test]
     fn test_config_attestation_missing_child_rejected() {
         let parent = DatConstraints {
-            required_config_hash: Some("sha256:abc".into()),
+            required_config_attestation: Some("sha256:abc".into()),
             ..Default::default()
         };
         let child = empty();
@@ -285,10 +337,11 @@ mod tests {
 
     #[test]
     fn test_parent_unrestricted_child_anything_ok() {
+        // Parent has no constraints, child can have whatever it wants
         let child = DatConstraints {
-            rate_limit: rl(10),
-            allowed_countries: Some(vec!["AU".into()]),
-            min_trust_level: Some(3),
+            max_calls_per_hour: Some(10),
+            geofence: Some(vec!["AU".into()]),
+            required_trust_level: Some("L3".into()),
             ..Default::default()
         };
         assert!(validate_constraint_inheritance(&empty(), &child).is_ok());

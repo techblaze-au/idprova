@@ -14,9 +14,8 @@ use idprova_core::aid::document::AidDocument;
 use idprova_core::crypto::hash::prefixed_blake3;
 use idprova_core::crypto::KeyPair as RustKeyPair;
 use idprova_core::dat::scope::Scope as RustScope;
-use idprova_core::dat::constraints::{
-    DatConstraints as RustDatConstraints, EvaluationContext as RustEvaluationContext,
-};
+use idprova_core::dat::DatConstraints as RustDatConstraints;
+use idprova_core::policy::EvaluationContext as RustEvaluationContext;
 use idprova_core::dat::token::Dat as RustDat;
 use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptContext};
 use idprova_core::receipt::log::ReceiptLog as RustReceiptLog;
@@ -125,17 +124,22 @@ impl EvaluationContext {
         }
     }
 
-    fn to_rust(&self) -> RustEvaluationContext {
-        use std::net::IpAddr;
-        RustEvaluationContext {
-            actions_in_window: self.actions_in_window as u64,
-            request_ip: self.request_ip.as_deref().and_then(|s| s.parse::<IpAddr>().ok()),
-            agent_trust_level: self.agent_trust_level,
-            delegation_depth: self.delegation_depth,
-            country_code: self.country_code.clone(),
-            current_timestamp: None,
-            agent_config_hash: self.agent_config_hash.clone(),
+    fn to_rust(&self, scope: &str) -> RustEvaluationContext {
+        let mut builder = RustEvaluationContext::builder(scope)
+            .actions_this_hour(self.actions_in_window as u64)
+            .delegation_depth(self.delegation_depth);
+        if let Some(ref ip_str) = self.request_ip {
+            if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                builder = builder.source_ip(ip);
+            }
         }
+        if let Some(ref cc) = self.country_code {
+            builder = builder.source_country(cc.clone());
+        }
+        if let Some(ref hash) = self.agent_config_hash {
+            builder = builder.caller_config_attestation(hash.clone());
+        }
+        builder.build()
     }
 }
 
@@ -492,8 +496,18 @@ impl DAT {
         key.copy_from_slice(bytes);
         let scope = required_scope.as_deref().unwrap_or("");
         let default_ctx = EvaluationContext::new();
-        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust();
-        self.inner.verify(&key, scope, &rust_ctx).map_err(to_napi_err)
+        let rust_ctx = ctx.unwrap_or(&default_ctx).to_rust(scope);
+        {
+            self.inner.verify_signature(&key).map_err(to_napi_err)?;
+            let evaluator = idprova_core::policy::PolicyEvaluator::new();
+            let decision = evaluator.evaluate(&self.inner, &rust_ctx);
+            if decision.is_allowed() {
+                Ok(())
+            } else {
+                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                Err(napi::Error::from_reason(reason))
+            }
+        }
     }
 }
 

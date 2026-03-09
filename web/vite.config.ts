@@ -8,15 +8,15 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/v1': {
-        target: 'http://localhost:3000',
+        target: 'http://192.168.8.92:3000',
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:3000',
+        target: 'http://192.168.8.92:3000',
         changeOrigin: true,
       },
       '/ready': {
-        target: 'http://localhost:3000',
+        target: 'http://192.168.8.92:3000',
         changeOrigin: true,
       },
     },
