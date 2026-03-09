@@ -61,20 +61,11 @@ pub enum DenialReason {
         current: u64,
     },
     /// Source IP is not in the allowed list or is in the denied list.
-    IpBlocked {
-        ip: String,
-        reason: String,
-    },
+    IpBlocked { ip: String, reason: String },
     /// Caller's trust level does not meet the minimum requirement.
-    InsufficientTrustLevel {
-        required: String,
-        actual: String,
-    },
+    InsufficientTrustLevel { required: String, actual: String },
     /// Delegation chain exceeds maximum allowed depth.
-    DelegationDepthExceeded {
-        max_depth: u32,
-        actual_depth: u32,
-    },
+    DelegationDepthExceeded { max_depth: u32, actual_depth: u32 },
     /// Source country is not in the allowed geofence list.
     GeofenceViolation {
         country: String,

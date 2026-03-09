@@ -55,7 +55,11 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
 
     if let Some(chain) = &dat.claims.delegation_chain {
         if !chain.is_empty() {
-            println!("Chain depth: {} (parent JTIs: {})", chain.len(), chain.join(", "));
+            println!(
+                "Chain depth: {} (parent JTIs: {})",
+                chain.len(),
+                chain.join(", ")
+            );
         }
     }
 
@@ -107,7 +111,9 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             let base = registry.trim_end_matches('/');
             let issuer_did = &dat.claims.iss;
             // Strip "did:idprova:" prefix for registry path (registry adds it back)
-            let aid_path = issuer_did.strip_prefix("did:idprova:").unwrap_or(issuer_did);
+            let aid_path = issuer_did
+                .strip_prefix("did:idprova:")
+                .unwrap_or(issuer_did);
             let key_url = format!("{base}/v1/aid/{aid_path}/key");
 
             eprintln!("No key supplied — resolving issuer public key from registry...");
@@ -139,11 +145,15 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             }
 
             let key_resp: KeyResp = resp.json()?;
-            let key_entry = key_resp.keys.into_iter().next()
+            let key_entry = key_resp
+                .keys
+                .into_iter()
+                .next()
                 .ok_or_else(|| anyhow::anyhow!("issuer AID has no verification keys"))?;
 
-            let pub_key_bytes = KeyPair::decode_multibase_pubkey(&key_entry.public_key_multibase)
-                .map_err(|e| anyhow::anyhow!("failed to decode issuer public key: {e}"))?;
+            let pub_key_bytes =
+                KeyPair::decode_multibase_pubkey(&key_entry.public_key_multibase)
+                    .map_err(|e| anyhow::anyhow!("failed to decode issuer public key: {e}"))?;
 
             let ctx = EvaluationContext::default();
             match dat.verify(&pub_key_bytes, scope, &ctx) {

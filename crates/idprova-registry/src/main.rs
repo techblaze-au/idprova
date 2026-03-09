@@ -113,7 +113,10 @@ async fn main() -> Result<()> {
         .route("/v1/dat/verify", post(verify_dat))
         .route("/v1/dat/revoke", post(revoke_dat))
         .route("/v1/dat/revoked/:jti", get(check_revocation))
-        .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_middleware,
+        ))
         .layer(middleware::from_fn(security_headers))
         // 1 MB body limit on all requests
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
@@ -480,8 +483,8 @@ async fn verify_dat(
     };
 
     // 1. Decode token (no sig check yet)
-    let dat = Dat::from_compact(&req.token)
-        .map_err(|e| err_resp(format!("malformed token: {e}")))?;
+    let dat =
+        Dat::from_compact(&req.token).map_err(|e| err_resp(format!("malformed token: {e}")))?;
 
     let issuer_did = dat.claims.iss.clone();
     let subject = dat.claims.sub.clone();
@@ -545,10 +548,7 @@ async fn verify_dat(
         .map_err(|e| err_resp(format!("key decode error: {e}")))?;
 
     // 5. Build evaluation context from request fields
-    let request_ip: Option<IpAddr> = req
-        .request_ip
-        .as_deref()
-        .and_then(|s| s.parse().ok());
+    let request_ip: Option<IpAddr> = req.request_ip.as_deref().and_then(|s| s.parse().ok());
 
     let ctx = EvaluationContext {
         actions_in_window: req.actions_in_window,
@@ -665,15 +665,18 @@ async fn check_revocation(
     let store = state.store.lock().unwrap();
 
     match store.get_revocation(&jti) {
-        Ok(Some(RevocationRecord { jti, reason, revoked_by, revoked_at })) => {
-            Ok(Json(json!({
-                "revoked": true,
-                "jti": jti,
-                "reason": reason,
-                "revoked_by": revoked_by,
-                "revoked_at": revoked_at
-            })))
-        }
+        Ok(Some(RevocationRecord {
+            jti,
+            reason,
+            revoked_by,
+            revoked_at,
+        })) => Ok(Json(json!({
+            "revoked": true,
+            "jti": jti,
+            "reason": reason,
+            "revoked_by": revoked_by,
+            "revoked_at": revoked_at
+        }))),
         Ok(None) => Ok(Json(json!({ "revoked": false, "jti": jti }))),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,

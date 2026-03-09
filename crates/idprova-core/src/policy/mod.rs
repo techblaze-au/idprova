@@ -17,9 +17,9 @@ pub mod inheritance;
 pub mod rate;
 
 pub use constraints::{
-    ConfigAttestationEvaluator, ConstraintEvaluator, DelegationDepthEvaluator,
+    default_evaluators, ConfigAttestationEvaluator, ConstraintEvaluator, DelegationDepthEvaluator,
     GeofenceEvaluator, IpConstraintEvaluator, RateLimitEvaluator, TimeWindowEvaluator,
-    TrustLevelEvaluator, default_evaluators,
+    TrustLevelEvaluator,
 };
 pub use context::{EvaluationContext, EvaluationContextBuilder};
 pub use decision::{DenialReason, PolicyDecision};

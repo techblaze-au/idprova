@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
-use serde_json_canonicalizer::to_vec as jcs_to_vec;
 use serde::{Deserialize, Serialize};
+use serde_json_canonicalizer::to_vec as jcs_to_vec;
 use std::fmt;
 
 use crate::{IdprovaError, Result};

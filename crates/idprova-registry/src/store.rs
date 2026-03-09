@@ -228,7 +228,10 @@ mod tests {
         let store = AidStore::new_in_memory().unwrap();
         for payload in SQLI_PAYLOADS {
             let result = store.revoke("test-jti-reason", payload, "tester");
-            assert!(result.is_ok(), "revoke failed with SQL payload in reason: {payload}");
+            assert!(
+                result.is_ok(),
+                "revoke failed with SQL payload in reason: {payload}"
+            );
         }
     }
 
@@ -238,8 +241,14 @@ mod tests {
         for payload in SQLI_PAYLOADS {
             // Lookup with malicious JTI — should return None, not error or panic
             let result = store.get_revocation(payload);
-            assert!(result.is_ok(), "get_revocation failed for payload: {payload}");
-            assert!(result.unwrap().is_none(), "unexpected row for payload: {payload}");
+            assert!(
+                result.is_ok(),
+                "get_revocation failed for payload: {payload}"
+            );
+            assert!(
+                result.unwrap().is_none(),
+                "unexpected row for payload: {payload}"
+            );
         }
     }
 

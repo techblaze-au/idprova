@@ -14,9 +14,9 @@ use idprova_core::aid::document::AidDocument;
 use idprova_core::crypto::hash::prefixed_blake3;
 use idprova_core::crypto::KeyPair as RustKeyPair;
 use idprova_core::dat::scope::Scope as RustScope;
+use idprova_core::dat::token::Dat as RustDat;
 use idprova_core::dat::DatConstraints as RustDatConstraints;
 use idprova_core::policy::EvaluationContext as RustEvaluationContext;
-use idprova_core::dat::token::Dat as RustDat;
 use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptContext};
 use idprova_core::receipt::log::ReceiptLog as RustReceiptLog;
 use idprova_core::trust::level::TrustLevel as RustTrustLevel;
@@ -490,7 +490,9 @@ impl DAT {
     ) -> Result<()> {
         let bytes = public_key_bytes.as_ref();
         if bytes.len() != 32 {
-            return Err(napi::Error::from_reason("Public key must be exactly 32 bytes"));
+            return Err(napi::Error::from_reason(
+                "Public key must be exactly 32 bytes",
+            ));
         }
         let mut key = [0u8; 32];
         key.copy_from_slice(bytes);
@@ -504,7 +506,10 @@ impl DAT {
             if decision.is_allowed() {
                 Ok(())
             } else {
-                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                let reason = decision
+                    .denial_reason()
+                    .map(|r| format!("{:?}", r))
+                    .unwrap_or_default();
                 Err(napi::Error::from_reason(reason))
             }
         }
