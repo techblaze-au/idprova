@@ -24,11 +24,8 @@ use super::decision::{DenialReason, PolicyDecision};
 /// Return `PolicyDecision::Deny(reason)` if the constraint is violated.
 pub trait ConstraintEvaluator: Send + Sync {
     /// Evaluate the constraint against the given context.
-    fn evaluate(
-        &self,
-        constraints: &DatConstraints,
-        context: &EvaluationContext,
-    ) -> PolicyDecision;
+    fn evaluate(&self, constraints: &DatConstraints, context: &EvaluationContext)
+        -> PolicyDecision;
 
     /// Human-readable name of this evaluator (for logging/debugging).
     fn name(&self) -> &'static str;
@@ -399,14 +396,23 @@ mod tests {
     #[test]
     fn test_rate_limit_hourly_exceeded() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 3600 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 100,
+                window_secs: 3600,
+            }),
             ..Default::default()
         };
-        let ctx = EvaluationContext::builder("scope").actions_this_hour(100).build();
+        let ctx = EvaluationContext::builder("scope")
+            .actions_this_hour(100)
+            .build();
         let d = RateLimitEvaluator.evaluate(&c, &ctx);
         assert!(d.is_denied());
         match d.denial_reason().unwrap() {
-            DenialReason::RateLimitExceeded { limit_type, limit, current } => {
+            DenialReason::RateLimitExceeded {
+                limit_type,
+                limit,
+                current,
+            } => {
                 assert_eq!(limit_type, "hourly");
                 assert_eq!(*limit, 100);
                 assert_eq!(*current, 100);
@@ -418,10 +424,15 @@ mod tests {
     #[test]
     fn test_rate_limit_daily_exceeded() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 500, window_secs: 86400 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 500,
+                window_secs: 86400,
+            }),
             ..Default::default()
         };
-        let ctx = EvaluationContext::builder("scope").actions_this_day(501).build();
+        let ctx = EvaluationContext::builder("scope")
+            .actions_this_day(501)
+            .build();
         let d = RateLimitEvaluator.evaluate(&c, &ctx);
         assert!(d.is_denied());
         match d.denial_reason().unwrap() {
@@ -433,7 +444,10 @@ mod tests {
     #[test]
     fn test_rate_limit_within_limits() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 3600 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 100,
+                window_secs: 3600,
+            }),
             ..Default::default()
         };
         let ctx = EvaluationContext::builder("scope")
@@ -607,26 +621,44 @@ mod tests {
 
     #[test]
     fn test_delegation_depth_within_limit() {
-        let c = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
-        let ctx = EvaluationContext::builder("scope").delegation_depth(3).build();
+        let c = DatConstraints {
+            max_delegation_depth: Some(5),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope")
+            .delegation_depth(3)
+            .build();
         assert!(DelegationDepthEvaluator.evaluate(&c, &ctx).is_allowed());
     }
 
     #[test]
     fn test_delegation_depth_at_limit() {
-        let c = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
-        let ctx = EvaluationContext::builder("scope").delegation_depth(5).build();
+        let c = DatConstraints {
+            max_delegation_depth: Some(5),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope")
+            .delegation_depth(5)
+            .build();
         assert!(DelegationDepthEvaluator.evaluate(&c, &ctx).is_allowed());
     }
 
     #[test]
     fn test_delegation_depth_exceeded() {
-        let c = DatConstraints { max_delegation_depth: Some(3), ..Default::default() };
-        let ctx = EvaluationContext::builder("scope").delegation_depth(4).build();
+        let c = DatConstraints {
+            max_delegation_depth: Some(3),
+            ..Default::default()
+        };
+        let ctx = EvaluationContext::builder("scope")
+            .delegation_depth(4)
+            .build();
         let d = DelegationDepthEvaluator.evaluate(&c, &ctx);
         assert!(d.is_denied());
         match d.denial_reason().unwrap() {
-            DenialReason::DelegationDepthExceeded { max_depth, actual_depth } => {
+            DenialReason::DelegationDepthExceeded {
+                max_depth,
+                actual_depth,
+            } => {
                 assert_eq!(*max_depth, 3);
                 assert_eq!(*actual_depth, 4);
             }
@@ -637,18 +669,27 @@ mod tests {
     #[test]
     fn test_delegation_depth_no_constraint() {
         let c = empty_constraints();
-        let ctx = EvaluationContext::builder("scope").delegation_depth(100).build();
+        let ctx = EvaluationContext::builder("scope")
+            .delegation_depth(100)
+            .build();
         assert!(DelegationDepthEvaluator.evaluate(&c, &ctx).is_allowed());
     }
 
     #[test]
     fn test_delegation_depth_zero_max() {
-        let c = DatConstraints { max_delegation_depth: Some(0), ..Default::default() };
+        let c = DatConstraints {
+            max_delegation_depth: Some(0),
+            ..Default::default()
+        };
         // Depth 0 = direct delegation, should be allowed
-        let ctx0 = EvaluationContext::builder("scope").delegation_depth(0).build();
+        let ctx0 = EvaluationContext::builder("scope")
+            .delegation_depth(0)
+            .build();
         assert!(DelegationDepthEvaluator.evaluate(&c, &ctx0).is_allowed());
         // Depth 1 = one re-delegation, should be denied
-        let ctx1 = EvaluationContext::builder("scope").delegation_depth(1).build();
+        let ctx1 = EvaluationContext::builder("scope")
+            .delegation_depth(1)
+            .build();
         assert!(DelegationDepthEvaluator.evaluate(&c, &ctx1).is_denied());
     }
 
@@ -662,7 +703,9 @@ mod tests {
             allowed_countries: Some(vec!["AU".into(), "NZ".into()]),
             ..Default::default()
         };
-        let ctx = EvaluationContext::builder("scope").source_country("AU").build();
+        let ctx = EvaluationContext::builder("scope")
+            .source_country("AU")
+            .build();
         assert!(GeofenceEvaluator.evaluate(&c, &ctx).is_allowed());
     }
 
@@ -672,7 +715,9 @@ mod tests {
             allowed_countries: Some(vec!["AU".into(), "NZ".into()]),
             ..Default::default()
         };
-        let ctx = EvaluationContext::builder("scope").source_country("US").build();
+        let ctx = EvaluationContext::builder("scope")
+            .source_country("US")
+            .build();
         let d = GeofenceEvaluator.evaluate(&c, &ctx);
         assert!(d.is_denied());
         match d.denial_reason().unwrap() {
@@ -690,7 +735,9 @@ mod tests {
             allowed_countries: Some(vec!["au".into()]),
             ..Default::default()
         };
-        let ctx = EvaluationContext::builder("scope").source_country("AU").build();
+        let ctx = EvaluationContext::builder("scope")
+            .source_country("AU")
+            .build();
         assert!(GeofenceEvaluator.evaluate(&c, &ctx).is_allowed());
     }
 
@@ -784,7 +831,9 @@ mod tests {
 
         // 12:00 PM should be outside
         let ts_noon = Utc.with_ymd_and_hms(2026, 3, 5, 12, 0, 0).unwrap();
-        let ctx_noon = EvaluationContext::builder("scope").timestamp(ts_noon).build();
+        let ctx_noon = EvaluationContext::builder("scope")
+            .timestamp(ts_noon)
+            .build();
         assert!(TimeWindowEvaluator.evaluate(&c, &ctx_noon).is_denied());
     }
 

@@ -38,7 +38,11 @@ pub fn validate_constraint_inheritance(
     validate_trust_level(parent, child)?;
 
     // Geofence: child countries must be subset of parent countries
-    validate_set_subset("allowedCountries", &parent.allowed_countries, &child.allowed_countries)?;
+    validate_set_subset(
+        "allowedCountries",
+        &parent.allowed_countries,
+        &child.allowed_countries,
+    )?;
 
     // Config attestation: if parent requires it, child must require the same hash
     if let Some(ref parent_hash) = parent.required_config_hash {
@@ -117,7 +121,8 @@ fn validate_set_subset(
     if let Some(ref parent_set) = parent {
         match child {
             Some(ref child_set) => {
-                let parent_upper: Vec<String> = parent_set.iter().map(|s| s.to_uppercase()).collect();
+                let parent_upper: Vec<String> =
+                    parent_set.iter().map(|s| s.to_uppercase()).collect();
                 for c in child_set {
                     if !parent_upper.contains(&c.to_uppercase()) {
                         return Err(IdprovaError::ConstraintViolated(format!(
@@ -147,7 +152,10 @@ mod tests {
     }
 
     fn rl(max: u64) -> Option<RateLimit> {
-        Some(RateLimit { max_actions: max, window_secs: 3600 })
+        Some(RateLimit {
+            max_actions: max,
+            window_secs: 3600,
+        })
     }
 
     #[test]
@@ -157,56 +165,98 @@ mod tests {
 
     #[test]
     fn test_child_narrower_rate_limit() {
-        let parent = DatConstraints { rate_limit: rl(100), ..Default::default() };
-        let child = DatConstraints { rate_limit: rl(50), ..Default::default() };
+        let parent = DatConstraints {
+            rate_limit: rl(100),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            rate_limit: rl(50),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
     }
 
     #[test]
     fn test_child_wider_rate_limit_rejected() {
-        let parent = DatConstraints { rate_limit: rl(100), ..Default::default() };
-        let child = DatConstraints { rate_limit: rl(200), ..Default::default() };
+        let parent = DatConstraints {
+            rate_limit: rl(100),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            rate_limit: rl(200),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_missing_rate_limit_rejected() {
-        let parent = DatConstraints { rate_limit: rl(100), ..Default::default() };
+        let parent = DatConstraints {
+            rate_limit: rl(100),
+            ..Default::default()
+        };
         let child = empty();
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_narrower_delegation_depth() {
-        let parent = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
-        let child = DatConstraints { max_delegation_depth: Some(3), ..Default::default() };
+        let parent = DatConstraints {
+            max_delegation_depth: Some(5),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            max_delegation_depth: Some(3),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
     }
 
     #[test]
     fn test_child_wider_delegation_depth_rejected() {
-        let parent = DatConstraints { max_delegation_depth: Some(3), ..Default::default() };
-        let child = DatConstraints { max_delegation_depth: Some(5), ..Default::default() };
+        let parent = DatConstraints {
+            max_delegation_depth: Some(3),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            max_delegation_depth: Some(5),
+            ..Default::default()
+        };
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_higher_trust_level_ok() {
-        let parent = DatConstraints { min_trust_level: Some(1), ..Default::default() };
-        let child = DatConstraints { min_trust_level: Some(3), ..Default::default() }; // more restrictive
+        let parent = DatConstraints {
+            min_trust_level: Some(1),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            min_trust_level: Some(3),
+            ..Default::default()
+        }; // more restrictive
         assert!(validate_constraint_inheritance(&parent, &child).is_ok());
     }
 
     #[test]
     fn test_child_lower_trust_level_rejected() {
-        let parent = DatConstraints { min_trust_level: Some(2), ..Default::default() };
-        let child = DatConstraints { min_trust_level: Some(0), ..Default::default() }; // less restrictive
+        let parent = DatConstraints {
+            min_trust_level: Some(2),
+            ..Default::default()
+        };
+        let child = DatConstraints {
+            min_trust_level: Some(0),
+            ..Default::default()
+        }; // less restrictive
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }
 
     #[test]
     fn test_child_missing_trust_level_rejected() {
-        let parent = DatConstraints { min_trust_level: Some(1), ..Default::default() };
+        let parent = DatConstraints {
+            min_trust_level: Some(1),
+            ..Default::default()
+        };
         let child = empty();
         assert!(validate_constraint_inheritance(&parent, &child).is_err());
     }

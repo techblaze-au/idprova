@@ -52,7 +52,10 @@ impl RateTracker {
 
         let (hourly, daily) = if let Some(timestamps) = inner.actions.get_mut(agent_did) {
             // Evict entries older than the day window
-            while timestamps.front().is_some_and(|t| now.duration_since(*t) > self.day_window) {
+            while timestamps
+                .front()
+                .is_some_and(|t| now.duration_since(*t) > self.day_window)
+            {
                 timestamps.pop_front();
             }
 

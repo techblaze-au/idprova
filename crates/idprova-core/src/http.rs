@@ -16,16 +16,16 @@ use crate::{IdprovaError, Result};
 /// IPv4 ranges that must never be contacted (SSRF prevention).
 fn blocked_v4() -> Vec<Ipv4Net> {
     [
-        "127.0.0.0/8",   // loopback
-        "10.0.0.0/8",    // private class A
-        "172.16.0.0/12", // private class B
+        "127.0.0.0/8",    // loopback
+        "10.0.0.0/8",     // private class A
+        "172.16.0.0/12",  // private class B
         "192.168.0.0/16", // private class C
         "169.254.0.0/16", // link-local (cloud metadata)
-        "0.0.0.0/8",     // unspecified
-        "100.64.0.0/10", // shared address space
-        "192.0.0.0/24",  // IETF protocol assignments
-        "198.18.0.0/15", // benchmark testing
-        "240.0.0.0/4",   // reserved
+        "0.0.0.0/8",      // unspecified
+        "100.64.0.0/10",  // shared address space
+        "192.0.0.0/24",   // IETF protocol assignments
+        "198.18.0.0/15",  // benchmark testing
+        "240.0.0.0/4",    // reserved
     ]
     .iter()
     .map(|s| s.parse().expect("static CIDR is valid"))
@@ -35,11 +35,11 @@ fn blocked_v4() -> Vec<Ipv4Net> {
 /// IPv6 ranges that must never be contacted.
 fn blocked_v6() -> Vec<Ipv6Net> {
     [
-        "::1/128",        // loopback
-        "fc00::/7",       // unique local
-        "fe80::/10",      // link-local
-        "::ffff:0:0/96",  // IPv4-mapped
-        "::/128",         // unspecified
+        "::1/128",       // loopback
+        "fc00::/7",      // unique local
+        "fe80::/10",     // link-local
+        "::ffff:0:0/96", // IPv4-mapped
+        "::/128",        // unspecified
     ]
     .iter()
     .map(|s| s.parse().expect("static CIDR is valid"))
@@ -65,9 +65,8 @@ const ALLOWED_SCHEMES: &[&str] = &["https", "http"];
 ///
 /// Returns the parsed [`Url`] on success.
 pub fn validate_registry_url(raw_url: &str) -> Result<Url> {
-    let url = Url::parse(raw_url).map_err(|e| {
-        IdprovaError::Other(format!("invalid URL '{raw_url}': {e}"))
-    })?;
+    let url = Url::parse(raw_url)
+        .map_err(|e| IdprovaError::Other(format!("invalid URL '{raw_url}': {e}")))?;
 
     // Check scheme
     if !ALLOWED_SCHEMES.contains(&url.scheme()) {
@@ -78,9 +77,9 @@ pub fn validate_registry_url(raw_url: &str) -> Result<Url> {
     }
 
     // Extract host — a URL without a host is invalid for registry use
-    let host = url.host_str().ok_or_else(|| {
-        IdprovaError::Other(format!("URL has no host: {raw_url}"))
-    })?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| IdprovaError::Other(format!("URL has no host: {raw_url}")))?;
 
     // If the host is an IP literal, check it directly
     if let Ok(ip) = host.parse::<IpAddr>() {
@@ -89,11 +88,14 @@ pub fn validate_registry_url(raw_url: &str) -> Result<Url> {
     }
 
     // Otherwise resolve hostname → check each resolved IP
-    let port = url.port().unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
+    let port = url
+        .port()
+        .unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
     let addrs_str = format!("{host}:{port}");
-    let resolved: Vec<SocketAddr> = addrs_str.to_socket_addrs().map_err(|e| {
-        IdprovaError::Other(format!("cannot resolve host '{host}': {e}"))
-    })?.collect();
+    let resolved: Vec<SocketAddr> = addrs_str
+        .to_socket_addrs()
+        .map_err(|e| IdprovaError::Other(format!("cannot resolve host '{host}': {e}")))?
+        .collect();
 
     if resolved.is_empty() {
         return Err(IdprovaError::Other(format!(
@@ -235,7 +237,11 @@ mod tests {
     #[ignore = "requires DNS + network access"]
     fn test_accept_public_https_url() {
         let result = validate_registry_url("https://registry.idprova.dev");
-        assert!(result.is_ok(), "public HTTPS URL must be accepted: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "public HTTPS URL must be accepted: {:?}",
+            result.err()
+        );
     }
 
     #[test]

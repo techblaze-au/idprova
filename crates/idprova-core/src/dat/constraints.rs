@@ -20,7 +20,6 @@ use crate::{IdprovaError, Result};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DatConstraints {
     // ── existing fields (preserved for backwards compat) ──────────────────
-
     /// Maximum total actions allowed under this DAT (lifetime cap).
     #[serde(rename = "maxActions", skip_serializing_if = "Option::is_none")]
     pub max_actions: Option<u64>,
@@ -34,13 +33,11 @@ pub struct DatConstraints {
     pub require_receipt: Option<bool>,
 
     // ── Phase 2: rate limiting ─────────────────────────────────────────────
-
     /// Sliding-window rate limit.
     #[serde(rename = "rateLimit", skip_serializing_if = "Option::is_none")]
     pub rate_limit: Option<RateLimit>,
 
     // ── Phase 2: IP access control ─────────────────────────────────────────
-
     /// CIDR ranges that are allowed to present this DAT.
     /// If set, the request IP MUST match at least one entry.
     #[serde(rename = "ipAllowlist", skip_serializing_if = "Option::is_none")]
@@ -52,32 +49,27 @@ pub struct DatConstraints {
     pub ip_denylist: Option<Vec<String>>,
 
     // ── Phase 2: trust level ───────────────────────────────────────────────
-
     /// Minimum trust level the presenting agent must have (0–100 scale).
     #[serde(rename = "minTrustLevel", skip_serializing_if = "Option::is_none")]
     pub min_trust_level: Option<u8>,
 
     // ── Phase 2: delegation depth ──────────────────────────────────────────
-
     /// Maximum delegation chain depth allowed (0 = no re-delegation).
     #[serde(rename = "maxDelegationDepth", skip_serializing_if = "Option::is_none")]
     pub max_delegation_depth: Option<u32>,
 
     // ── Phase 2: geofence ──────────────────────────────────────────────────
-
     /// ISO 3166-1 alpha-2 country codes that are allowed.
     /// If set, the request country MUST be in this list.
     #[serde(rename = "allowedCountries", skip_serializing_if = "Option::is_none")]
     pub allowed_countries: Option<Vec<String>>,
 
     // ── Phase 2: time windows ──────────────────────────────────────────────
-
     /// UTC time windows during which the DAT may be used.
     #[serde(rename = "timeWindows", skip_serializing_if = "Option::is_none")]
     pub time_windows: Option<Vec<TimeWindow>>,
 
     // ── Phase 2: config attestation ────────────────────────────────────────
-
     /// Required SHA-256 hex hash of the agent's config.
     /// Stored in DatClaims.config_attestation; evaluator checks it matches.
     #[serde(rename = "requiredConfigHash", skip_serializing_if = "Option::is_none")]
@@ -388,12 +380,10 @@ impl DatConstraints {
         // The token must carry a matching config_attestation claim.
         let token_hash = match token_config_hash {
             Some(h) => h,
-            None => {
-                return Err(IdprovaError::ConstraintViolated(
-                    "required_config_hash constraint set but token carries no configAttestation claim"
-                        .into(),
-                ))
-            }
+            None => return Err(IdprovaError::ConstraintViolated(
+                "required_config_hash constraint set but token carries no configAttestation claim"
+                    .into(),
+            )),
         };
 
         if token_hash != required {
@@ -404,15 +394,14 @@ impl DatConstraints {
         }
 
         // The agent's live config must also match.
-        let live_hash = match &ctx.agent_config_hash {
-            Some(h) => h,
-            None => {
-                return Err(IdprovaError::ConstraintViolated(
+        let live_hash =
+            match &ctx.agent_config_hash {
+                Some(h) => h,
+                None => return Err(IdprovaError::ConstraintViolated(
                     "required_config_hash constraint set but agent config hash was not provided"
                         .into(),
-                ))
-            }
-        };
+                )),
+            };
 
         if live_hash != required {
             return Err(IdprovaError::ConstraintViolated(format!(
@@ -471,8 +460,8 @@ fn cidr_contains(cidr_str: &str, ip: IpAddr) -> bool {
 // Use chrono's time accessors
 // ────────────────────────────────────────────────────────────────────────────
 
-use chrono::Timelike;
 use chrono::Datelike;
+use chrono::Timelike;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tests
@@ -528,7 +517,10 @@ mod tests {
     #[test]
     fn test_rate_limit_pass() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 10, window_secs: 60 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 10,
+                window_secs: 60,
+            }),
             ..Default::default()
         };
         let mut cx = ctx();
@@ -539,7 +531,10 @@ mod tests {
     #[test]
     fn test_rate_limit_exceeded() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 10, window_secs: 60 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 10,
+                window_secs: 60,
+            }),
             ..Default::default()
         };
         let mut cx = ctx();
@@ -879,7 +874,9 @@ mod tests {
         };
         let mut cx = ctx();
         cx.agent_config_hash = Some("different_hash".into());
-        assert!(c.eval_config_attestation(&cx, Some("required_hash")).is_err());
+        assert!(c
+            .eval_config_attestation(&cx, Some("required_hash"))
+            .is_err());
     }
 
     #[test]
@@ -904,7 +901,10 @@ mod tests {
     #[test]
     fn test_evaluate_all_pass() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 60 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 100,
+                window_secs: 60,
+            }),
             ip_allowlist: Some(vec!["10.0.0.0/8".into()]),
             ip_denylist: Some(vec!["10.0.0.0/24".into()]), // deny narrow subnet
             min_trust_level: Some(50),
@@ -925,7 +925,10 @@ mod tests {
     #[test]
     fn test_evaluate_stops_at_first_violation() {
         let c = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 1, window_secs: 60 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 1,
+                window_secs: 60,
+            }),
             min_trust_level: Some(99), // would also fail
             ..Default::default()
         };

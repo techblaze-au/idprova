@@ -186,7 +186,12 @@ fn main() -> Result<()> {
             } => {
                 commands::dat::issue(&issuer, &subject, &scope, &expires_in, &key)?;
             }
-            DatCommands::Verify { token, registry, key, scope } => {
+            DatCommands::Verify {
+                token,
+                registry,
+                key,
+                scope,
+            } => {
                 let reg = registry.unwrap_or_else(|| cfg.registry_url.clone());
                 commands::dat::verify(&token, &reg, key.as_deref(), &scope)?;
             }
