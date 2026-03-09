@@ -2,7 +2,7 @@
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
 **Branch:** `idprova/track-b-registry`
-**Progress:** Task 5 of 7 (in progress — session 2)
+**Progress:** Task 6 of 7 (session limit reached — 3 tasks this session)
 
 ## Completed Tasks
 
@@ -17,21 +17,39 @@
 - Added `GET /ready` and `GET /v1/dat/revocations` to `docs/api-reference.md`
 
 ### Task 4: Core Library API Guide (0a13b6c)
-- Fixed `docs/core-api.md` — major fixes to DatConstraints, scope grammar, verify API, error enum, DenialReason variants
+- Fixed `docs/core-api.md` — major fixes:
+  - Scope grammar: 3-part → 4-part (namespace:protocol:resource:action)
+  - DatConstraints: all field names corrected to match actual API
+  - Dat::verify() → verify_signature() + validate_timing() (separate methods)
+  - Import paths: dat::constraints → dat::token
+  - DenialReason variants: fixed all names to match actual enum
+  - Error enum: added 8 missing variants
+  - ConstraintEvaluator: added name() method
+  - Added verify_integrity_with_key() to ReceiptLog docs
 
 ### Task 5: Protocol Concepts Guide (4546f4a)
-- Fixed `docs/concepts.md` — scope grammar (3→4 part), trust level table, constraint field names, DAT claims example, delegation chain scopes
+- Fixed `docs/concepts.md`:
+  - Scope grammar: 3→4 part throughout
+  - Trust level table: removed incorrect numeric equivalents
+  - Constraint field names: corrected to match actual code
+  - DAT claims example: fixed scope format and constraint field names
+  - Delegation chain example: fixed scope format
 
-## Next Tasks (this session)
-- Task 6: Security Model Documentation — verify/update `docs/security.md`
+### Task 6: Security Model Documentation (fbb3869)
+- Fixed `docs/security.md`:
+  - Scope format: 3-part → 4-part in scope containment table
+  - dat.verify() → verify_signature() + PolicyEvaluator
+  - Registry auth scope: idprova:registry:write → idprova:registry:aid:write
 
-## Remaining Tasks (future session)
+## Next Tasks (for next session)
 - Task 7: SDK Quick-Start Guides — verify/update `docs/sdk-python.md` and `docs/sdk-typescript.md`
+  - After Task 7: mark track COMPLETE, touch .planning/TRACK_COMPLETE
 
 ## Key Decisions
-- All docs already exist with substantial content; tasks are verification + gap-filling
-- Task 2 required no changes — guide was already accurate
-- Session limit: will complete Task 6, then stop (3 tasks this session)
+- All docs already existed with substantial content; tasks were verification + gap-filling
+- Tasks 2 required no changes — guide was already accurate
+- Primary pattern: scope grammar was consistently wrong (3-part vs actual 4-part) across all docs
+- DatConstraints field names were from an earlier API draft, not the actual implementation
 
 ## Environment Notes
 - No `cargo` binary available — cannot run `cargo test --workspace`
