@@ -150,8 +150,8 @@ let kp = KeyPair::generate(); // issuer's keypair
 let expires = Utc::now() + Duration::hours(24);
 
 let dat = Dat::issue(
-    "did:idprova:example.com:alice",             // issuer DID
-    "did:idprova:example.com:my-agent",          // subject DID
+    "did:idprova:example.com:alice",              // issuer DID
+    "did:idprova:example.com:my-agent",           // subject DID
     vec!["mcp:tool:filesystem:read".to_string()], // granted scopes (4-part)
     expires,
     None,   // constraints (see below)
@@ -168,7 +168,7 @@ let token_string: String = dat.to_compact()?;
 Scopes follow the `namespace:protocol:resource:action` grammar (4 colon-separated parts). Wildcards are supported at any segment:
 
 ```
-mcp:tool:filesystem:read   # read access to the filesystem MCP tool
+mcp:tool:filesystem:read   # specific tool read access
 mcp:tool:filesystem:*      # all actions on the filesystem tool
 mcp:tool:*:*               # all MCP tools, any action
 mcp:*:*:*                  # all MCP resources and actions
@@ -177,7 +177,7 @@ mcp:*:*:*                  # all MCP resources and actions
 ### Parsing a received DAT
 
 ```rust
-// Parse without verifying signature (call verify_signature() separately)
+// Parse without verifying (call verify_signature() separately)
 let dat = Dat::from_compact(&token_string)?;
 
 println!("Issuer: {}", dat.claims.iss);
@@ -188,17 +188,26 @@ println!("Expires: {}", dat.claims.exp);
 
 ### Verifying a DAT
 
+Verification is split into separate steps — signature, timing, and the full policy pipeline:
+
 ```rust
 let pub_bytes = issuer_kp.public_key_bytes();
 
-// Verify the Ed25519 signature (uses original base64url segments per RFC 7515)
+// 1. Verify Ed25519 signature (uses original JWS bytes per RFC 7515)
 dat.verify_signature(&pub_bytes)?;
 
-// For full policy evaluation (timing + scope + constraints), use PolicyEvaluator:
+// 2. Check timing (not expired, not before nbf)
+dat.validate_timing()?;
+
+// 3. Full policy evaluation (timing + scope + all constraints) via PolicyEvaluator
 use idprova_core::policy::{PolicyEvaluator, context::EvaluationContext};
+
 let pe = PolicyEvaluator::new();
-let ctx = EvaluationContext::builder("mcp:tool:filesystem:read").build();
+let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
+    .caller_trust_level(TrustLevel::L2)
+    .build();
 let decision = pe.evaluate(&dat, &ctx);
+assert!(decision.is_allowed());
 ```
 
 `PolicyEvaluator::evaluate()` runs in order:
@@ -231,19 +240,17 @@ Embed constraints into a DAT at issuance time:
 use idprova_core::dat::token::{DatConstraints, TimeWindow};
 
 let constraints = DatConstraints {
-    // Basic constraints
-    max_actions: Some(1000),                     // total action cap
-    allowed_servers: Some(vec!["tools.example.com".into()]),
-    require_receipt: Some(true),
-
-    // Rate limiting (sliding windows)
+    // Rate limiting (separate hourly, daily, concurrent limits)
     max_calls_per_hour: Some(100),
     max_calls_per_day: Some(1000),
     max_concurrent: Some(5),
 
+    // Max total actions (overall cap)
+    max_actions: Some(10000),
+
     // IP access control (CIDR notation)
     allowed_ips: Some(vec!["10.0.0.0/8".to_string()]),
-    denied_ips:  Some(vec!["10.0.0.99/32".to_string()]),
+    denied_ips:  Some(vec!["10.0.0.0/24".to_string()]),
 
     // Trust level requirement (string: "L0"–"L4")
     required_trust_level: Some("L2".to_string()),
@@ -254,15 +261,23 @@ let constraints = DatConstraints {
     // Geofence (ISO 3166-1 alpha-2)
     geofence: Some(vec!["AU".to_string(), "NZ".to_string()]),
 
-    // Time windows (UTC hours, inclusive)
+    // Time windows (UTC hours, day-of-week: 0=Mon, 6=Sun)
     time_windows: Some(vec![TimeWindow {
-        days: vec![0, 1, 2, 3, 4], // Mon–Fri (0=Mon, 6=Sun)
+        days: vec![0, 1, 2, 3, 4],  // Mon–Fri
         start_hour: 9,
         end_hour: 17,
     }]),
 
-    // Config attestation (BLAKE3/SHA-256 hex of agent config)
+    // Config attestation (BLAKE3/SHA-256 hash of agent config)
     required_config_attestation: Some("blake3:abcdef1234...".to_string()),
+
+    // Require a receipt for every action
+    require_receipt: Some(true),
+
+    // Allowed server hostnames
+    allowed_servers: Some(vec!["tools.example.com".to_string()]),
+
+    ..Default::default()
 };
 
 let dat = Dat::issue(
@@ -284,11 +299,11 @@ dat.validate_timing()  // returns Err if expired or not-yet-valid
 | Error | When |
 |-------|------|
 | `IdprovaError::InvalidDat` | Malformed compact JWS or unsupported algorithm |
-| `IdprovaError::VerificationFailed` | Bad signature (from `verify_signature()`) |
-| `IdprovaError::DatExpired` | Token past expiry (from `validate_timing()`) |
-| `IdprovaError::DatNotYetValid` | Token before `nbf` (from `validate_timing()`) |
-| `IdprovaError::ScopeNotPermitted` | Invalid scope format (not 4-part) |
-| `IdprovaError::DatRevoked` | DAT has been revoked |
+| `IdprovaError::VerificationFailed` | Bad signature |
+| `IdprovaError::DatExpired` | Token past expiry |
+| `IdprovaError::DatNotYetValid` | Token before `nbf` |
+| `IdprovaError::ScopeNotPermitted` | Requested scope not covered |
+| `IdprovaError::ConstraintViolated` | Constraint evaluator denied |
 
 ---
 
@@ -339,6 +354,10 @@ log.append(receipt);
 ```rust
 // Checks sequence numbers and hash linkage for the entire chain
 log.verify_integrity()?;
+
+// Full cryptographic verification: hash chain + each receipt's Ed25519 signature
+let agent_pub_bytes = agent_kp.public_key_bytes();
+log.verify_integrity_with_key(&agent_pub_bytes)?;
 ```
 
 ### Accessing entries
@@ -383,10 +402,7 @@ The `PolicyEvaluator` combines timing, scope, and constraint checks into a singl
 ### Basic usage
 
 ```rust
-use idprova_core::policy::evaluator::PolicyEvaluator;
-use idprova_core::policy::context::EvaluationContext;
-use idprova_core::policy::decision::PolicyDecision;
-use idprova_core::trust::level::TrustLevel;
+use idprova_core::policy::{PolicyEvaluator, context::EvaluationContext, decision::PolicyDecision};
 
 let pe = PolicyEvaluator::new(); // loads all 7 built-in evaluators
 
@@ -441,11 +457,11 @@ All fields except `requested_scope` are optional. Evaluators that require a miss
 | `NotYetValid` | Token before `nbf` |
 | `ScopeNotCovered` | Requested scope not in DAT's scope set |
 | `Revoked` | DAT or delegation chain member has been revoked |
-| `RateLimitExceeded { limit_type, limit, current }` | Rate limit breach (hourly, daily, or concurrent) |
-| `IpBlocked { ip, reason }` | IP not in allowed list or in denied list |
+| `RateLimitExceeded { limit_type, limit, current }` | Hourly, daily, or concurrent limit exceeded |
+| `IpBlocked { ip, reason }` | IP not in allowlist or in denylist |
 | `InsufficientTrustLevel { required, actual }` | Agent trust level too low |
 | `DelegationDepthExceeded { max_depth, actual_depth }` | Chain depth beyond `max_delegation_depth` |
-| `GeofenceViolation { country, allowed }` | Country not in geofence list |
+| `GeofenceViolation { country, allowed }` | Country not in `geofence` list |
 | `OutsideTimeWindow` | Outside all permitted time windows |
 | `ConfigAttestationMismatch { expected, actual }` | Config hash mismatch |
 | `ChainValidationFailed(String)` | Delegation chain validation error |
@@ -455,8 +471,8 @@ All fields except `requested_scope` are optional. Evaluators that require a miss
 ### Custom evaluators
 
 ```rust
-use idprova_core::policy::constraints::ConstraintEvaluator;
 use idprova_core::dat::token::DatConstraints;
+use idprova_core::policy::constraints::ConstraintEvaluator;
 use idprova_core::policy::context::EvaluationContext;
 use idprova_core::policy::decision::PolicyDecision;
 
@@ -469,7 +485,7 @@ impl ConstraintEvaluator for MyEvaluator {
     }
 
     fn name(&self) -> &'static str {
-        "my_evaluator"
+        "my_custom_evaluator"
     }
 }
 
@@ -546,11 +562,11 @@ fn main() -> idprova_core::Result<()> {
     let dat = Dat::issue(
         "did:idprova:example.com:alice",
         "did:idprova:example.com:my-agent",
-        vec!["mcp:tool:*:read".to_string(), "mcp:tool:*:write".to_string()],
+        vec!["mcp:tool:filesystem:read".to_string(), "mcp:tool:filesystem:write".to_string()],
         Utc::now() + Duration::hours(8),
         Some(DatConstraints {
             max_calls_per_hour: Some(500),
-            required_trust_level: Some("L1".into()),
+            required_trust_level: Some("L1".to_string()),
             max_delegation_depth: Some(0),
             ..Default::default()
         }),

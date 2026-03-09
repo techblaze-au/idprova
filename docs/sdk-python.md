@@ -39,12 +39,12 @@ print(aid.trust_level)  # L0
 # 3. Issue a DAT to another agent
 dat = identity.issue_dat(
     subject_did="did:idprova:example.com:worker",
-    scope=["mcp:tool:filesystem:read", "mcp:tool:filesystem:write"],
+    scope=["mcp:mcp:tool:read", "mcp:mcp:tool:write"],
     expires_in_seconds=3600,
 )
 print(dat.issuer)   # did:idprova:example.com:my-agent
 print(dat.subject)  # did:idprova:example.com:worker
-print(dat.scope)    # ['mcp:tool:filesystem:read', 'mcp:tool:filesystem:write']
+print(dat.scope)    # ['mcp:mcp:tool:read', 'mcp:mcp:tool:write']
 
 # 4. Serialize DAT for transport
 compact = dat.to_compact()  # header.payload.signature (JWS)
@@ -122,7 +122,7 @@ issuer_kp = KeyPair.generate()
 dat = DAT.issue(
     issuer_did="did:idprova:example.com:alice",
     subject_did="did:idprova:example.com:agent",
-    scope=["mcp:tool:search:execute"],
+    scope=["mcp:mcp:tool:read"],
     expires_in_seconds=3600,
     signing_key=issuer_kp,
     max_actions=500,       # optional: cap on action count
@@ -141,58 +141,49 @@ dat.validate_timing()  # raises ValueError if expired or not-yet-valid
 ### Verifying a DAT
 
 ```python
-from idprova import DAT, EvaluationContext
+from idprova import DAT
 
 # Parse from compact JWS received in HTTP header or message
 dat = DAT.from_compact(compact_token)
 
-# Option 1: Signature-only check
+# Check timing
+dat.validate_timing()  # raises ValueError("DatExpiredError") if expired
+
+# Verify cryptographic signature
+# issuer_pubkey_bytes must be the 32-byte public key of the issuer
 if not dat.verify_signature(issuer_pubkey_bytes):
     raise PermissionError("invalid DAT signature")
 
-# Option 2: Full verification pipeline (signature + timing + scope + constraints)
-ctx = EvaluationContext()
-ctx.request_ip = "192.168.1.10"
-ctx.agent_trust_level = 50
-ctx.actions_in_window = 5
-
-dat.verify(
-    issuer_pubkey_bytes,
-    required_scope="mcp:tool:search:execute",
-    ctx=ctx,
-)
-# Raises ValueError with details if any check fails
-
 # Inspect claims
-print(dat.scope)   # ['mcp:tool:search:execute']
+print(dat.scope)   # ['mcp:mcp:tool:read']
 print(dat.issuer)  # did:idprova:...
 ```
 
 ## Scopes
 
-`Scope` validates and matches permission strings in `namespace:protocol:resource:action` format. Wildcards (`*`) are supported in any position.
+`Scope` validates and matches permission strings in `namespace:protocol:resource:action` format. Wildcards (`*`) are supported in the protocol, resource, and action positions.
 
 ```python
 from idprova import Scope
 
 # Parse a scope
-s = Scope("mcp:tool:filesystem:read")
-print(str(s))  # mcp:tool:filesystem:read
+s = Scope("mcp:mcp:tool:read")
+print(str(s))  # mcp:mcp:tool:read
 
 # Wildcard coverage check
-broad = Scope("mcp:tool:*:*")
-narrow = Scope("mcp:tool:filesystem:read")
+broad = Scope("mcp:*:*:*")
+narrow = Scope("mcp:mcp:tool:read")
 assert broad.covers(narrow)      # True — broad permits narrow
 assert not narrow.covers(broad)  # False — narrow does not permit broad
 
 # Exact match
-s1 = Scope("mcp:tool:filesystem:read")
-s2 = Scope("mcp:tool:filesystem:read")
+s1 = Scope("mcp:mcp:tool:read")
+s2 = Scope("mcp:mcp:tool:read")
 assert s1.covers(s2)  # True
 
 # Invalid scope raises
 try:
-    Scope("invalid")  # missing parts
+    Scope("invalid")  # missing protocol:resource:action parts
 except Exception as e:
     print(e)
 ```
@@ -235,27 +226,15 @@ print(len(log))           # 0
 print(log.last_hash)      # "genesis"
 print(log.next_sequence)  # 0
 
-# Append a receipt entry (hash-chained, signed)
-log.append(
-    agent_did="did:idprova:example.com:my-agent",
-    dat_jti=dat.jti,
-    action_type="tool_call",
-    input_data='{"query": "search term"}',
-    signing_key=kp,
-    server="api.example.com",         # optional
-    tool="search",                    # optional
-    output_data='{"results": []}',    # optional
-    status="success",                 # optional
-    duration_ms=42,                   # optional
-    session_id="sess-001",            # optional
-)
+# Receipts are appended via the CLI or registry — the Python SDK
+# exposes the log for reading and integrity verification.
+log.verify_integrity()  # raises on tampering
 
-# Verify chain integrity (raises on tampering)
-log.verify_integrity()
-
-print(log.next_sequence)  # 1
-print(log.last_hash)      # blake3 hash of the receipt
+# Serialize for persistence or transmission
+json_str = log.to_json()
 ```
+
+> **Note:** Receipt entries are appended through the `idprova receipt` CLI command or the registry server. The Python SDK log object is used for verification and serialization of logs received from those sources.
 
 ## Error Handling
 
@@ -274,7 +253,7 @@ All IDProva errors are standard Python exceptions:
 from idprova import DAT, KeyPair
 
 kp = KeyPair.generate()
-dat = DAT.issue("did:idprova:a:b", "did:idprova:a:c", ["*:*:*:*"], -1, kp)
+dat = DAT.issue("did:idprova:a:b", "did:idprova:a:c", ["mcp:*:*:*"], -1, kp)
 
 try:
     dat.validate_timing()
@@ -302,7 +281,7 @@ print(f"Worker:       {worker.did}")
 # --- Issue a scoped DAT ---
 dat = orchestrator.issue_dat(
     subject_did=worker.did,
-    scope=["mcp:tool:filesystem:read", "mcp:tool:filesystem:write"],
+    scope=["mcp:mcp:tool:read", "mcp:mcp:tool:write"],
     expires_in_seconds=3600,
 )
 compact = dat.to_compact()
@@ -317,11 +296,11 @@ assert is_valid, "DAT signature invalid"
 
 # --- Check if granted scope covers the required action ---
 granted = [Scope(s) for s in received_dat.scope]
-required = Scope("mcp:tool:filesystem:read")
+required = Scope("mcp:mcp:tool:read")
 has_permission = any(g.covers(required) for g in granted)
 assert has_permission, "missing required scope"
 
-print("All checks passed — worker authorised to call mcp:tool:filesystem:read")
+print("All checks passed — worker authorised to call mcp:mcp:tool:read")
 
 # --- Audit log ---
 log = ReceiptLog()
@@ -336,12 +315,11 @@ print(f"Receipt log entries: {len(log)}")
 | `KeyPair` | `.generate()`, `.from_secret_bytes(b)`, `.sign(msg)`, `.verify(msg, sig)`, `.public_key_bytes`, `.public_key_multibase` |
 | `AID` | `.from_json(s)`, `.to_json()`, `.validate()`, `.did`, `.controller`, `.trust_level` |
 | `AIDBuilder` | `.id()`, `.controller()`, `.name()`, `.trust_level()`, `.add_ed25519_key()`, `.build()` |
-| `DAT` | `.issue(...)`, `.from_compact(s)`, `.to_compact()`, `.verify(pub, scope, ctx)`, `.verify_signature(b)`, `.validate_timing()`, `.is_expired`, `.scope`, `.issuer`, `.subject`, `.jti`, `.expires_at` |
-| `EvaluationContext` | `.actions_in_window`, `.request_ip`, `.agent_trust_level`, `.delegation_depth`, `.country_code`, `.agent_config_hash` |
+| `DAT` | `.issue(...)`, `.from_compact(s)`, `.to_compact()`, `.verify_signature(b)`, `.validate_timing()`, `.is_expired`, `.scope`, `.issuer`, `.subject` |
 | `Scope` | `Scope(s)`, `.covers(other)` |
 | `TrustLevel` | `TrustLevel(s)`, `.meets_minimum(other)`, `.description` |
-| `ReceiptLog` | `.append(...)`, `.verify_integrity()`, `.to_json()`, `.last_hash`, `.next_sequence`, `len(log)` |
-| `AgentIdentity` | `.create(name, domain)`, `.save(path?)`, `.load(path)`, `.aid()`, `.keypair()`, `.issue_dat(...)`, `.public_key_bytes`, `.did` |
+| `ReceiptLog` | `.verify_integrity()`, `.to_json()`, `.last_hash`, `.next_sequence`, `len(log)` |
+| `AgentIdentity` | `.create(name, domain)`, `.aid()`, `.keypair()`, `.issue_dat(...)`, `.public_key_bytes`, `.did` |
 
 ## See Also
 

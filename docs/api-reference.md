@@ -50,7 +50,7 @@ curl http://localhost:3000/health
 
 ### GET /ready
 
-Readiness probe. Checks that the SQLite database is reachable. No authentication required.
+Readiness probe — checks database connectivity. No authentication required.
 
 **Response 200:**
 
@@ -396,12 +396,12 @@ curl -X POST http://localhost:3000/v1/dat/revoke \
 
 ### GET /v1/dat/revocations
 
-List DAT revocations, newest first. No authentication required.
+List DAT revocations with pagination. No authentication required.
 
 **Query parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
 | `limit` | integer | 50 | Max records to return (capped at 200) |
 | `offset` | integer | 0 | Number of records to skip |
 
