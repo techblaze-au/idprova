@@ -55,9 +55,8 @@ RUN mkdir -p /app/data && chown -R idprova:idprova /app
 
 USER idprova
 
-ENV IDPROVA_HOST=0.0.0.0
-ENV IDPROVA_PORT=3000
-ENV IDPROVA_DB_PATH=/app/data/registry.db
+ENV REGISTRY_PORT=3000
+ENV REGISTRY_DB_PATH=/app/data/registry.db
 ENV RUST_LOG=info
 
 EXPOSE 3000
@@ -65,6 +64,6 @@ EXPOSE 3000
 VOLUME ["/app/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -sf http://localhost:${IDPROVA_PORT}/health || exit 1
+    CMD curl -sf http://localhost:${REGISTRY_PORT}/health || exit 1
 
 ENTRYPOINT ["/app/idprova-registry"]
