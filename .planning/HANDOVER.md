@@ -2,7 +2,7 @@
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
 **Branch:** `idprova/track-b-registry`
-**Progress:** Task 4 of 7 (in progress — session 2)
+**Progress:** Task 5 of 7 (in progress — session 2)
 
 ## Completed Tasks
 
@@ -17,26 +17,21 @@
 - Added `GET /ready` and `GET /v1/dat/revocations` to `docs/api-reference.md`
 
 ### Task 4: Core Library API Guide (0a13b6c)
-- Fixed `docs/core-api.md` — 13 discrepancies against actual source code:
-  - Scope grammar: 3-part → 4-part (namespace:protocol:resource:action)
-  - DatConstraints: wrong field names (RateLimit struct, ip_allowlist, min_trust_level, allowed_countries, days_of_week, required_config_hash → actual: max_calls_per_hour, allowed_ips, required_trust_level, geofence, days, required_config_attestation)
-  - Dat::verify() doesn't exist → verify_signature() + validate_timing()
-  - Import paths: dat::constraints → dat::token
-  - DenialReason variant names fixed (IpNotAllowed→IpBlocked, etc.)
-  - Error enum: added 8 missing variants, fixed Serialization name
-  - ConstraintEvaluator: added name() method
-  - Added verify_integrity_with_key() to ReceiptLog section
+- Fixed `docs/core-api.md` — major fixes to DatConstraints, scope grammar, verify API, error enum, DenialReason variants
+
+### Task 5: Protocol Concepts Guide (4546f4a)
+- Fixed `docs/concepts.md` — scope grammar (3→4 part), trust level table, constraint field names, DAT claims example, delegation chain scopes
 
 ## Next Tasks (this session)
-- Task 5: Protocol Concepts Guide — verify/update `docs/concepts.md`
 - Task 6: Security Model Documentation — verify/update `docs/security.md`
 
-## Remaining Tasks (future session if needed)
+## Remaining Tasks (future session)
 - Task 7: SDK Quick-Start Guides — verify/update `docs/sdk-python.md` and `docs/sdk-typescript.md`
 
 ## Key Decisions
 - All docs already exist with substantial content; tasks are verification + gap-filling
 - Task 2 required no changes — guide was already accurate
+- Session limit: will complete Task 6, then stop (3 tasks this session)
 
 ## Environment Notes
 - No `cargo` binary available — cannot run `cargo test --workspace`
