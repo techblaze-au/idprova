@@ -1,9 +1,9 @@
 # Track S — Python SDK Handover
 
-## Status: IN_PROGRESS
+## Status: COMPLETE
 ## Plan: `.planning/phases/01/01-01-PLAN.md`
 ## Branch: `idprova/track-s-python-sdk`
-## Progress: Task 4 of 5
+## Progress: 5 of 5 — ALL DONE
 
 ## Completed Tasks
 1. **Task 1: `sdks/python/idprova_http.py`** — commit `d3c0d21`
@@ -17,12 +17,7 @@
    - `examples/python/requirements-langchain.txt` (httpx + langchain-core)
 4. **Task 4: `examples/python/issue_verify.py`** — commit `10fda2a`
    - Demo script showing list AIDs flow via Python SDK
-
-## Current Task
-Task 5: Final commit and TRACK_COMPLETE
-
-## Next Tasks
-- Task 5: Final commit and TRACK_COMPLETE
+5. **Task 5: Final commit and TRACK_COMPLETE** — this commit
 
 ## Notes
 - No Rust toolchain available in this environment — cannot run `cargo test`
