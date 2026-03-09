@@ -47,7 +47,8 @@ pub fn create(
 
 pub fn resolve(id: &str, registry: &str) -> Result<()> {
     // Validate the registry URL for SSRF safety before any network call
-    url::Url::parse(registry).map(|_| ())
+    url::Url::parse(registry)
+        .map(|_| ())
         .map_err(|e| anyhow::anyhow!("invalid registry URL: {e}"))?;
 
     // Strip trailing slash, build endpoint URL

@@ -106,12 +106,12 @@ pub fn verify_receipt_log(receipts: &[Receipt]) -> Result<()> {
 mod tests {
     use super::*;
     use chrono::{Duration, Utc};
+    use idprova_core::receipt::entry::ChainLink;
     use idprova_core::{
         crypto::KeyPair,
         dat::{constraints::DatConstraints, Dat},
         receipt::{ActionDetails, Receipt, ReceiptLog},
     };
-    use idprova_core::receipt::entry::ChainLink;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -166,7 +166,12 @@ mod tests {
         let compact = dat.to_compact().unwrap();
         let ctx = EvaluationContext::default();
 
-        let result = verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx);
+        let result = verify_dat(
+            &compact,
+            &kp.public_key_bytes(),
+            "mcp:tool:filesystem:read",
+            &ctx,
+        );
         assert!(result.is_ok(), "expected Ok, got: {:?}", result.err());
         let verified = result.unwrap();
         assert_eq!(verified.claims.iss, "did:idprova:test:issuer");
@@ -181,7 +186,12 @@ mod tests {
         let compact = dat.to_compact().unwrap();
         let ctx = EvaluationContext::default();
 
-        let result = verify_dat(&compact, &kp2.public_key_bytes(), "mcp:tool:filesystem:read", &ctx);
+        let result = verify_dat(
+            &compact,
+            &kp2.public_key_bytes(),
+            "mcp:tool:filesystem:read",
+            &ctx,
+        );
         assert!(result.is_err(), "wrong key must fail");
     }
 
@@ -192,7 +202,12 @@ mod tests {
         let compact = dat.to_compact().unwrap();
         let ctx = EvaluationContext::default();
 
-        let result = verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx);
+        let result = verify_dat(
+            &compact,
+            &kp.public_key_bytes(),
+            "mcp:tool:filesystem:read",
+            &ctx,
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("expired"));
     }
@@ -204,7 +219,12 @@ mod tests {
         let compact = dat.to_compact().unwrap();
         let ctx = EvaluationContext::default();
 
-        let result = verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx);
+        let result = verify_dat(
+            &compact,
+            &kp.public_key_bytes(),
+            "mcp:tool:filesystem:write",
+            &ctx,
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("scope"));
     }
@@ -216,8 +236,20 @@ mod tests {
         let compact = dat.to_compact().unwrap();
         let ctx = EvaluationContext::default();
 
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx).is_ok());
-        assert!(verify_dat(&compact, &kp.public_key_bytes(), "mcp:resource:data:read", &ctx).is_ok());
+        assert!(verify_dat(
+            &compact,
+            &kp.public_key_bytes(),
+            "mcp:tool:filesystem:write",
+            &ctx
+        )
+        .is_ok());
+        assert!(verify_dat(
+            &compact,
+            &kp.public_key_bytes(),
+            "mcp:resource:data:read",
+            &ctx
+        )
+        .is_ok());
     }
 
     #[test]
@@ -254,7 +286,12 @@ mod tests {
         let mut ctx = EvaluationContext::default();
         ctx.actions_in_window = 10; // exceeds limit
 
-        let result = verify_dat(&compact, &kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx);
+        let result = verify_dat(
+            &compact,
+            &kp.public_key_bytes(),
+            "mcp:tool:filesystem:read",
+            &ctx,
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("rate limit"));
     }

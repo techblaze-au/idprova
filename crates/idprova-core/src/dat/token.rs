@@ -264,10 +264,8 @@ impl Dat {
             constraints.evaluate(&augmented)?;
 
             // 5. Config attestation (needs the token's own claim)
-            constraints.eval_config_attestation(
-                &augmented,
-                self.claims.config_attestation.as_deref(),
-            )?;
+            constraints
+                .eval_config_attestation(&augmented, self.claims.config_attestation.as_deref())?;
         }
 
         Ok(())
@@ -277,7 +275,7 @@ impl Dat {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dat::constraints::{RateLimit};
+    use crate::dat::constraints::RateLimit;
     use chrono::Duration;
 
     fn test_keypair() -> KeyPair {
@@ -415,7 +413,9 @@ mod tests {
         let kp = test_keypair();
         let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_ok());
+        assert!(dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .is_ok());
     }
 
     #[test]
@@ -424,7 +424,9 @@ mod tests {
         let kp2 = test_keypair();
         let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
-        assert!(dat.verify(&kp2.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_err());
+        assert!(dat
+            .verify(&kp2.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .is_err());
     }
 
     #[test]
@@ -441,7 +443,9 @@ mod tests {
         )
         .unwrap();
         let ctx = EvaluationContext::default();
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).unwrap_err();
+        let err = dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .unwrap_err();
         assert!(matches!(err, IdprovaError::DatExpired));
     }
 
@@ -450,7 +454,9 @@ mod tests {
         let kp = test_keypair();
         let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx).unwrap_err();
+        let err = dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx)
+            .unwrap_err();
         assert!(matches!(err, IdprovaError::ScopeNotPermitted(_)));
     }
 
@@ -459,7 +465,9 @@ mod tests {
         let kp = test_keypair();
         let dat = issue_valid(&kp, "mcp:*:*:*", None);
         let ctx = EvaluationContext::default();
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx).is_ok());
+        assert!(dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx)
+            .is_ok());
     }
 
     #[test]
@@ -478,13 +486,18 @@ mod tests {
             &kp,
             "mcp:tool:filesystem:read",
             Some(DatConstraints {
-                rate_limit: Some(RateLimit { max_actions: 5, window_secs: 60 }),
+                rate_limit: Some(RateLimit {
+                    max_actions: 5,
+                    window_secs: 60,
+                }),
                 ..Default::default()
             }),
         );
         let mut ctx = EvaluationContext::default();
         ctx.actions_in_window = 10;
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).unwrap_err();
+        let err = dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .unwrap_err();
         assert!(err.to_string().contains("rate limit exceeded"));
     }
 
@@ -502,7 +515,9 @@ mod tests {
         // ctx carries the runtime depth — 3 levels deep exceeds max=2
         let mut ctx = EvaluationContext::default();
         ctx.delegation_depth = 3;
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).unwrap_err();
+        let err = dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .unwrap_err();
         assert!(err.to_string().contains("delegation depth"));
     }
 
@@ -519,7 +534,9 @@ mod tests {
         );
         let mut ctx = EvaluationContext::default();
         ctx.delegation_depth = 2; // exactly at limit → ok
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_ok());
+        assert!(dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .is_ok());
     }
 
     #[test]
@@ -541,6 +558,8 @@ mod tests {
         .unwrap();
         let mut ctx = EvaluationContext::default();
         ctx.agent_config_hash = Some(hash);
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_ok());
+        assert!(dat
+            .verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx)
+            .is_ok());
     }
 }

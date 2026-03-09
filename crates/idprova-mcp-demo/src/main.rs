@@ -57,10 +57,23 @@ struct McpError {
 
 impl McpResponse {
     fn ok(id: Option<Value>, result: Value) -> Self {
-        Self { jsonrpc: "2.0".into(), id, result: Some(result), error: None }
+        Self {
+            jsonrpc: "2.0".into(),
+            id,
+            result: Some(result),
+            error: None,
+        }
     }
     fn err(id: Option<Value>, code: i32, message: impl Into<String>) -> Self {
-        Self { jsonrpc: "2.0".into(), id, result: None, error: Some(McpError { code, message: message.into() }) }
+        Self {
+            jsonrpc: "2.0".into(),
+            id,
+            result: None,
+            error: Some(McpError {
+                code,
+                message: message.into(),
+            }),
+        }
     }
 }
 
@@ -106,7 +119,7 @@ impl ReceiptLog {
         };
         let reader = BufReader::new(file);
         let mut last_line = String::new();
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(Result::ok) {
             if !line.trim().is_empty() {
                 last_line = line;
             }
@@ -120,7 +133,10 @@ impl ReceiptLog {
 
     pub fn append(&self, entry: &ReceiptEntry) -> Result<()> {
         let json = serde_json::to_string(entry)?;
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.path)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
         writeln!(file, "{json}")?;
         Ok(())
     }
@@ -135,7 +151,7 @@ impl ReceiptLog {
         };
         let all: Vec<ReceiptEntry> = BufReader::new(file)
             .lines()
-            .flatten()
+            .map_while(Result::ok)
             .filter(|l| !l.trim().is_empty())
             .filter_map(|l| serde_json::from_str(&l).ok())
             .collect();
@@ -176,11 +192,19 @@ async fn verify_with_registry(
         .json(&DatVerifyReq { token, scope })
         .send()
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("registry unreachable: {e}")))?;
+        .map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("registry unreachable: {e}"),
+            )
+        })?;
 
-    resp.json::<DatVerifyResp>()
-        .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("bad registry response: {e}")))
+    resp.json::<DatVerifyResp>().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("bad registry response: {e}"),
+        )
+    })
 }
 
 // ── App state ─────────────────────────────────────────────────────────────────
@@ -212,18 +236,23 @@ pub fn handle_calculate(params: &Value) -> Result<Value, String> {
         .ok_or_else(|| "calculate requires params.expression (string)".to_string())?;
 
     if expr.len() > 200 {
-        return Err(format!("expression too long: {} chars (max 200)", expr.len()));
+        return Err(format!(
+            "expression too long: {} chars (max 200)",
+            expr.len()
+        ));
     }
 
-    let result = evalexpr::eval(expr)
-        .map_err(|e| format!("evaluation error: {e}"))?;
+    let result = evalexpr::eval(expr).map_err(|e| format!("evaluation error: {e}"))?;
 
     Ok(json!({
         "content": [{ "type": "text", "text": format!("{} = {}", expr, result) }]
     }))
 }
 
-pub fn handle_read_public_file(params: &Value, public_dir: &std::path::Path) -> Result<Value, String> {
+pub fn handle_read_public_file(
+    params: &Value,
+    public_dir: &std::path::Path,
+) -> Result<Value, String> {
     let filename = params
         .get("filename")
         .and_then(|v| v.as_str())
@@ -243,8 +272,8 @@ pub fn handle_read_public_file(params: &Value, public_dir: &std::path::Path) -> 
     let target = public_dir.join(filename);
 
     // Canonicalize to detect any remaining traversal or symlinks
-    let canonical = std::fs::canonicalize(&target)
-        .map_err(|_| format!("file not found: {filename}"))?;
+    let canonical =
+        std::fs::canonicalize(&target).map_err(|_| format!("file not found: {filename}"))?;
 
     let canonical_public = std::fs::canonicalize(public_dir)
         .map_err(|_| "public directory not accessible".to_string())?;
@@ -253,16 +282,19 @@ pub fn handle_read_public_file(params: &Value, public_dir: &std::path::Path) -> 
         return Err("access denied: file outside public directory".to_string());
     }
 
-    let metadata = std::fs::metadata(&canonical)
-        .map_err(|_| format!("file not found: {filename}"))?;
+    let metadata =
+        std::fs::metadata(&canonical).map_err(|_| format!("file not found: {filename}"))?;
 
     const MAX_SIZE: u64 = 100 * 1024; // 100 KB
     if metadata.len() > MAX_SIZE {
-        return Err(format!("file too large: {} bytes (max 100KB)", metadata.len()));
+        return Err(format!(
+            "file too large: {} bytes (max 100KB)",
+            metadata.len()
+        ));
     }
 
-    let content = std::fs::read_to_string(&canonical)
-        .map_err(|e| format!("error reading file: {e}"))?;
+    let content =
+        std::fs::read_to_string(&canonical).map_err(|e| format!("error reading file: {e}"))?;
 
     Ok(json!({
         "content": [{ "type": "text", "text": content }]
@@ -282,8 +314,13 @@ async fn handle_rpc(
     if req.jsonrpc != "2.0" {
         return (
             StatusCode::BAD_REQUEST,
-            Json(McpResponse::err(id, -32600, "Invalid Request: jsonrpc must be '2.0'")),
-        ).into_response();
+            Json(McpResponse::err(
+                id,
+                -32600,
+                "Invalid Request: jsonrpc must be '2.0'",
+            )),
+        )
+            .into_response();
     }
 
     // Extract Bearer token
@@ -298,8 +335,13 @@ async fn handle_rpc(
         None => {
             return (
                 StatusCode::UNAUTHORIZED,
-                Json(McpResponse::err(id, -32001, "Authorization: Bearer <DAT> required")),
-            ).into_response();
+                Json(McpResponse::err(
+                    id,
+                    -32001,
+                    "Authorization: Bearer <DAT> required",
+                )),
+            )
+                .into_response();
         }
     };
 
@@ -315,7 +357,9 @@ async fn handle_rpc(
     };
 
     if !verified.valid {
-        let msg = verified.error.unwrap_or_else(|| "token invalid".to_string());
+        let msg = verified
+            .error
+            .unwrap_or_else(|| "token invalid".to_string());
         // Scope failures → 403, everything else → 401
         let status = if msg.to_lowercase().contains("scope") {
             StatusCode::FORBIDDEN
@@ -333,7 +377,11 @@ async fn handle_rpc(
         "echo" => match handle_echo(&req.params) {
             Ok(v) => v,
             Err(e) => {
-                return (StatusCode::BAD_REQUEST, Json(McpResponse::err(id, -32602, e))).into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(McpResponse::err(id, -32602, e)),
+                )
+                    .into_response();
             }
         },
         "calculate" => match handle_calculate(&req.params) {
@@ -346,14 +394,23 @@ async fn handle_rpc(
         "read_file" => match handle_read_public_file(&req.params, &state.public_dir) {
             Ok(v) => v,
             Err(e) => {
-                return (StatusCode::BAD_REQUEST, Json(McpResponse::err(id, -32602, e))).into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(McpResponse::err(id, -32602, e)),
+                )
+                    .into_response();
             }
         },
         method => {
             return (
                 StatusCode::NOT_FOUND,
-                Json(McpResponse::err(id, -32601, format!("Method not found: {method}"))),
-            ).into_response();
+                Json(McpResponse::err(
+                    id,
+                    -32601,
+                    format!("Method not found: {method}"),
+                )),
+            )
+                .into_response();
         }
     };
 
@@ -409,8 +466,8 @@ async fn main() -> Result<()> {
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(3001);
 
-    let registry_url = std::env::var("REGISTRY_URL")
-        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let registry_url =
+        std::env::var("REGISTRY_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
     let receipts_path = std::env::var("RECEIPTS_FILE")
         .map(PathBuf::from)
@@ -508,7 +565,8 @@ mod tests {
                 scope: "mcp:tool:echo".into(),
                 request_hash: "h".into(),
                 prev_receipt_hash: "genesis".into(),
-            }).unwrap();
+            })
+            .unwrap();
         }
         assert_eq!(log.last_n(3).len(), 3);
         assert_eq!(log.last_n(100).len(), 5);
@@ -542,8 +600,10 @@ mod tests {
     #[test]
     fn test_calculate_division_by_zero() {
         let err = handle_calculate(&json!({ "expression": "1/0" })).unwrap_err();
-        assert!(err.contains("evaluation error") || err.contains("division") || err.contains("zero"),
-            "unexpected error: {err}");
+        assert!(
+            err.contains("evaluation error") || err.contains("division") || err.contains("zero"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -570,31 +630,28 @@ mod tests {
     #[test]
     fn test_read_file_path_traversal_dotdot() {
         let tmp = TempDir::new().unwrap();
-        let err = handle_read_public_file(
-            &json!({ "filename": "../etc/passwd" }),
-            tmp.path(),
-        ).unwrap_err();
+        let err = handle_read_public_file(&json!({ "filename": "../etc/passwd" }), tmp.path())
+            .unwrap_err();
         assert!(err.contains("path traversal"), "unexpected error: {err}");
     }
 
     #[test]
     fn test_read_file_absolute_path() {
         let tmp = TempDir::new().unwrap();
-        let err = handle_read_public_file(
-            &json!({ "filename": "/etc/passwd" }),
-            tmp.path(),
-        ).unwrap_err();
+        let err =
+            handle_read_public_file(&json!({ "filename": "/etc/passwd" }), tmp.path()).unwrap_err();
         assert!(err.contains("absolute paths"), "unexpected error: {err}");
     }
 
     #[test]
     fn test_read_file_backslash_rejected() {
         let tmp = TempDir::new().unwrap();
-        let err = handle_read_public_file(
-            &json!({ "filename": "..\\etc\\passwd" }),
-            tmp.path(),
-        ).unwrap_err();
-        assert!(err.contains("backslash") || err.contains("path traversal"), "unexpected error: {err}");
+        let err = handle_read_public_file(&json!({ "filename": "..\\etc\\passwd" }), tmp.path())
+            .unwrap_err();
+        assert!(
+            err.contains("backslash") || err.contains("path traversal"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -603,10 +660,8 @@ mod tests {
         let file_path = tmp.path().join("readme.txt");
         std::fs::write(&file_path, "Hello from IDProva public file!").unwrap();
 
-        let result = handle_read_public_file(
-            &json!({ "filename": "readme.txt" }),
-            tmp.path(),
-        ).unwrap();
+        let result =
+            handle_read_public_file(&json!({ "filename": "readme.txt" }), tmp.path()).unwrap();
         let text = result["content"][0]["text"].as_str().unwrap();
         assert_eq!(text, "Hello from IDProva public file!");
     }
@@ -614,11 +669,12 @@ mod tests {
     #[test]
     fn test_read_file_not_found() {
         let tmp = TempDir::new().unwrap();
-        let err = handle_read_public_file(
-            &json!({ "filename": "nonexistent.txt" }),
-            tmp.path(),
-        ).unwrap_err();
-        assert!(err.contains("not found") || err.contains("nonexistent"), "unexpected error: {err}");
+        let err = handle_read_public_file(&json!({ "filename": "nonexistent.txt" }), tmp.path())
+            .unwrap_err();
+        assert!(
+            err.contains("not found") || err.contains("nonexistent"),
+            "unexpected error: {err}"
+        );
     }
 
     // ── Scope format test ─────────────────────────────────────────────────────
