@@ -1,0 +1,400 @@
+openapi: 3.1.0
+info:
+  title: IDProva Registry API
+  version: 0.1.0
+  description: |
+    HTTP API for the IDProva identity registry. Provides AID document storage,
+    DAT verification, and revocation services for AI agent identity.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://registry.idprova.dev
+    description: Production
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      tags: [Operations]
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "ok" }
+                  version: { type: string, example: "0.1.0" }
+                  protocol: { type: string, example: "idprova/0.1" }
+
+  /ready:
+    get:
+      operationId: readinessProbe
+      summary: Readiness probe (DB connectivity)
+      tags: [Operations]
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "ready" }
+                  db: { type: string, example: "ok" }
+        "503":
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "not_ready" }
+                  db: { type: string, example: "error" }
+
+  /v1/meta:
+    get:
+      operationId: getMetadata
+      summary: Protocol metadata
+      tags: [Operations]
+      responses:
+        "200":
+          description: Protocol metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  protocolVersion: { type: string, example: "0.1" }
+                  registryVersion: { type: string, example: "0.1.0" }
+                  didMethod: { type: string, example: "did:idprova" }
+                  supportedAlgorithms:
+                    type: array
+                    items: { type: string }
+                    example: ["EdDSA"]
+                  supportedHashAlgorithms:
+                    type: array
+                    items: { type: string }
+                    example: ["blake3", "sha-256"]
+
+  /v1/aid/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: "DID suffix after `did:idprova:` (e.g. `example.com:my-agent`)"
+        schema: { type: string }
+
+    put:
+      operationId: registerAid
+      summary: Register or update an AID document
+      tags: [AID]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AidDocument"
+      responses:
+        "201":
+          description: AID created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [created] }
+        "200":
+          description: AID updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [updated] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+    get:
+      operationId: resolveAid
+      summary: Resolve an AID document
+      tags: [AID]
+      responses:
+        "200":
+          description: AID document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AidDocument"
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+    delete:
+      operationId: deactivateAid
+      summary: Deactivate an AID
+      tags: [AID]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: AID deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [deactivated] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/aid/{id}/key:
+    get:
+      operationId: getAidKeys
+      summary: Get verification keys for an AID
+      tags: [AID]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Public keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        type: { type: string }
+                        publicKeyMultibase: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/dat/verify:
+    post:
+      operationId: verifyDat
+      summary: Verify a DAT token
+      tags: [DAT]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/dat/revoke:
+    post:
+      operationId: revokeDat
+      summary: Revoke a DAT by JTI
+      tags: [DAT]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jti]
+              properties:
+                jti: { type: string, maxLength: 128 }
+                reason: { type: string, maxLength: 512 }
+                revoked_by: { type: string, maxLength: 256 }
+      responses:
+        "200":
+          description: Revocation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jti: { type: string }
+                  status: { type: string, enum: [revoked, already_revoked] }
+                  reason: { type: string }
+                  revoked_by: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/dat/revocations:
+    get:
+      operationId: listRevocations
+      summary: List DAT revocations (paginated)
+      tags: [DAT]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Revocation list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revocations:
+                    type: array
+                    items: { $ref: "#/components/schemas/Revocation" }
+                  count: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/dat/revoked/{jti}:
+    get:
+      operationId: checkRevocation
+      summary: Check if a JTI is revoked
+      tags: [DAT]
+      parameters:
+        - name: jti
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Revocation status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: boolean }
+                  jti: { type: string }
+                  reason: { type: string }
+                  revoked_by: { type: string }
+                  revoked_at: { type: string, format: date-time }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Compact JWS DAT token for admin operations
+
+  schemas:
+    AidDocument:
+      type: object
+      required: [id, controller, verificationMethod]
+      properties:
+        id:
+          type: string
+          description: "DID identifier (e.g. `did:idprova:example.com:my-agent`)"
+        controller:
+          type: string
+          description: "DID of the controlling entity"
+        verificationMethod:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              type: { type: string, enum: [Ed25519VerificationKey2020] }
+              controller: { type: string }
+              publicKeyMultibase: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+
+    VerifyRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, description: "Compact JWS DAT token" }
+        scope: { type: string, description: "Required scope (empty = skip)", example: "mcp:tool:filesystem:read" }
+        request_ip: { type: string, format: ipv4 }
+        trust_level: { type: integer, minimum: 0, maximum: 100 }
+        delegation_depth: { type: integer, minimum: 0, default: 0 }
+        actions_in_window: { type: integer, minimum: 0, default: 0 }
+        country_code: { type: string, minLength: 2, maxLength: 2, description: "ISO 3166-1 alpha-2" }
+        agent_config_hash: { type: string, description: "SHA-256 hex of agent config" }
+
+    VerifyResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+        issuer: { type: string }
+        subject: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        jti: { type: string }
+        error: { type: string, description: "Present when valid=false" }
+
+    Revocation:
+      type: object
+      properties:
+        jti: { type: string }
+        reason: { type: string }
+        revoked_by: { type: string }
+        revoked_at: { type: string, format: date-time }
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+    RateLimited:
+      description: Rate limit exceeded (120 req/60s per IP)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }

@@ -18,9 +18,8 @@ services:
     ports:
       - "${REGISTRY_PORT:-3000}:3000"
     environment:
-      IDPROVA_HOST: "0.0.0.0"
-      IDPROVA_PORT: "3000"
-      IDPROVA_DB_PATH: "/app/data/registry.db"
+      REGISTRY_PORT: "3000"
+      REGISTRY_DB_PATH: "/app/data/registry.db"
       RUST_LOG: "${RUST_LOG:-info}"
     volumes:
       - registry-data:/app/data
