@@ -41,12 +41,12 @@ console.log(aid.trustLevel);  // 'L0'
 // 3. Issue a DAT to another agent
 const dat = identity.issueDat(
   'did:idprova:example.com:worker',
-  ['mcp:tool:read', 'mcp:tool:write'],
+  ['mcp:tool:filesystem:read', 'mcp:tool:filesystem:write'],
   3600,  // expires in 1 hour
 );
 console.log(dat.issuer);   // did:idprova:example.com:my-agent
 console.log(dat.subject);  // did:idprova:example.com:worker
-console.log(dat.scope);    // ['mcp:tool:read', 'mcp:tool:write']
+console.log(dat.scope);    // ['mcp:tool:filesystem:read', 'mcp:tool:filesystem:write']
 
 // 4. Serialize DAT for transport (JWS compact)
 const compact = dat.toCompact();  // "header.payload.signature"
@@ -123,7 +123,7 @@ const issuerKp = KeyPair.generate();
 const dat = DAT.issue(
   'did:idprova:example.com:alice',   // issuerDid
   'did:idprova:example.com:agent',   // subjectDid
-  ['mcp:tool:read'],                  // scope
+  ['mcp:tool:search:execute'],         // scope
   3600,                               // expiresInSeconds
   issuerKp,                           // signingKey
   500,   // maxActions (optional)
@@ -142,55 +142,65 @@ dat.validateTiming();  // throws if expired or not-yet-valid
 ### Verifying a DAT
 
 ```typescript
-import { DAT } from '@idprova/core';
+import { DAT, EvaluationContext } from '@idprova/core';
 
 // Parse from compact JWS received in HTTP header or message
 const dat = DAT.fromCompact(compactToken);
 
-// Check timing (throws on expiry)
-dat.validateTiming();
-
-// Verify cryptographic signature (issuerPubKeyBytes: Buffer, 32 bytes)
+// Option 1: Signature-only check
 if (!dat.verifySignature(issuerPubKeyBytes)) {
   throw new Error('invalid DAT signature');
 }
 
+// Option 2: Full verification pipeline (signature + timing + scope + constraints)
+const ctx = new EvaluationContext();
+ctx.request_ip = '192.168.1.10';
+ctx.agent_trust_level = 50;
+ctx.actions_in_window = 5;
+
+dat.verify(
+  issuerPubKeyBytes,
+  'mcp:tool:search:execute',  // required scope
+  ctx,
+);
+// Throws Error with details if any check fails
+
 // Inspect claims
-console.log(dat.scope);   // ['mcp:tool:read']
+console.log(dat.scope);   // ['mcp:tool:search:execute']
 console.log(dat.issuer);  // did:idprova:...
 ```
 
 ## Scopes
 
-`Scope` validates and matches permission strings in `namespace:resource:action` format. Wildcards (`*`) are supported in the resource and action positions.
+`Scope` validates and matches permission strings in `namespace:protocol:resource:action` format. Wildcards (`*`) are supported in any position.
 
 ```typescript
 import { Scope } from '@idprova/core';
 
 // Parse a scope
-const s = new Scope('mcp:tool:read');
-console.log(s.toStringRepr());  // 'mcp:tool:read'
+const s = new Scope('mcp:tool:filesystem:read');
+console.log(s.toStringRepr());  // 'mcp:tool:filesystem:read'
 
 // Wildcard coverage check
-const broad = new Scope('mcp:*:*');
-const narrow = new Scope('mcp:tool:read');
+const broad = new Scope('mcp:tool:*:*');
+const narrow = new Scope('mcp:tool:filesystem:read');
 console.log(broad.covers(narrow));   // true
 console.log(narrow.covers(broad));   // false
 
 // Exact match
-const s1 = new Scope('mcp:tool:read');
-const s2 = new Scope('mcp:tool:read');
+const s1 = new Scope('mcp:tool:filesystem:read');
+const s2 = new Scope('mcp:tool:filesystem:read');
 console.log(s1.covers(s2));  // true
 
 // Invalid scope throws
 try {
-  new Scope('invalid');  // missing resource:action
+  new Scope('invalid');  // missing parts
 } catch (e) {
   console.error(e);
 }
 ```
 
-**Scope grammar:** `namespace:resource:action` — all three segments required. Use `*` for wildcard segments.
+**Scope grammar:** `namespace:protocol:resource:action` — all four segments required. Use `*` for wildcard segments.
 
 ## Trust Levels
 
@@ -229,14 +239,26 @@ console.log(log.length);        // 0
 console.log(log.lastHash);      // 'genesis'
 console.log(log.nextSequence);  // 0
 
+// Append a receipt entry (hash-chained, signed)
+log.append(
+  'did:idprova:example.com:my-agent',  // agentDid
+  dat.jti,                              // datJti
+  'tool_call',                          // actionType
+  '{"query": "search term"}',           // inputData
+  kp,                                   // signingKey
+  'api.example.com',                    // server (optional)
+  'search',                             // tool (optional)
+  '{"results": []}',                    // outputData (optional)
+  'success',                            // status (optional)
+  42,                                   // durationMs (optional)
+);
+
 // Verify chain integrity (throws on tampering)
 log.verifyIntegrity();
 
-// Serialize for persistence
-const jsonStr = log.toJson();
+console.log(log.nextSequence);  // 1
+console.log(log.lastHash);      // blake3 hash of the receipt
 ```
-
-> **Note:** Receipt entries are appended through the `idprova receipt` CLI command or the registry server. The TypeScript SDK log object is used for verifying and reading logs received from those sources.
 
 ## Error Handling
 
@@ -255,7 +277,7 @@ All IDProva errors are thrown as standard JavaScript `Error` objects. Check `err
 import { DAT, KeyPair } from '@idprova/core';
 
 const kp = KeyPair.generate();
-const dat = DAT.issue('did:idprova:a:b', 'did:idprova:a:c', ['mcp:*:*'], -1, kp);
+const dat = DAT.issue('did:idprova:a:b', 'did:idprova:a:c', ['*:*:*:*'], -1, kp);
 
 try {
   dat.validateTiming();
@@ -298,7 +320,7 @@ console.log(`Worker:       ${worker.did}`);
 // --- Issue a scoped DAT ---
 const dat = orchestrator.issueDat(
   worker.did,
-  ['mcp:tool:read', 'mcp:tool:write'],
+  ['mcp:tool:filesystem:read', 'mcp:tool:filesystem:write'],
   3600,
 );
 const compact = dat.toCompact();
@@ -313,11 +335,11 @@ if (!isValid) throw new Error('DAT signature invalid');
 
 // --- Check if granted scope covers the required action ---
 const granted = receivedDat.scope.map(s => new Scope(s));
-const required = new Scope('mcp:tool:read');
+const required = new Scope('mcp:tool:filesystem:read');
 const hasPermission = granted.some(g => g.covers(required));
 if (!hasPermission) throw new Error('missing required scope');
 
-console.log('All checks passed — worker authorised to call mcp:tool:read');
+console.log('All checks passed — worker authorised to call mcp:tool:filesystem:read');
 
 // --- Audit log ---
 const log = new ReceiptLog();
@@ -347,11 +369,12 @@ npm test -- --reporter=verbose
 | `KeyPair` | `.generate()`, `.fromSecretBytes(b)`, `.sign(msg)`, `.verify(msg, sig)`, `.publicKeyBytes`, `.publicKeyMultibase` |
 | `AID` / `Aid` | `.fromJson(s)`, `.toJson()`, `.validate()`, `.did`, `.controller`, `.trustLevel` |
 | `AIDBuilder` / `AidBuilder` | `new AIDBuilder()`, `.setId()`, `.setController()`, `.setName()`, `.setTrustLevel()`, `.addEd25519Key()`, `.build()` |
-| `DAT` / `Dat` | `.issue(...)`, `.fromCompact(s)`, `.toCompact()`, `.verifySignature(b)`, `.validateTiming()`, `.isExpired`, `.scope`, `.issuer`, `.subject` |
+| `DAT` / `Dat` | `.issue(...)`, `.fromCompact(s)`, `.toCompact()`, `.verify(pub, scope?, ctx?)`, `.verifySignature(b)`, `.validateTiming()`, `.isExpired`, `.scope`, `.issuer`, `.subject`, `.jti`, `.expiresAt` |
+| `EvaluationContext` | `.actions_in_window`, `.request_ip`, `.agent_trust_level`, `.delegation_depth`, `.country_code`, `.agent_config_hash` |
 | `Scope` | `new Scope(s)`, `.covers(other)`, `.toStringRepr()` |
 | `TrustLevel` | `new TrustLevel(s)`, `.meetsMinimum(other)`, `.description`, `.toStringRepr()` |
-| `ReceiptLog` | `new ReceiptLog()`, `.verifyIntegrity()`, `.toJson()`, `.lastHash`, `.nextSequence`, `.length` |
-| `AgentIdentity` | `.create(name, domain?)`, `.did`, `.aid()`, `.keypair()`, `.issueDat(...)`, `.publicKeyBytes` |
+| `ReceiptLog` | `new ReceiptLog()`, `.append(...)`, `.verifyIntegrity()`, `.toJson()`, `.lastHash`, `.nextSequence`, `.length` |
+| `AgentIdentity` | `.create(name, domain?)`, `.save(path?)`, `.load(path)`, `.did`, `.aid()`, `.keypair()`, `.issueDat(...)`, `.publicKeyBytes` |
 
 > **Type aliases:** `AID` is exported as an alias for `Aid`, and `AIDBuilder` for `AidBuilder`, for consistency with the Python SDK naming.
 
