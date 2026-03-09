@@ -48,6 +48,36 @@ curl http://localhost:3000/health
 
 ---
 
+### GET /ready
+
+Readiness probe — checks database connectivity. No authentication required.
+
+**Response 200:**
+
+```json
+{
+  "status": "ready",
+  "db": "ok"
+}
+```
+
+**Response 503 Service Unavailable:**
+
+```json
+{
+  "status": "not_ready",
+  "db": "error"
+}
+```
+
+**curl example:**
+
+```bash
+curl http://localhost:3000/ready
+```
+
+---
+
 ### GET /v1/meta
 
 Protocol metadata. No authentication required.
@@ -364,6 +394,43 @@ curl -X POST http://localhost:3000/v1/dat/revoke \
 
 ---
 
+### GET /v1/dat/revocations
+
+List DAT revocations with pagination. No authentication required.
+
+**Query parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | integer | 50 | Max records to return (capped at 200) |
+| `offset` | integer | 0 | Number of records to skip |
+
+**Response 200:**
+
+```json
+{
+  "revocations": [
+    {
+      "jti": "01234567-89ab-cdef-0123-456789abcdef",
+      "reason": "key compromise",
+      "revoked_by": "did:idprova:example.com:operator",
+      "revoked_at": "2026-03-07T12:00:00Z"
+    }
+  ],
+  "count": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**curl example:**
+
+```bash
+curl "http://localhost:3000/v1/dat/revocations?limit=10&offset=0"
+```
+
+---
+
 ### GET /v1/dat/revoked/:jti
 
 Check whether a specific JTI has been revoked. No authentication required.
@@ -429,6 +496,7 @@ All error responses use JSON with an `error` field:
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/health` | — | Health check |
+| GET | `/ready` | — | Readiness probe (DB check) |
 | GET | `/v1/meta` | — | Protocol metadata |
 | PUT | `/v1/aid/:id` | write | Register or update AID |
 | GET | `/v1/aid/:id` | — | Resolve AID |
@@ -436,4 +504,5 @@ All error responses use JSON with an `error` field:
 | GET | `/v1/aid/:id/key` | — | Get AID public keys |
 | POST | `/v1/dat/verify` | — | Verify a DAT |
 | POST | `/v1/dat/revoke` | write | Revoke a DAT by JTI |
+| GET | `/v1/dat/revocations` | — | List revocations (paginated) |
 | GET | `/v1/dat/revoked/:jti` | — | Check revocation status |
