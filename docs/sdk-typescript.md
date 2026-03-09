@@ -41,12 +41,12 @@ console.log(aid.trustLevel);  // 'L0'
 // 3. Issue a DAT to another agent
 const dat = identity.issueDat(
   'did:idprova:example.com:worker',
-  ['mcp:tool:read', 'mcp:tool:write'],
+  ['mcp:mcp:tool:read', 'mcp:mcp:tool:write'],
   3600,  // expires in 1 hour
 );
 console.log(dat.issuer);   // did:idprova:example.com:my-agent
 console.log(dat.subject);  // did:idprova:example.com:worker
-console.log(dat.scope);    // ['mcp:tool:read', 'mcp:tool:write']
+console.log(dat.scope);    // ['mcp:mcp:tool:read', 'mcp:mcp:tool:write']
 
 // 4. Serialize DAT for transport (JWS compact)
 const compact = dat.toCompact();  // "header.payload.signature"
@@ -123,7 +123,7 @@ const issuerKp = KeyPair.generate();
 const dat = DAT.issue(
   'did:idprova:example.com:alice',   // issuerDid
   'did:idprova:example.com:agent',   // subjectDid
-  ['mcp:tool:read'],                  // scope
+  ['mcp:mcp:tool:read'],               // scope
   3600,                               // expiresInSeconds
   issuerKp,                           // signingKey
   500,   // maxActions (optional)
@@ -156,41 +156,41 @@ if (!dat.verifySignature(issuerPubKeyBytes)) {
 }
 
 // Inspect claims
-console.log(dat.scope);   // ['mcp:tool:read']
+console.log(dat.scope);   // ['mcp:mcp:tool:read']
 console.log(dat.issuer);  // did:idprova:...
 ```
 
 ## Scopes
 
-`Scope` validates and matches permission strings in `namespace:resource:action` format. Wildcards (`*`) are supported in the resource and action positions.
+`Scope` validates and matches permission strings in `namespace:protocol:resource:action` format. Wildcards (`*`) are supported in the protocol, resource, and action positions.
 
 ```typescript
 import { Scope } from '@idprova/core';
 
 // Parse a scope
-const s = new Scope('mcp:tool:read');
-console.log(s.toStringRepr());  // 'mcp:tool:read'
+const s = new Scope('mcp:mcp:tool:read');
+console.log(s.toStringRepr());  // 'mcp:mcp:tool:read'
 
 // Wildcard coverage check
-const broad = new Scope('mcp:*:*');
-const narrow = new Scope('mcp:tool:read');
+const broad = new Scope('mcp:*:*:*');
+const narrow = new Scope('mcp:mcp:tool:read');
 console.log(broad.covers(narrow));   // true
 console.log(narrow.covers(broad));   // false
 
 // Exact match
-const s1 = new Scope('mcp:tool:read');
-const s2 = new Scope('mcp:tool:read');
+const s1 = new Scope('mcp:mcp:tool:read');
+const s2 = new Scope('mcp:mcp:tool:read');
 console.log(s1.covers(s2));  // true
 
 // Invalid scope throws
 try {
-  new Scope('invalid');  // missing resource:action
+  new Scope('invalid');  // missing protocol:resource:action
 } catch (e) {
   console.error(e);
 }
 ```
 
-**Scope grammar:** `namespace:resource:action` — all three segments required. Use `*` for wildcard segments.
+**Scope grammar:** `namespace:protocol:resource:action` — all four segments required. Use `*` for wildcard segments.
 
 ## Trust Levels
 
@@ -255,7 +255,7 @@ All IDProva errors are thrown as standard JavaScript `Error` objects. Check `err
 import { DAT, KeyPair } from '@idprova/core';
 
 const kp = KeyPair.generate();
-const dat = DAT.issue('did:idprova:a:b', 'did:idprova:a:c', ['mcp:*:*'], -1, kp);
+const dat = DAT.issue('did:idprova:a:b', 'did:idprova:a:c', ['mcp:*:*:*'], -1, kp);
 
 try {
   dat.validateTiming();
@@ -298,7 +298,7 @@ console.log(`Worker:       ${worker.did}`);
 // --- Issue a scoped DAT ---
 const dat = orchestrator.issueDat(
   worker.did,
-  ['mcp:tool:read', 'mcp:tool:write'],
+  ['mcp:mcp:tool:read', 'mcp:mcp:tool:write'],
   3600,
 );
 const compact = dat.toCompact();
@@ -313,11 +313,11 @@ if (!isValid) throw new Error('DAT signature invalid');
 
 // --- Check if granted scope covers the required action ---
 const granted = receivedDat.scope.map(s => new Scope(s));
-const required = new Scope('mcp:tool:read');
+const required = new Scope('mcp:mcp:tool:read');
 const hasPermission = granted.some(g => g.covers(required));
 if (!hasPermission) throw new Error('missing required scope');
 
-console.log('All checks passed — worker authorised to call mcp:tool:read');
+console.log('All checks passed — worker authorised to call mcp:mcp:tool:read');
 
 // --- Audit log ---
 const log = new ReceiptLog();

@@ -39,12 +39,12 @@ print(aid.trust_level)  # L0
 # 3. Issue a DAT to another agent
 dat = identity.issue_dat(
     subject_did="did:idprova:example.com:worker",
-    scope=["mcp:tool:read", "mcp:tool:write"],
+    scope=["mcp:mcp:tool:read", "mcp:mcp:tool:write"],
     expires_in_seconds=3600,
 )
 print(dat.issuer)   # did:idprova:example.com:my-agent
 print(dat.subject)  # did:idprova:example.com:worker
-print(dat.scope)    # ['mcp:tool:read', 'mcp:tool:write']
+print(dat.scope)    # ['mcp:mcp:tool:read', 'mcp:mcp:tool:write']
 
 # 4. Serialize DAT for transport
 compact = dat.to_compact()  # header.payload.signature (JWS)
@@ -122,7 +122,7 @@ issuer_kp = KeyPair.generate()
 dat = DAT.issue(
     issuer_did="did:idprova:example.com:alice",
     subject_did="did:idprova:example.com:agent",
-    scope=["mcp:tool:read"],
+    scope=["mcp:mcp:tool:read"],
     expires_in_seconds=3600,
     signing_key=issuer_kp,
     max_actions=500,       # optional: cap on action count
@@ -155,40 +155,40 @@ if not dat.verify_signature(issuer_pubkey_bytes):
     raise PermissionError("invalid DAT signature")
 
 # Inspect claims
-print(dat.scope)   # ['mcp:tool:read']
+print(dat.scope)   # ['mcp:mcp:tool:read']
 print(dat.issuer)  # did:idprova:...
 ```
 
 ## Scopes
 
-`Scope` validates and matches permission strings in `namespace:resource:action` format. Wildcards (`*`) are supported in the resource and action positions.
+`Scope` validates and matches permission strings in `namespace:protocol:resource:action` format. Wildcards (`*`) are supported in the protocol, resource, and action positions.
 
 ```python
 from idprova import Scope
 
 # Parse a scope
-s = Scope("mcp:tool:read")
-print(str(s))  # mcp:tool:read
+s = Scope("mcp:mcp:tool:read")
+print(str(s))  # mcp:mcp:tool:read
 
 # Wildcard coverage check
-broad = Scope("mcp:*:*")
-narrow = Scope("mcp:tool:read")
+broad = Scope("mcp:*:*:*")
+narrow = Scope("mcp:mcp:tool:read")
 assert broad.covers(narrow)      # True — broad permits narrow
 assert not narrow.covers(broad)  # False — narrow does not permit broad
 
 # Exact match
-s1 = Scope("mcp:tool:read")
-s2 = Scope("mcp:tool:read")
+s1 = Scope("mcp:mcp:tool:read")
+s2 = Scope("mcp:mcp:tool:read")
 assert s1.covers(s2)  # True
 
 # Invalid scope raises
 try:
-    Scope("invalid")  # missing resource:action parts
+    Scope("invalid")  # missing protocol:resource:action parts
 except Exception as e:
     print(e)
 ```
 
-**Scope grammar:** `namespace:resource:action` — all three segments required. Use `*` for wildcard segments.
+**Scope grammar:** `namespace:protocol:resource:action` — all four segments required. Use `*` for wildcard segments.
 
 ## Trust Levels
 
@@ -253,7 +253,7 @@ All IDProva errors are standard Python exceptions:
 from idprova import DAT, KeyPair
 
 kp = KeyPair.generate()
-dat = DAT.issue("did:idprova:a:b", "did:idprova:a:c", ["mcp:*:*"], -1, kp)
+dat = DAT.issue("did:idprova:a:b", "did:idprova:a:c", ["mcp:*:*:*"], -1, kp)
 
 try:
     dat.validate_timing()
@@ -281,7 +281,7 @@ print(f"Worker:       {worker.did}")
 # --- Issue a scoped DAT ---
 dat = orchestrator.issue_dat(
     subject_did=worker.did,
-    scope=["mcp:tool:read", "mcp:tool:write"],
+    scope=["mcp:mcp:tool:read", "mcp:mcp:tool:write"],
     expires_in_seconds=3600,
 )
 compact = dat.to_compact()
@@ -296,11 +296,11 @@ assert is_valid, "DAT signature invalid"
 
 # --- Check if granted scope covers the required action ---
 granted = [Scope(s) for s in received_dat.scope]
-required = Scope("mcp:tool:read")
+required = Scope("mcp:mcp:tool:read")
 has_permission = any(g.covers(required) for g in granted)
 assert has_permission, "missing required scope"
 
-print("All checks passed — worker authorised to call mcp:tool:read")
+print("All checks passed — worker authorised to call mcp:mcp:tool:read")
 
 # --- Audit log ---
 log = ReceiptLog()
