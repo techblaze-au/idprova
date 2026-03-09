@@ -2,7 +2,7 @@
 
 **Plan:** `.planning/phases/01/01-01-PLAN.md`
 **Branch:** `idprova/track-b-registry`
-**Progress:** Task 6 of 7 (session limit reached — 3 tasks this session)
+**Progress:** COMPLETE (7 of 7 tasks done)
 
 ## Completed Tasks
 
@@ -41,13 +41,15 @@
   - dat.verify() → verify_signature() + PolicyEvaluator
   - Registry auth scope: idprova:registry:write → idprova:registry:aid:write
 
-## Next Tasks (for next session)
-- Task 7: SDK Quick-Start Guides — verify/update `docs/sdk-python.md` and `docs/sdk-typescript.md`
-  - After Task 7: mark track COMPLETE, touch .planning/TRACK_COMPLETE
+### Task 7: SDK Quick-Start Guides (146211a)
+- Fixed `docs/sdk-python.md` and `docs/sdk-typescript.md`:
+  - Scope grammar: 3-part → 4-part in all examples and descriptions
+  - All scope string examples updated (e.g., `mcp:tool:read` → `mcp:mcp:tool:read`)
+  - Wildcard examples updated (e.g., `mcp:*:*` → `mcp:*:*:*`)
 
 ## Key Decisions
 - All docs already existed with substantial content; tasks were verification + gap-filling
-- Tasks 2 required no changes — guide was already accurate
+- Task 2 required no changes — guide was already accurate
 - Primary pattern: scope grammar was consistently wrong (3-part vs actual 4-part) across all docs
 - DatConstraints field names were from an earlier API draft, not the actual implementation
 
