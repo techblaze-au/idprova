@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use chrono::{Duration, Utc};
 use idprova_core::crypto::KeyPair;
-use idprova_core::policy::EvaluationContext;
+use idprova_core::dat::constraints::EvaluationContext;
 use idprova_core::dat::Dat;
 use std::fs;
 
@@ -77,38 +77,38 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             };
 
             // Build a default context — caller can extend via env vars in future
-            let ctx = EvaluationContext::builder(scope).build();
+            let ctx = EvaluationContext::default();
 
-            dat.verify_signature(&key_bytes)?;
-            let evaluator = idprova_core::policy::PolicyEvaluator::new();
-            let decision = evaluator.evaluate(&dat, &ctx);
-            if decision.is_allowed() {
-                println!("✓ Signature:  VALID");
-                println!("✓ Timing:     VALID");
-                if !scope.is_empty() {
-                    println!("✓ Scope:      '{}' GRANTED", scope);
+            match dat.verify(&key_bytes, scope, &ctx) {
+                Ok(()) => {
+                    println!("✓ Signature:  VALID");
+                    println!("✓ Timing:     VALID");
+                    if !scope.is_empty() {
+                        println!("✓ Scope:      '{}' GRANTED", scope);
+                    }
+                    if dat.claims.constraints.is_some() {
+                        println!("✓ Constraints: ALL PASS");
+                    }
+                    println!();
+                    println!("Result: VALID");
                 }
-                if dat.claims.constraints.is_some() {
-                    println!("✓ Constraints: ALL PASS");
+                Err(e) => {
+                    println!("✗ Verification FAILED: {e}");
+                    bail!("DAT verification failed");
                 }
-                println!();
-                println!("Result: VALID");
-            } else {
-                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
-                println!("✗ Verification FAILED: {reason}");
-                bail!("DAT verification failed");
             }
         }
         None => {
             // ── Registry-assisted verification ────────────────────────────
             // Validate the registry URL before making any network call
-            url::Url::parse(registry).map(|_| ())
+            idprova_core::http::validate_registry_url(registry)
                 .map_err(|e| anyhow::anyhow!("invalid registry URL: {e}"))?;
 
             let base = registry.trim_end_matches('/');
             let issuer_did = &dat.claims.iss;
-            let aid_id = issuer_did.strip_prefix("did:idprova:").unwrap_or(issuer_did);
-            let key_url = format!("{base}/v1/aid/{aid_id}/key");
+            // Strip "did:idprova:" prefix for registry path (registry adds it back)
+            let aid_path = issuer_did.strip_prefix("did:idprova:").unwrap_or(issuer_did);
+            let key_url = format!("{base}/v1/aid/{aid_path}/key");
 
             eprintln!("No key supplied — resolving issuer public key from registry...");
             eprintln!("  GET {key_url}");
@@ -145,25 +145,24 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             let pub_key_bytes = KeyPair::decode_multibase_pubkey(&key_entry.public_key_multibase)
                 .map_err(|e| anyhow::anyhow!("failed to decode issuer public key: {e}"))?;
 
-            let ctx = EvaluationContext::builder(scope).build();
-            dat.verify_signature(&pub_key_bytes).map_err(|e| anyhow::anyhow!("signature verification failed: {e}"))?;
-            let evaluator = idprova_core::policy::PolicyEvaluator::new();
-            let decision = evaluator.evaluate(&dat, &ctx);
-            if decision.is_allowed() {
-                println!("✓ Signature:  VALID (verified via registry)");
-                println!("✓ Timing:     VALID");
-                if !scope.is_empty() {
-                    println!("✓ Scope:      '{}' GRANTED", scope);
+            let ctx = EvaluationContext::default();
+            match dat.verify(&pub_key_bytes, scope, &ctx) {
+                Ok(()) => {
+                    println!("✓ Signature:  VALID (verified via registry)");
+                    println!("✓ Timing:     VALID");
+                    if !scope.is_empty() {
+                        println!("✓ Scope:      '{}' GRANTED", scope);
+                    }
+                    if dat.claims.constraints.is_some() {
+                        println!("✓ Constraints: ALL PASS");
+                    }
+                    println!();
+                    println!("Result: VALID");
                 }
-                if dat.claims.constraints.is_some() {
-                    println!("✓ Constraints: ALL PASS");
+                Err(e) => {
+                    println!("✗ Verification FAILED: {e}");
+                    bail!("DAT verification failed");
                 }
-                println!();
-                println!("Result: VALID");
-            } else {
-                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
-                println!("✗ Verification FAILED: {reason}");
-                bail!("DAT verification failed");
             }
         }
     }
@@ -209,14 +208,11 @@ pub fn inspect(token: &str) -> Result<()> {
         if let Some(max) = c.max_actions {
             println!("│  Max Actions (lifetime):  {max}");
         }
-        if let Some(max_hr) = c.max_calls_per_hour {
-            println!("│  Max Calls/Hour:          {max_hr}");
-        }
-        if let Some(max_day) = c.max_calls_per_day {
-            println!("│  Max Calls/Day:           {max_day}");
-        }
-        if let Some(max_conc) = c.max_concurrent {
-            println!("│  Max Concurrent:          {max_conc}");
+        if let Some(ref rl) = c.rate_limit {
+            println!(
+                "│  Rate Limit:              {} actions / {}s window",
+                rl.max_actions, rl.window_secs
+            );
         }
         if let Some(ref servers) = c.allowed_servers {
             println!("│  Allowed Servers:         {:?}", servers);
@@ -224,36 +220,36 @@ pub fn inspect(token: &str) -> Result<()> {
         if let Some(receipt) = c.require_receipt {
             println!("│  Require Receipt:         {receipt}");
         }
-        if let Some(ref allowlist) = c.allowed_ips {
+        if let Some(ref allowlist) = c.ip_allowlist {
             println!("│  IP Allowlist (CIDR):     {:?}", allowlist);
         }
-        if let Some(ref denylist) = c.denied_ips {
+        if let Some(ref denylist) = c.ip_denylist {
             println!("│  IP Denylist (CIDR):      {:?}", denylist);
         }
-        if let Some(ref trust) = c.required_trust_level {
-            println!("│  Required Trust Level:    {trust}");
+        if let Some(min_trust) = c.min_trust_level {
+            println!("│  Min Trust Level:         {min_trust}");
         }
         if let Some(max_depth) = c.max_delegation_depth {
             println!("│  Max Delegation Depth:    {max_depth}");
         }
-        if let Some(ref countries) = c.geofence {
+        if let Some(ref countries) = c.allowed_countries {
             println!("│  Geofence (countries):    {:?}", countries);
         }
         if let Some(ref windows) = c.time_windows {
             println!("│  Time Windows (UTC):");
             for w in windows {
-                let days = if w.days.is_empty() {
-                    "every day".to_string()
-                } else {
-                    format!("{:?}", w.days)
-                };
+                let days = w
+                    .days_of_week
+                    .as_ref()
+                    .map(|d| format!("{:?}", d))
+                    .unwrap_or_else(|| "every day".to_string());
                 println!(
                     "│    {:02}:00 – {:02}:00  ({})",
                     w.start_hour, w.end_hour, days
                 );
             }
         }
-        if let Some(ref hash) = c.required_config_attestation {
+        if let Some(ref hash) = c.required_config_hash {
             println!("│  Required Config Hash:    {hash}");
         }
     }
