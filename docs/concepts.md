@@ -144,7 +144,7 @@ sequenceDiagram
     participant A as Agent
     participant S as Service
 
-    P->>P: issue DAT(subject=Agent, scope="mcp:tool:read")
+    P->>P: issue DAT(subject=Agent, scope="mcp:tool:filesystem:read")
     P->>A: send DAT token
     A->>S: request + DAT token in Authorization header
     S->>R: GET /aids/{issuer_did} (fetch public key)
@@ -177,9 +177,9 @@ A DAT is a compact JWS string: `base64url(header).base64url(claims).base64url(si
   "exp": 1741392000,
   "nbf": 1741305600,
   "jti": "dat_01JP4X7KZMA8VQHFNFZK3B0NRY",
-  "scope": ["mcp:tool:read", "mcp:tool:write"],
+  "scope": ["mcp:tool:filesystem:read", "mcp:tool:filesystem:write"],
   "constraints": {
-    "rateLimit": { "maxActions": 500, "windowSecs": 3600 },
+    "maxCallsPerHour": 500,
     "maxDelegationDepth": 1
   }
 }
@@ -187,25 +187,26 @@ A DAT is a compact JWS string: `base64url(header).base64url(claims).base64url(si
 
 ### Scope grammar
 
-Scopes follow a strict 3-part `namespace:resource:action` grammar:
+Scopes follow a strict 4-part `namespace:protocol:resource:action` grammar:
 
 ```
-mcp:tool:read              # MCP tool read access
-mcp:tool:write             # MCP tool write access
-mcp:resource:read          # MCP resource access
-a2a:message:send           # A2A outbound messaging
-idprova:delegate           # re-delegation permission
+mcp:tool:filesystem:read       # MCP filesystem tool read access
+mcp:tool:filesystem:write      # MCP filesystem tool write access
+mcp:resource:data:read         # MCP resource access
+a2a:agent:billing:execute      # A2A agent execution
+idprova:registry:aid:write     # registry write permission
 ```
 
 Wildcards are allowed at any segment:
 
 ```
-mcp:tool:*     # all actions on MCP tools
-mcp:*:*        # all MCP resources and actions
-*:*:*          # unrestricted (use with caution)
+mcp:tool:filesystem:*    # all actions on the filesystem tool
+mcp:tool:*:*             # all MCP tools, any action
+mcp:*:*:*                # all MCP resources and actions
+*:*:*:*                  # unrestricted (use with caution)
 ```
 
-A DAT's scope set **covers** a requested scope if any granted scope matches exactly or via wildcard. For example, `mcp:*:*` covers `mcp:tool:read`.
+A DAT's scope set **covers** a requested scope if any granted scope matches exactly or via wildcard. For example, `mcp:*:*:*` covers `mcp:tool:filesystem:read`.
 
 ### DAT verification pipeline
 
@@ -235,9 +236,9 @@ An agent that holds a DAT may re-delegate a **subset** of its permissions to a s
 
 ```
 Alice (root)
-  └── DAT(scope=mcp:*:*, depth_max=2) → Agent A
-        └── DAT(scope=mcp:tool:read, depth=1) → Agent B
-              └── DAT(scope=mcp:tool:read, depth=2) → Agent C
+  └── DAT(scope=mcp:*:*:*, depth_max=2) → Agent A
+        └── DAT(scope=mcp:tool:filesystem:read, depth=1) → Agent B
+              └── DAT(scope=mcp:tool:filesystem:read, depth=2) → Agent C
                     └── Blocked: max_delegation_depth=2
 ```
 
@@ -252,13 +253,15 @@ Rules:
 
 Trust levels are ordinal values indicating how thoroughly an agent's identity has been verified. They inform policy decisions but do not enforce them — verifiers choose which levels they accept.
 
-| Level | Name | How earned | Numeric equivalent |
-|-------|------|-----------|-------------------|
-| **L0** | Self-declared | Agent claims identity with no verification | 0 |
-| **L1** | Domain-verified | DNS TXT record proves domain ownership | 25 |
-| **L2** | Organisation-verified | CA-like verification of controlling entity | 50 |
-| **L3** | Audited | Third-party security audit completed | 75 |
-| **L4** | Continuously monitored | Real-time behaviour analysis and compliance | 100 |
+| Level | Name | How earned |
+|-------|------|-----------|
+| **L0** | Self-declared | Agent claims identity with no verification |
+| **L1** | Domain-verified | DNS TXT record proves domain ownership |
+| **L2** | Organisation-verified | CA-like verification of controlling entity |
+| **L3** | Audited | Third-party security audit completed |
+| **L4** | Continuously monitored | Real-time behaviour analysis and compliance |
+
+Trust levels use ordinal comparison (`L0 < L1 < L2 < L3 < L4`), not numeric values.
 
 ### Trust progression
 
@@ -281,7 +284,7 @@ A DAT constraint can enforce a minimum trust level on whoever presents the token
 
 ```rust
 DatConstraints {
-    min_trust_level: Some(50), // requires L2+
+    required_trust_level: Some("L2".to_string()), // requires L2+
     ..Default::default()
 }
 ```
@@ -344,7 +347,7 @@ The `dat` field in each receipt references the `jti` of the DAT that authorised 
 
 ```
 Principal (Alice)
-  └── DAT(jti="dat_X", scope="mcp:tool:read")
+  └── DAT(jti="dat_X", scope="mcp:tool:filesystem:read")
         └── Receipt(dat="dat_X", action="read_file", seq=0)
         └── Receipt(dat="dat_X", action="read_file", seq=1)
 ```
@@ -361,12 +364,12 @@ The RBAC policy engine evaluates whether a request is permitted under a given DA
 
 ```mermaid
 flowchart TD
-    T[Timing check<br/>exp + nbf] --> S[Scope check<br/>namespace:resource:action]
-    S --> C1[Rate limit<br/>sliding window]
+    T[Timing check<br/>exp + nbf] --> S[Scope check<br/>namespace:protocol:resource:action]
+    S --> C1[Rate limit<br/>hourly/daily/concurrent]
     C1 --> C2[IP allowlist/denylist<br/>CIDR matching]
-    C2 --> C3[Trust level<br/>min_trust_level]
-    C3 --> C4[Delegation depth<br/>max_delegation_depth]
-    C4 --> C5[Geofence<br/>allowed_countries]
+    C2 --> C3[Trust level<br/>requiredTrustLevel]
+    C3 --> C4[Delegation depth<br/>maxDelegationDepth]
+    C4 --> C5[Geofence<br/>geofence]
     C5 --> C6[Time windows<br/>UTC hours + days]
     C6 --> C7[Config attestation<br/>hash comparison]
     C7 --> ALLOW[Allow]
@@ -385,16 +388,15 @@ Short-circuits on first denial. Custom evaluators can be plugged in via `PolicyE
 
 ### Constraint evaluators
 
-| # | Evaluator | Constraint field | Context field |
-|---|-----------|-----------------|---------------|
-| 1 | Rate limit | `rateLimit.maxActions` | `actions_this_hour` |
-| 2 | IP allowlist | `ipAllowlist` | `source_ip` |
-| 3 | IP denylist | `ipDenylist` | `source_ip` |
-| 4 | Trust level | `minTrustLevel` | `caller_trust_level` |
-| 5 | Delegation depth | `maxDelegationDepth` | `delegation_depth` |
-| 6 | Geofence | `allowedCountries` | `source_country` |
-| 7 | Time windows | `timeWindows` | `timestamp` |
-| 8 | Config attestation | `requiredConfigHash` | `caller_config_attestation` |
+| # | Evaluator | Constraint field(s) | Context field |
+|---|-----------|-------------------|---------------|
+| 1 | Rate limit | `maxCallsPerHour`, `maxCallsPerDay`, `maxConcurrent` | `actions_this_hour`, `actions_this_day`, `active_concurrent` |
+| 2 | IP constraint | `allowedIPs`, `deniedIPs` | `source_ip` |
+| 3 | Trust level | `requiredTrustLevel` | `caller_trust_level` |
+| 4 | Delegation depth | `maxDelegationDepth` | `delegation_depth` |
+| 5 | Geofence | `geofence` | `source_country` |
+| 6 | Time windows | `timeWindows` | `timestamp` |
+| 7 | Config attestation | `requiredConfigAttestation` | `caller_config_attestation` |
 
 ---
 
