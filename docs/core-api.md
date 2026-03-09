@@ -143,16 +143,16 @@ Delegation Attestation Tokens are compact JWS (JSON Web Signature) tokens that g
 ### Issuing a DAT
 
 ```rust
-use idprova_core::dat::{Dat, constraints::DatConstraints};
+use idprova_core::dat::token::{Dat, DatConstraints};
 use chrono::{Utc, Duration};
 
 let kp = KeyPair::generate(); // issuer's keypair
 let expires = Utc::now() + Duration::hours(24);
 
 let dat = Dat::issue(
-    "did:idprova:example.com:alice",    // issuer DID
-    "did:idprova:example.com:my-agent", // subject DID
-    vec!["mcp:tool:read".to_string()],  // granted scopes
+    "did:idprova:example.com:alice",              // issuer DID
+    "did:idprova:example.com:my-agent",           // subject DID
+    vec!["mcp:tool:filesystem:read".to_string()], // granted scopes (4-part)
     expires,
     None,   // constraints (see below)
     None,   // config_attestation
@@ -165,18 +165,19 @@ let token_string: String = dat.to_compact()?;
 
 ### Scope format
 
-Scopes follow the `namespace:resource:action` grammar (3 colon-separated parts). Wildcards are supported at any segment:
+Scopes follow the `namespace:protocol:resource:action` grammar (4 colon-separated parts). Wildcards are supported at any segment:
 
 ```
-mcp:tool:read          # specific tool read access
-mcp:tool:*             # all actions on mcp tools
-mcp:*:*                # all mcp resources and actions
+mcp:tool:filesystem:read   # specific tool read access
+mcp:tool:filesystem:*      # all actions on the filesystem tool
+mcp:tool:*:*               # all MCP tools, any action
+mcp:*:*:*                  # all MCP resources and actions
 ```
 
 ### Parsing a received DAT
 
 ```rust
-// Parse without verifying (call verify() separately)
+// Parse without verifying (call verify_signature() separately)
 let dat = Dat::from_compact(&token_string)?;
 
 println!("Issuer: {}", dat.claims.iss);
@@ -187,25 +188,32 @@ println!("Expires: {}", dat.claims.exp);
 
 ### Verifying a DAT
 
-```rust
-use idprova_core::dat::constraints::EvaluationContext;
+Verification is split into separate steps — signature, timing, and the full policy pipeline:
 
+```rust
 let pub_bytes = issuer_kp.public_key_bytes();
 
-// Simple verify — checks signature, timing, and a required scope
-let ctx = EvaluationContext::default();
-dat.verify(&pub_bytes, "mcp:tool:read", &ctx)?;
+// 1. Verify Ed25519 signature (uses original JWS bytes per RFC 7515)
+dat.verify_signature(&pub_bytes)?;
 
-// Pass "" for required_scope to skip the scope check (e.g. introspection)
-dat.verify(&pub_bytes, "", &ctx)?;
+// 2. Check timing (not expired, not before nbf)
+dat.validate_timing()?;
+
+// 3. Full policy evaluation (timing + scope + all constraints) via PolicyEvaluator
+use idprova_core::policy::{PolicyEvaluator, context::EvaluationContext};
+
+let pe = PolicyEvaluator::new();
+let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
+    .caller_trust_level(TrustLevel::L2)
+    .build();
+let decision = pe.evaluate(&dat, &ctx);
+assert!(decision.is_allowed());
 ```
 
-`verify()` runs in order:
-1. Signature verification
-2. Timing (expiry + not-before)
-3. Scope coverage check
-4. Constraint evaluators (rate limit, IP, trust, depth, geofence, time windows)
-5. Config attestation (if constraint present)
+`PolicyEvaluator::evaluate()` runs in order:
+1. Timing (expiry + not-before)
+2. Scope coverage check
+3. Constraint evaluators (rate limit, IP, trust, depth, geofence, time windows, config attestation)
 
 ### DAT claims reference
 
@@ -229,40 +237,45 @@ pub struct DatClaims {
 Embed constraints into a DAT at issuance time:
 
 ```rust
-use idprova_core::dat::constraints::{DatConstraints, RateLimit, TimeWindow};
+use idprova_core::dat::token::{DatConstraints, TimeWindow};
 
 let constraints = DatConstraints {
-    // Rate limiting
-    rate_limit: Some(RateLimit {
-        max_actions: 100,
-        window_secs: 3600,  // per hour
-    }),
+    // Rate limiting (separate hourly, daily, concurrent limits)
+    max_calls_per_hour: Some(100),
+    max_calls_per_day: Some(1000),
+    max_concurrent: Some(5),
 
-    // IP access control
-    ip_allowlist: Some(vec!["10.0.0.0/8".to_string()]),
-    ip_denylist:  Some(vec!["10.0.0.0/24".to_string()]),
+    // Max total actions (overall cap)
+    max_actions: Some(10000),
 
-    // Trust level requirement (0–100)
-    min_trust_level: Some(50),
+    // IP access control (CIDR notation)
+    allowed_ips: Some(vec!["10.0.0.0/8".to_string()]),
+    denied_ips:  Some(vec!["10.0.0.0/24".to_string()]),
+
+    // Trust level requirement (string: "L0"–"L4")
+    required_trust_level: Some("L2".to_string()),
 
     // Delegation chain depth cap (0 = no re-delegation)
     max_delegation_depth: Some(2),
 
     // Geofence (ISO 3166-1 alpha-2)
-    allowed_countries: Some(vec!["AU".to_string(), "NZ".to_string()]),
+    geofence: Some(vec!["AU".to_string(), "NZ".to_string()]),
 
-    // Time windows (UTC hours, inclusive)
+    // Time windows (UTC hours, day-of-week: 0=Mon, 6=Sun)
     time_windows: Some(vec![TimeWindow {
+        days: vec![0, 1, 2, 3, 4],  // Mon–Fri
         start_hour: 9,
         end_hour: 17,
-        days_of_week: Some(vec![0, 1, 2, 3, 4]), // Mon–Fri (0=Mon, 6=Sun)
     }]),
 
-    // Config attestation (BLAKE3/SHA-256 hex of agent config)
-    required_config_hash: Some("abcdef1234...".to_string()),
+    // Config attestation (BLAKE3/SHA-256 hash of agent config)
+    required_config_attestation: Some("blake3:abcdef1234...".to_string()),
 
     // Require a receipt for every action
     require_receipt: Some(true),
+
+    // Allowed server hostnames
+    allowed_servers: Some(vec!["tools.example.com".to_string()]),
 
     ..Default::default()
 };
@@ -341,6 +354,10 @@ log.append(receipt);
 ```rust
 // Checks sequence numbers and hash linkage for the entire chain
 log.verify_integrity()?;
+
+// Full cryptographic verification: hash chain + each receipt's Ed25519 signature
+let agent_pub_bytes = agent_kp.public_key_bytes();
+log.verify_integrity_with_key(&agent_pub_bytes)?;
 ```
 
 ### Accessing entries
@@ -439,19 +456,23 @@ All fields except `requested_scope` are optional. Evaluators that require a miss
 | `Expired` | Token past `exp` |
 | `NotYetValid` | Token before `nbf` |
 | `ScopeNotCovered` | Requested scope not in DAT's scope set |
-| `RateLimitExceeded { limit_type, current, limit }` | Rate limit breach |
-| `IpNotAllowed` | IP not in allowlist or in denylist |
-| `TrustLevelInsufficient` | Agent trust level too low |
-| `DelegationDepthExceeded` | Chain depth beyond `max_delegation_depth` |
-| `GeofenceViolation` | Country not in `allowed_countries` |
-| `TimeWindowViolation` | Outside all permitted time windows |
-| `ConfigAttestationMismatch` | Config hash mismatch |
+| `Revoked` | DAT or delegation chain member has been revoked |
+| `RateLimitExceeded { limit_type, limit, current }` | Hourly, daily, or concurrent limit exceeded |
+| `IpBlocked { ip, reason }` | IP not in allowlist or in denylist |
+| `InsufficientTrustLevel { required, actual }` | Agent trust level too low |
+| `DelegationDepthExceeded { max_depth, actual_depth }` | Chain depth beyond `max_delegation_depth` |
+| `GeofenceViolation { country, allowed }` | Country not in `geofence` list |
+| `OutsideTimeWindow` | Outside all permitted time windows |
+| `ConfigAttestationMismatch { expected, actual }` | Config hash mismatch |
+| `ChainValidationFailed(String)` | Delegation chain validation error |
+| `SignatureInvalid` | DAT signature is invalid |
 | `Custom(String)` | From a custom evaluator |
 
 ### Custom evaluators
 
 ```rust
-use idprova_core::policy::constraints::{ConstraintEvaluator, DatConstraints};
+use idprova_core::dat::token::DatConstraints;
+use idprova_core::policy::constraints::ConstraintEvaluator;
 use idprova_core::policy::context::EvaluationContext;
 use idprova_core::policy::decision::PolicyDecision;
 
@@ -459,8 +480,12 @@ struct MyEvaluator;
 
 impl ConstraintEvaluator for MyEvaluator {
     fn evaluate(&self, constraints: &DatConstraints, ctx: &EvaluationContext) -> PolicyDecision {
-        // inspect constraints.extensions or ctx.extensions
+        // inspect constraints or ctx.extensions
         PolicyDecision::Allow
+    }
+
+    fn name(&self) -> &'static str {
+        "my_custom_evaluator"
     }
 }
 
@@ -480,17 +505,26 @@ All fallible operations return `idprova_core::Result<T>` which is `Result<T, Idp
 use idprova_core::{IdprovaError, Result};
 
 pub enum IdprovaError {
-    InvalidKey(String),
+    KeyGeneration(String),
+    Signing(String),
     VerificationFailed(String),
+    InvalidKey(String),
+    InvalidAid(String),
     AidValidation(String),
+    AidNotFound(String),
     InvalidDat(String),
     DatExpired,
     DatNotYetValid,
+    DatRevoked(String),
     ScopeNotPermitted(String),
     ConstraintViolated(String),
+    InvalidDelegationChain(String),
     ReceiptChainBroken(u64),
-    Json(serde_json::Error),
-    // ... additional variants
+    InvalidReceipt(String),
+    TrustVerification(String, String),
+    Serialization(serde_json::Error),
+    Base64(base64::DecodeError),
+    Other(String),
 }
 ```
 
@@ -504,7 +538,7 @@ All variants implement `std::error::Error` and `Display`.
 use idprova_core::{
     crypto::KeyPair,
     aid::AidBuilder,
-    dat::{Dat, constraints::{DatConstraints, RateLimit}},
+    dat::token::{Dat, DatConstraints},
     policy::{PolicyEvaluator, context::EvaluationContext},
     trust::level::TrustLevel,
 };
@@ -528,11 +562,11 @@ fn main() -> idprova_core::Result<()> {
     let dat = Dat::issue(
         "did:idprova:example.com:alice",
         "did:idprova:example.com:my-agent",
-        vec!["mcp:tool:read".to_string(), "mcp:tool:write".to_string()],
+        vec!["mcp:tool:filesystem:read".to_string(), "mcp:tool:filesystem:write".to_string()],
         Utc::now() + Duration::hours(8),
         Some(DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 500, window_secs: 3600 }),
-            min_trust_level: Some(1),
+            max_calls_per_hour: Some(500),
+            required_trust_level: Some("L1".to_string()),
             max_delegation_depth: Some(0),
             ..Default::default()
         }),
@@ -547,20 +581,21 @@ fn main() -> idprova_core::Result<()> {
     // 5. Recipient parses the token
     let received = Dat::from_compact(&token)?;
 
-    // 6. Verify using PolicyEvaluator
+    // 6. Verify signature
+    let issuer_pub = issuer_kp.public_key_bytes();
+    received.verify_signature(&issuer_pub)?;
+
+    // 7. Evaluate policy (timing + scope + constraints)
     let pe = PolicyEvaluator::new();
-    let ctx = EvaluationContext::builder("mcp:tool:read")
+    let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
         .caller_trust_level(TrustLevel::L1)
         .actions_this_hour(42)
         .build();
 
-    let issuer_pub = issuer_kp.public_key_bytes();
-    received.verify(&issuer_pub, "mcp:tool:read", &ctx)?;
-
     let decision = pe.evaluate(&received, &ctx);
     assert!(decision.is_allowed());
 
-    println!("Access granted for scope mcp:tool:read");
+    println!("Access granted for scope mcp:tool:filesystem:read");
     Ok(())
 }
 ```
