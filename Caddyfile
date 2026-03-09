@@ -1,0 +1,25 @@
+# Caddyfile — IDProva Registry reverse proxy
+# Used by the `caddy` service in docker-compose.yml (--profile proxy)
+#
+# Set CADDY_DOMAIN env var to your domain for automatic HTTPS.
+# Defaults to localhost (self-signed) for local development.
+
+{$CADDY_DOMAIN:localhost} {
+    reverse_proxy {$REGISTRY_UPSTREAM:registry:3000}
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+
+    encode gzip
+
+    header {
+        # Security headers
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}

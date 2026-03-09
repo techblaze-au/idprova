@@ -12,12 +12,14 @@ ed25519-dalek.workspace = true
 blake3.workspace = true
 sha2.workspace = true
 rand.workspace = true
+zeroize.workspace = true
 
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true
 multibase.workspace = true
+serde_json_canonicalizer.workspace = true
 
 # Time
 chrono.workspace = true
@@ -31,16 +33,11 @@ ulid.workspace = true
 # Hex encoding
 hex.workspace = true
 
-# Network
+# Networking (CIDR matching for IP constraint evaluation)
 ipnet.workspace = true
-url.workspace = true
-reqwest = { workspace = true, optional = true }
 
 # Logging
 tracing.workspace = true
-
-[features]
-http = ["dep:reqwest"]
 
 [dev-dependencies]
 proptest.workspace = true

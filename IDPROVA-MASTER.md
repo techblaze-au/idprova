@@ -1,8 +1,29 @@
 # IDProva Master Task Board
 
-> **Last Updated:** 2026-03-06
+> **Last Updated:** 2026-03-09 (Session 9)
 > **Plan File:** `C:\Users\praty\.claude\plans\rustling-roaming-peach.md` (full detail)
 > **Notion:** Gap Analysis + Architecture Plan saved 2026-03-04
+
+---
+
+## New Roadmap Progress (Product Tracks — Session 9)
+
+| Track | Phases | Done | Status | Notes |
+|-------|--------|------|--------|-------|
+| V — Visual Layer | 2 | 1 (V-1 staged, V-2 todo) | 🟡 In progress | V-1 committed, V-2 unblocked |
+| M — MCP Integration | 3 | 3 | 🟢 **COMPLETE** | M-1a, M-1b, M-2 — 16 tests |
+| A — A2A Demo | 2 | 2 | 🟢 **COMPLETE** | demo-a2a.ps1 + test-tamper.ps1 |
+| S — SDK Ecosystem | 4 | 0 | 🔵 Worker B running | idprova_http.py + langchain |
+| I — Infrastructure | 3 | 0 | 🟡 Next session | I-1: CI/CD, I-2: Docker |
+| D — Docs+Website | 3 | 0 | 🔵 Worker D running | openapi.yaml + compliance + mcp-auth |
+
+**Test baseline (2026-03-09): 163 passing, 0 failed**
+- idprova-core: 126 | idprova-verify: 16 | idprova-registry: 5 | idprova-mcp-demo: 16
+
+**Commits this session:**
+- a8e3ead feat: Track M-1b — calculate + read_public_file tools, 16 tests
+- 49359f1 feat: Track M-2 — demo-mcp.ps1 end-to-end MCP demo script
+- 44e119f feat: Track A — demo-a2a.ps1 + test-tamper.ps1
 
 ---
 

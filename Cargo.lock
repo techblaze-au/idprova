@@ -229,9 +229,9 @@ checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
 
 [[package]]
 name = "blake3"
-version = "1.5.5"
+version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8ee0c1824c4dea5b5f81736aff91bae041d2c07ee1192bec91054e10e3e601e"
+checksum = "d82033247fd8e890df8f740e407ad4d038debb9eb1f40533fffb32e7d17dc6f7"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -553,6 +553,12 @@ dependencies = [
  "libc",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "evalexpr"
+version = "11.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aff27af350e7b53e82aac3e5ab6389abd8f280640ac034508dff0608c4c7e5"
 
 [[package]]
 name = "fallible-iterator"
@@ -1052,6 +1058,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -1067,31 +1074,36 @@ dependencies = [
  "multibase",
  "proptest",
  "rand 0.8.5",
- "reqwest",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2",
  "thiserror",
  "tokio",
  "tracing",
  "ulid",
- "url",
+ "zeroize",
 ]
 
 [[package]]
-name = "idprova-middleware"
+name = "idprova-mcp-demo"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
+ "blake3",
  "chrono",
- "idprova-core",
- "idprova-verify",
+ "evalexpr",
+ "hex",
+ "reqwest",
  "serde",
  "serde_json",
- "thiserror",
+ "tempfile",
  "tokio",
- "tower 0.4.13",
  "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "ulid",
 ]
 
 [[package]]
@@ -1125,6 +1137,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
+ "ulid",
 ]
 
 [[package]]
@@ -1974,6 +1987,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "ryu-js"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd29631678d6fb0903b69223673e122c32e9ae559d0960a38d574695ebc0ea15"
+
+[[package]]
 name = "schannel"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2058,6 +2077,17 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_json_canonicalizer"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe52319a927259afbfa5180c5157cd8167edfd3e8c254f9558c7fef44c5649f2"
+dependencies = [
+ "ryu-js",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3022,9 +3052,9 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winnow"
-version = "0.7.14"
+version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
 ]
@@ -3192,6 +3222,20 @@ name = "zeroize"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85a5b4158499876c763cb03bc4e49185d3cccbabb15b33c627f7884f43db852e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "zerotrie"
