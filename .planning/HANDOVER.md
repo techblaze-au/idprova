@@ -3,7 +3,7 @@
 ## Status: IN_PROGRESS
 ## Plan: `.planning/phases/01/01-01-PLAN.md`
 ## Branch: `idprova/track-s-python-sdk`
-## Progress: Task 3 of 5
+## Progress: Task 4 of 5
 
 ## Completed Tasks
 1. **Task 1: `sdks/python/idprova_http.py`** — commit `d3c0d21`
@@ -15,12 +15,13 @@
 3. **Task 3: Requirements files** — commit `139cc6b`
    - `examples/python/requirements.txt` (httpx)
    - `examples/python/requirements-langchain.txt` (httpx + langchain-core)
+4. **Task 4: `examples/python/issue_verify.py`** — commit `10fda2a`
+   - Demo script showing list AIDs flow via Python SDK
 
 ## Current Task
-None — session limit reached (3 tasks)
+Task 5: Final commit and TRACK_COMPLETE
 
-## Next Tasks (for next session)
-- Task 4: Create `examples/python/issue_verify.py`
+## Next Tasks
 - Task 5: Final commit and TRACK_COMPLETE
 
 ## Notes
