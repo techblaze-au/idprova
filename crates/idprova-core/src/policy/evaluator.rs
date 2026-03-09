@@ -98,8 +98,14 @@ mod tests {
     fn issue_test_dat(scope: Vec<String>, constraints: Option<DatConstraints>) -> Dat {
         let issuer_kp = KeyPair::generate();
         let subject_kp = KeyPair::generate();
-        let issuer_did = format!("did:idprova:test:{}", hex::encode(&issuer_kp.public_key_bytes()[..8]));
-        let subject_did = format!("did:idprova:test:{}", hex::encode(&subject_kp.public_key_bytes()[..8]));
+        let issuer_did = format!(
+            "did:idprova:test:{}",
+            hex::encode(&issuer_kp.public_key_bytes()[..8])
+        );
+        let subject_did = format!(
+            "did:idprova:test:{}",
+            hex::encode(&subject_kp.public_key_bytes()[..8])
+        );
         let expires = Utc::now() + Duration::hours(24);
 
         Dat::issue(
@@ -136,8 +142,14 @@ mod tests {
     fn test_policy_evaluator_deny_expired() {
         let issuer_kp = KeyPair::generate();
         let subject_kp = KeyPair::generate();
-        let issuer_did = format!("did:idprova:test:{}", hex::encode(&issuer_kp.public_key_bytes()[..8]));
-        let subject_did = format!("did:idprova:test:{}", hex::encode(&subject_kp.public_key_bytes()[..8]));
+        let issuer_did = format!(
+            "did:idprova:test:{}",
+            hex::encode(&issuer_kp.public_key_bytes()[..8])
+        );
+        let subject_did = format!(
+            "did:idprova:test:{}",
+            hex::encode(&subject_kp.public_key_bytes()[..8])
+        );
         // Already expired
         let expires = Utc::now() - Duration::hours(1);
 
@@ -162,13 +174,13 @@ mod tests {
     #[test]
     fn test_policy_evaluator_deny_constraint() {
         let constraints = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 10, window_secs: 3600 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 10,
+                window_secs: 3600,
+            }),
             ..Default::default()
         };
-        let dat = issue_test_dat(
-            vec!["mcp:tool:filesystem:read".into()],
-            Some(constraints),
-        );
+        let dat = issue_test_dat(vec!["mcp:tool:filesystem:read".into()], Some(constraints));
         let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
             .actions_this_hour(10)
             .build();
@@ -193,14 +205,14 @@ mod tests {
     fn test_policy_evaluator_short_circuit() {
         // Both rate limit and trust level should fail, but rate limit short-circuits first.
         let constraints = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 5, window_secs: 3600 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 5,
+                window_secs: 3600,
+            }),
             min_trust_level: Some(3),
             ..Default::default()
         };
-        let dat = issue_test_dat(
-            vec!["mcp:tool:filesystem:read".into()],
-            Some(constraints),
-        );
+        let dat = issue_test_dat(vec!["mcp:tool:filesystem:read".into()], Some(constraints));
         let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
             .actions_this_hour(10)
             .caller_trust_level(TrustLevel::L0)
@@ -220,7 +232,10 @@ mod tests {
         let dat = issue_test_dat(
             vec!["mcp:tool:filesystem:read".into()],
             Some(DatConstraints {
-                rate_limit: Some(RateLimit { max_actions: 1, window_secs: 3600 }), // would fail with evaluators
+                rate_limit: Some(RateLimit {
+                    max_actions: 1,
+                    window_secs: 3600,
+                }), // would fail with evaluators
                 ..Default::default()
             }),
         );
@@ -234,16 +249,16 @@ mod tests {
     #[test]
     fn test_policy_evaluator_multiple_constraints_all_pass() {
         let constraints = DatConstraints {
-            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 3600 }),
+            rate_limit: Some(RateLimit {
+                max_actions: 100,
+                window_secs: 3600,
+            }),
             min_trust_level: Some(1),
             allowed_countries: Some(vec!["AU".into()]),
             max_delegation_depth: Some(5),
             ..Default::default()
         };
-        let dat = issue_test_dat(
-            vec!["mcp:tool:filesystem:read".into()],
-            Some(constraints),
-        );
+        let dat = issue_test_dat(vec!["mcp:tool:filesystem:read".into()], Some(constraints));
         let ctx = EvaluationContext::builder("mcp:tool:filesystem:read")
             .actions_this_hour(50)
             .caller_trust_level(TrustLevel::L2)

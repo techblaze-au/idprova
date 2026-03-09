@@ -11,10 +11,10 @@ use idprova_core::aid::builder::AidBuilder;
 use idprova_core::aid::document::AidDocument;
 use idprova_core::crypto::hash::prefixed_blake3;
 use idprova_core::crypto::KeyPair as RustKeyPair;
-use idprova_core::dat::DatConstraints as RustDatConstraints;
-use idprova_core::policy::EvaluationContext as RustEvaluationContext;
 use idprova_core::dat::scope::Scope as RustScope;
 use idprova_core::dat::token::Dat as RustDat;
+use idprova_core::dat::DatConstraints as RustDatConstraints;
+use idprova_core::policy::EvaluationContext as RustEvaluationContext;
 use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptContext};
 use idprova_core::receipt::log::ReceiptLog as RustReceiptLog;
 use idprova_core::trust::level::TrustLevel as RustTrustLevel;
@@ -43,14 +43,12 @@ fn to_py_err(e: IdprovaError) -> PyErr {
             "VerificationFailedError: {}. Fix: Ensure the correct public key is used.",
             e
         )),
-        IdprovaError::ConstraintViolated(_) => PyValueError::new_err(format!(
-            "ConstraintViolatedError: {}",
-            e
-        )),
-        IdprovaError::ScopeNotPermitted(_) => PyValueError::new_err(format!(
-            "ScopeNotPermittedError: {}",
-            e
-        )),
+        IdprovaError::ConstraintViolated(_) => {
+            PyValueError::new_err(format!("ConstraintViolatedError: {}", e))
+        }
+        IdprovaError::ScopeNotPermitted(_) => {
+            PyValueError::new_err(format!("ScopeNotPermittedError: {}", e))
+        }
         IdprovaError::InvalidAid(_) | IdprovaError::AidValidation(_) => {
             PyValueError::new_err(format!("InvalidAidError: {}", e))
         }
@@ -143,7 +141,10 @@ impl KeyPair {
     }
 
     fn __repr__(&self) -> String {
-        format!("KeyPair(public_key='{}')", self.inner.public_key_multibase())
+        format!(
+            "KeyPair(public_key='{}')",
+            self.inner.public_key_multibase()
+        )
     }
 }
 
@@ -284,7 +285,9 @@ struct AIDBuilder {
 impl AIDBuilder {
     #[new]
     fn new() -> Self {
-        Self { inner: AidBuilder::new() }
+        Self {
+            inner: AidBuilder::new(),
+        }
     }
 
     fn id(&mut self, id: &str) {
@@ -321,7 +324,10 @@ impl AIDBuilder {
 
     fn build(&mut self) -> PyResult<AID> {
         let builder = std::mem::take(&mut self.inner);
-        builder.build().map(|doc| AID { inner: doc }).map_err(to_py_err)
+        builder
+            .build()
+            .map(|doc| AID { inner: doc })
+            .map_err(to_py_err)
     }
 }
 
@@ -382,7 +388,7 @@ impl DAT {
                 max_actions,
                 require_receipt,
                 max_delegation_depth,
-                required_trust_level: min_trust_level.map(|l| format!("L{}", l)),
+                min_trust_level,
                 ..Default::default()
             })
         } else {
@@ -446,7 +452,10 @@ impl DAT {
             if decision.is_allowed() {
                 Ok(())
             } else {
-                let reason = decision.denial_reason().map(|r| format!("{:?}", r)).unwrap_or_default();
+                let reason = decision
+                    .denial_reason()
+                    .map(|r| format!("{:?}", r))
+                    .unwrap_or_default();
                 Err(pyo3::exceptions::PyValueError::new_err(reason))
             }
         }
@@ -523,7 +532,9 @@ struct Scope {
 impl Scope {
     #[new]
     fn new(scope_str: &str) -> PyResult<Self> {
-        RustScope::parse(scope_str).map(|s| Self { inner: s }).map_err(to_py_err)
+        RustScope::parse(scope_str)
+            .map(|s| Self { inner: s })
+            .map_err(to_py_err)
     }
 
     fn covers(&self, requested: &Scope) -> bool {
@@ -577,7 +588,11 @@ impl TrustLevel {
     }
 
     fn __repr__(&self) -> String {
-        format!("TrustLevel('{}' — {})", self.inner.as_str(), self.inner.description())
+        format!(
+            "TrustLevel('{}' — {})",
+            self.inner.as_str(),
+            self.inner.description()
+        )
     }
 }
 
@@ -594,7 +609,9 @@ struct ReceiptLog {
 impl ReceiptLog {
     #[new]
     fn new() -> Self {
-        Self { inner: RustReceiptLog::new() }
+        Self {
+            inner: RustReceiptLog::new(),
+        }
     }
 
     fn verify_integrity(&self) -> PyResult<()> {
@@ -748,11 +765,15 @@ impl AgentIdentity {
     }
 
     fn aid(&self) -> AID {
-        AID { inner: self.aid.clone() }
+        AID {
+            inner: self.aid.clone(),
+        }
     }
 
     fn keypair(&self) -> KeyPair {
-        KeyPair { inner: RustKeyPair::from_secret_bytes(self.keypair.secret_bytes()) }
+        KeyPair {
+            inner: RustKeyPair::from_secret_bytes(self.keypair.secret_bytes()),
+        }
     }
 
     #[pyo3(signature = (subject_did, scope, expires_in_seconds=3600))]
@@ -763,9 +784,17 @@ impl AgentIdentity {
         expires_in_seconds: i64,
     ) -> PyResult<DAT> {
         let expires_at = Utc::now() + Duration::seconds(expires_in_seconds);
-        RustDat::issue(&self.did, subject_did, scope, expires_at, None, None, &self.keypair)
-            .map(|dat| DAT { inner: dat })
-            .map_err(to_py_err)
+        RustDat::issue(
+            &self.did,
+            subject_did,
+            scope,
+            expires_at,
+            None,
+            None,
+            &self.keypair,
+        )
+        .map(|dat| DAT { inner: dat })
+        .map_err(to_py_err)
     }
 
     /// Save this identity to disk.

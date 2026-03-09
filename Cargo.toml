@@ -17,7 +17,7 @@ license = "Apache-2.0"
 repository = "https://github.com/techblaze-au/idprova"
 homepage = "https://idprova.dev"
 description = "IDProva — The open protocol for AI agent identity"
-rust-version = "1.75"
+rust-version = "1.77"
 
 [workspace.dependencies]
 # Crypto — pinned exact versions (S6: supply chain attack prevention)
