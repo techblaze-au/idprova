@@ -292,7 +292,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             expires,
             None,
             None,
@@ -317,7 +317,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:*:*".to_string()],
+            vec!["mcp:*:*:*".to_string()],
             expires,
             Some(DatConstraints {
                 max_actions: Some(1000),
@@ -350,7 +350,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             expires,
             None,
             None,
@@ -370,7 +370,7 @@ mod tests {
         let expired = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() - Duration::hours(1),
             None,
             None,
@@ -384,7 +384,7 @@ mod tests {
         let valid = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() + Duration::hours(24),
             None,
             None,
@@ -413,18 +413,18 @@ mod tests {
     #[test]
     fn test_verify_happy_path() {
         let kp = test_keypair();
-        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).is_ok());
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_ok());
     }
 
     #[test]
     fn test_verify_wrong_key() {
         let kp = test_keypair();
         let kp2 = test_keypair();
-        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
-        assert!(dat.verify(&kp2.public_key_bytes(), "mcp:tool:read", &ctx).is_err());
+        assert!(dat.verify(&kp2.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_err());
     }
 
     #[test]
@@ -433,7 +433,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() - Duration::hours(1),
             None,
             None,
@@ -441,31 +441,31 @@ mod tests {
         )
         .unwrap();
         let ctx = EvaluationContext::default();
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).unwrap_err();
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).unwrap_err();
         assert!(matches!(err, IdprovaError::DatExpired));
     }
 
     #[test]
     fn test_verify_scope_denied() {
         let kp = test_keypair();
-        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:write", &ctx).unwrap_err();
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx).unwrap_err();
         assert!(matches!(err, IdprovaError::ScopeNotPermitted(_)));
     }
 
     #[test]
     fn test_verify_wildcard_scope_passes() {
         let kp = test_keypair();
-        let dat = issue_valid(&kp, "mcp:*:*", None);
+        let dat = issue_valid(&kp, "mcp:*:*:*", None);
         let ctx = EvaluationContext::default();
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:write", &ctx).is_ok());
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:write", &ctx).is_ok());
     }
 
     #[test]
     fn test_verify_empty_scope_skips_check() {
         let kp = test_keypair();
-        let dat = issue_valid(&kp, "mcp:tool:read", None);
+        let dat = issue_valid(&kp, "mcp:tool:filesystem:read", None);
         let ctx = EvaluationContext::default();
         // "" → skip scope check
         assert!(dat.verify(&kp.public_key_bytes(), "", &ctx).is_ok());
@@ -476,7 +476,7 @@ mod tests {
         let kp = test_keypair();
         let dat = issue_valid(
             &kp,
-            "mcp:tool:read",
+            "mcp:tool:filesystem:read",
             Some(DatConstraints {
                 rate_limit: Some(RateLimit { max_actions: 5, window_secs: 60 }),
                 ..Default::default()
@@ -484,7 +484,7 @@ mod tests {
         );
         let mut ctx = EvaluationContext::default();
         ctx.actions_in_window = 10;
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).unwrap_err();
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).unwrap_err();
         assert!(err.to_string().contains("rate limit exceeded"));
     }
 
@@ -493,7 +493,7 @@ mod tests {
         let kp = test_keypair();
         let dat = issue_valid(
             &kp,
-            "mcp:tool:read",
+            "mcp:tool:filesystem:read",
             Some(DatConstraints {
                 max_delegation_depth: Some(2),
                 ..Default::default()
@@ -502,7 +502,7 @@ mod tests {
         // ctx carries the runtime depth — 3 levels deep exceeds max=2
         let mut ctx = EvaluationContext::default();
         ctx.delegation_depth = 3;
-        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).unwrap_err();
+        let err = dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).unwrap_err();
         assert!(err.to_string().contains("delegation depth"));
     }
 
@@ -511,7 +511,7 @@ mod tests {
         let kp = test_keypair();
         let dat = issue_valid(
             &kp,
-            "mcp:tool:read",
+            "mcp:tool:filesystem:read",
             Some(DatConstraints {
                 max_delegation_depth: Some(2),
                 ..Default::default()
@@ -519,7 +519,7 @@ mod tests {
         );
         let mut ctx = EvaluationContext::default();
         ctx.delegation_depth = 2; // exactly at limit → ok
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).is_ok());
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_ok());
     }
 
     #[test]
@@ -529,7 +529,7 @@ mod tests {
         let dat = Dat::issue(
             "did:idprova:example.com:alice",
             "did:idprova:example.com:agent",
-            vec!["mcp:tool:read".to_string()],
+            vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() + Duration::hours(24),
             Some(DatConstraints {
                 required_config_hash: Some(hash.clone()),
@@ -541,6 +541,6 @@ mod tests {
         .unwrap();
         let mut ctx = EvaluationContext::default();
         ctx.agent_config_hash = Some(hash);
-        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:read", &ctx).is_ok());
+        assert!(dat.verify(&kp.public_key_bytes(), "mcp:tool:filesystem:read", &ctx).is_ok());
     }
 }
