@@ -8,16 +8,16 @@ This document covers the threat model, cryptographic design, key management prac
 
 ### Algorithm selection
 
-IDProva uses a **hybrid cryptographic scheme** that provides both classical and post-quantum security:
+IDProva uses Ed25519 for classical signatures with post-quantum hybrid support planned:
 
-| Algorithm | Role | Standard |
-|-----------|------|---------|
-| **Ed25519** | Classical signatures (signing/verification) | RFC 8032 |
-| **ML-DSA-65** | Post-quantum signatures | FIPS 204 |
-| **BLAKE3** | Content hashing (receipts, config attestation) | BLAKE3 spec |
-| **SHA-256** | Interoperability hashing | FIPS 180-4 |
+| Algorithm | Role | Standard | Status |
+|-----------|------|---------|--------|
+| **Ed25519** | Signatures (signing/verification) | RFC 8032 | Implemented |
+| **BLAKE3** | Content hashing (receipts, config attestation) | BLAKE3 spec | Implemented |
+| **SHA-256** | Interoperability hashing | FIPS 180-4 | Implemented |
+| **ML-DSA-65** | Post-quantum hybrid signatures | FIPS 204 | Planned |
 
-The dual-algorithm approach means identities created today remain secure even if one of the two algorithm families is broken — whether by mathematical advances against elliptic curves or by future quantum computers against classical schemes.
+When ML-DSA-65 hybrid support is added, identities created today will gain post-quantum resistance via dual signatures — securing them against both classical and quantum adversaries.
 
 ### Why Ed25519?
 
@@ -147,8 +147,9 @@ DATs are time-bounded via `exp` (expiry) and `nbf` (not-before). Verifiers **mus
 
 ```rust
 dat.validate_timing()?;
-// or via the full pipeline:
-dat.verify(&pub_bytes, "mcp:tool:read", &ctx)?;
+// or via the full policy pipeline:
+let pe = PolicyEvaluator::new();
+let decision = pe.evaluate(&dat, &ctx);
 ```
 
 For high-security scenarios, combine short expiry windows (minutes, not hours) with a JTI blocklist of recently seen tokens to prevent within-window replay.
@@ -159,10 +160,11 @@ Wildcard scopes (`mcp:*:*`) are powerful and should be granted sparingly:
 
 | Pattern | Grants |
 |---------|--------|
-| `mcp:tool:read` | Single specific action |
-| `mcp:tool:*` | All actions on MCP tools |
-| `mcp:*:*` | All MCP resources and all actions |
-| `*:*:*` | Unrestricted — avoid entirely in production |
+| `mcp:tool:filesystem:read` | Single specific action |
+| `mcp:tool:filesystem:*` | All actions on one tool |
+| `mcp:tool:*:*` | All MCP tools and all actions |
+| `mcp:*:*:*` | All MCP resources and all actions |
+| `*:*:*:*` | Unrestricted — avoid entirely in production |
 
 When re-delegating, child DAT scopes must be a **strict subset** of the parent's scope set. The delegation chain enforces this — a verifier should reject any delegation where the child claims broader scope than the parent.
 
@@ -229,7 +231,7 @@ All communication with the registry must use **TLS 1.3+**. The registry does not
 
 ### Authentication
 
-Registry write endpoints (`PUT /aids/{did}`, `DELETE /aids/{did}`) require an `Authorization: Bearer <DAT>` header. The DAT must be issued by the DID's controller and scoped to `idprova:registry:write`.
+Registry write endpoints (`PUT /aids/{did}`, `DELETE /aids/{did}`) require an `Authorization: Bearer <DAT>` header. The DAT must be issued by the DID's controller and scoped to `idprova:registry:aid:write`.
 
 Read endpoints (`GET /aids/{did}`, `GET /health`) are unauthenticated.
 
