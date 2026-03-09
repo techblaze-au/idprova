@@ -200,7 +200,7 @@ idprova:registry:aid:write     # registry write permission
 Wildcards are allowed at any segment:
 
 ```
-mcp:tool:filesystem:*    # all actions on filesystem tool
+mcp:tool:filesystem:*    # all actions on the filesystem tool
 mcp:tool:*:*             # all MCP tools, any action
 mcp:*:*:*                # all MCP resources and actions
 *:*:*:*                  # unrestricted (use with caution)
@@ -237,8 +237,8 @@ An agent that holds a DAT may re-delegate a **subset** of its permissions to a s
 ```
 Alice (root)
   └── DAT(scope=mcp:*:*:*, depth_max=2) → Agent A
-        └── DAT(scope=mcp:tool:*:read, depth=1) → Agent B
-              └── DAT(scope=mcp:tool:*:read, depth=2) → Agent C
+        └── DAT(scope=mcp:tool:filesystem:read, depth=1) → Agent B
+              └── DAT(scope=mcp:tool:filesystem:read, depth=2) → Agent C
                     └── Blocked: max_delegation_depth=2
 ```
 
@@ -261,6 +261,8 @@ Trust levels are ordinal values indicating how thoroughly an agent's identity ha
 | **L3** | Audited | Third-party security audit completed |
 | **L4** | Continuously monitored | Real-time behaviour analysis and compliance |
 
+Trust levels use ordinal comparison (`L0 < L1 < L2 < L3 < L4`), not numeric values.
+
 ### Trust progression
 
 ```mermaid
@@ -282,7 +284,7 @@ A DAT constraint can enforce a minimum trust level on whoever presents the token
 
 ```rust
 DatConstraints {
-    required_trust_level: Some("L2".into()), // requires L2+
+    required_trust_level: Some("L2".to_string()), // requires L2+
     ..Default::default()
 }
 ```
@@ -362,12 +364,12 @@ The RBAC policy engine evaluates whether a request is permitted under a given DA
 
 ```mermaid
 flowchart TD
-    T[Timing check<br/>exp + nbf] --> S[Scope check<br/>namespace:resource:action]
-    S --> C1[Rate limit<br/>sliding window]
+    T[Timing check<br/>exp + nbf] --> S[Scope check<br/>namespace:protocol:resource:action]
+    S --> C1[Rate limit<br/>hourly/daily/concurrent]
     C1 --> C2[IP allowlist/denylist<br/>CIDR matching]
-    C2 --> C3[Trust level<br/>min_trust_level]
-    C3 --> C4[Delegation depth<br/>max_delegation_depth]
-    C4 --> C5[Geofence<br/>allowed_countries]
+    C2 --> C3[Trust level<br/>requiredTrustLevel]
+    C3 --> C4[Delegation depth<br/>maxDelegationDepth]
+    C4 --> C5[Geofence<br/>geofence]
     C5 --> C6[Time windows<br/>UTC hours + days]
     C6 --> C7[Config attestation<br/>hash comparison]
     C7 --> ALLOW[Allow]
@@ -386,8 +388,8 @@ Short-circuits on first denial. Custom evaluators can be plugged in via `PolicyE
 
 ### Constraint evaluators
 
-| # | Evaluator | Constraint fields | Context fields |
-|---|-----------|------------------|----------------|
+| # | Evaluator | Constraint field(s) | Context field |
+|---|-----------|-------------------|---------------|
 | 1 | Rate limit | `maxCallsPerHour`, `maxCallsPerDay`, `maxConcurrent` | `actions_this_hour`, `actions_this_day`, `active_concurrent` |
 | 2 | IP constraint | `allowedIPs`, `deniedIPs` | `source_ip` |
 | 3 | Trust level | `requiredTrustLevel` | `caller_trust_level` |
