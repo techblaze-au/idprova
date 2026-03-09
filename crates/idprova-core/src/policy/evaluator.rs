@@ -91,7 +91,7 @@ impl Default for PolicyEvaluator {
 mod tests {
     use super::*;
     use crate::crypto::keys::KeyPair;
-    use crate::dat::token::DatConstraints;
+    use crate::dat::constraints::{DatConstraints, RateLimit};
     use crate::trust::level::TrustLevel;
     use chrono::{Duration, Utc};
 
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn test_policy_evaluator_deny_constraint() {
         let constraints = DatConstraints {
-            max_calls_per_hour: Some(10),
+            rate_limit: Some(RateLimit { max_actions: 10, window_secs: 3600 }),
             ..Default::default()
         };
         let dat = issue_test_dat(
@@ -191,11 +191,10 @@ mod tests {
 
     #[test]
     fn test_policy_evaluator_short_circuit() {
-        // Both rate limit and trust level should fail, but we should get rate limit
-        // (first evaluator) since it short-circuits.
+        // Both rate limit and trust level should fail, but rate limit short-circuits first.
         let constraints = DatConstraints {
-            max_calls_per_hour: Some(5),
-            required_trust_level: Some("L3".into()),
+            rate_limit: Some(RateLimit { max_actions: 5, window_secs: 3600 }),
+            min_trust_level: Some(3),
             ..Default::default()
         };
         let dat = issue_test_dat(
@@ -209,7 +208,6 @@ mod tests {
         let pe = PolicyEvaluator::new();
         let d = pe.evaluate(&dat, &ctx);
         assert!(d.is_denied());
-        // Rate limit evaluator runs first in default_evaluators()
         match d.denial_reason().unwrap() {
             DenialReason::RateLimitExceeded { .. } => {} // expected
             other => panic!("expected RateLimitExceeded (short-circuit), got {other:?}"),
@@ -222,7 +220,7 @@ mod tests {
         let dat = issue_test_dat(
             vec!["mcp:tool:filesystem:read".into()],
             Some(DatConstraints {
-                max_calls_per_hour: Some(1), // would fail with evaluators
+                rate_limit: Some(RateLimit { max_actions: 1, window_secs: 3600 }), // would fail with evaluators
                 ..Default::default()
             }),
         );
@@ -236,9 +234,9 @@ mod tests {
     #[test]
     fn test_policy_evaluator_multiple_constraints_all_pass() {
         let constraints = DatConstraints {
-            max_calls_per_hour: Some(100),
-            required_trust_level: Some("L1".into()),
-            geofence: Some(vec!["AU".into()]),
+            rate_limit: Some(RateLimit { max_actions: 100, window_secs: 3600 }),
+            min_trust_level: Some(1),
+            allowed_countries: Some(vec!["AU".into()]),
             max_delegation_depth: Some(5),
             ..Default::default()
         };

@@ -17,9 +17,9 @@ zeroize.workspace = true
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
 base64.workspace = true
 multibase.workspace = true
-serde_json_canonicalizer.workspace = true
 
 # Time
 chrono.workspace = true
@@ -33,11 +33,16 @@ ulid.workspace = true
 # Hex encoding
 hex.workspace = true
 
-# Networking (CIDR matching for IP constraint evaluation)
+# Network
 ipnet.workspace = true
+url.workspace = true
+reqwest = { workspace = true, optional = true }
 
 # Logging
 tracing.workspace = true
+
+[features]
+http = ["dep:reqwest"]
 
 [dev-dependencies]
 proptest.workspace = true

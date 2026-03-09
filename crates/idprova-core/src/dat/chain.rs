@@ -113,7 +113,8 @@ pub fn validate_chain_with_config(chain: &[Dat], config: &ChainValidationConfig)
 mod tests {
     use super::*;
     use crate::crypto::KeyPair;
-    use crate::dat::token::{Dat, DatConstraints};
+    use crate::dat::token::Dat;
+    use crate::dat::constraints::DatConstraints;
     use chrono::{Duration, Utc};
 
     fn make_dat(issuer: &str, subject: &str, scopes: Vec<&str>, kp: &KeyPair) -> Dat {
