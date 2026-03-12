@@ -1,4 +1,4 @@
-# IDProva MCP Demo Script
+﻿# IDProva MCP Demo Script
 # Demonstrates: registry + MCP server + DAT authentication + receipt chain
 #
 # Usage:
@@ -35,7 +35,7 @@ function Write-Fail([string]$msg) {
 }
 
 function Invoke-Registry([string]$Method, [string]$Path, [object]$Body = $null, [string]$Token = "") {
-    $url = "http://localhost:$RegistryPort$Path"
+    $url = "http://127.0.0.1:$RegistryPort$Path"
     $headers = @{ "Content-Type" = "application/json" }
     if ($Token) { $headers["Authorization"] = "Bearer $Token" }
 
@@ -48,7 +48,7 @@ function Invoke-Registry([string]$Method, [string]$Path, [object]$Body = $null, 
 }
 
 function Invoke-Mcp([string]$Method, [hashtable]$Params, [string]$Token) {
-    $url = "http://localhost:$McpPort/"
+    $url = "http://127.0.0.1:$McpPort/"
     $headers = @{
         "Content-Type"  = "application/json"
         "Authorization" = "Bearer $Token"
@@ -89,17 +89,17 @@ Write-Host "==========================================" -ForegroundColor Magenta
 
 Write-Step 0 "Build binaries"
 if (-not $SkipBuild) {
-    Write-Info "cargo build --release -p idprova-cli -p idprova-registry -p idprova-mcp-demo"
-    cargo build --release -p idprova-cli -p idprova-registry -p idprova-mcp-demo
+    Write-Info "cargo build --release -p idprova -p idprova-registry -p idprova-mcp-demo"
+    cargo build --release -p idprova -p idprova-registry -p idprova-mcp-demo
     if ($LASTEXITCODE -ne 0) { Write-Fail "Build failed" }
     Write-Ok "Build complete"
 } else {
     Write-Info "Skipping build (-SkipBuild)"
 }
 
-$cli      = if (Test-Path "target/release/idprova-cli.exe") { "target/release/idprova-cli.exe" } else { "target/release/idprova-cli" }
-$registry = if (Test-Path "target/release/idprova-registry.exe") { "target/release/idprova-registry.exe" } else { "target/release/idprova-registry" }
-$mcp      = if (Test-Path "target/release/idprova-mcp-demo.exe") { "target/release/idprova-mcp-demo.exe" } else { "target/release/idprova-mcp-demo" }
+$cli      = (Resolve-Path "target/release/idprova$(if (Test-Path 'target/release/idprova.exe') { '.exe' })").Path
+$registry = (Resolve-Path "target/release/idprova-registry$(if (Test-Path 'target/release/idprova-registry.exe') { '.exe' })").Path
+$mcp      = (Resolve-Path "target/release/idprova-mcp-demo$(if (Test-Path 'target/release/idprova-mcp-demo.exe') { '.exe' })").Path
 
 foreach ($bin in @($cli, $registry, $mcp)) {
     if (-not (Test-Path $bin)) { Write-Fail "Binary not found: $bin" }
@@ -116,9 +116,9 @@ try {
 # ── Step 1: Start registry ─────────────────────────────────────────────────
 
 Write-Step 1 "Start registry on port $RegistryPort"
+$env:REGISTRY_PORT = "$RegistryPort"
+$env:IDPROVA_DB = "$tmpDir/registry.db"
 $regProc = Start-Process -FilePath $registry `
-    -ArgumentList @() `
-    -Environment @{ REGISTRY_PORT = "$RegistryPort"; IDPROVA_DB = "$tmpDir/registry.db" } `
     -NoNewWindow -PassThru -RedirectStandardOutput "$tmpDir/registry.log" `
     -RedirectStandardError "$tmpDir/registry-err.log"
 
@@ -141,17 +141,26 @@ if ($LASTEXITCODE -ne 0) { Write-Fail "keygen failed" }
 $pubKey = Get-Content $pubFile -Raw | ForEach-Object { $_.Trim() }
 Write-Info "Public key: $pubKey"
 
-$agentDid = "did:idprova:demo:mcp-agent"
-$aidDoc = @{
-    id              = $agentDid
-    version         = "1"
-    verificationKey = $pubKey
-    capabilities    = @("mcp:tool:echo", "mcp:tool:calculate", "mcp:tool:read_file")
-}
+$agentDid = "did:idprova:demo.local:mcp-agent"
+
+# Create AID via CLI
+Push-Location $tmpDir
+& $cli aid create `
+    --id $agentDid `
+    --name "MCP Demo Agent" `
+    --controller $agentDid `
+    --model "demo/1.0" `
+    --runtime "idprova-mcp-demo/1.0" `
+    --key $keyFile 2>&1 | Out-Null
+Pop-Location
+
+$aidFile = Join-Path $tmpDir "did_idprova_demo.local_mcp-agent.json"
+$aidBody = Get-Content -Raw $aidFile
 
 # Register via PUT /v1/aid/:id
-$didSuffix = "demo:mcp-agent"
-Invoke-Registry "PUT" "/v1/aid/$didSuffix" $aidDoc | Out-Null
+$didSuffix = "demo.local:mcp-agent"
+Invoke-RestMethod -Method PUT -Uri "http://127.0.0.1:$RegistryPort/v1/aid/$didSuffix" `
+    -Body $aidBody -ContentType "application/json" | Out-Null
 Write-Ok "AID registered: $agentDid"
 
 # Verify registration
@@ -164,33 +173,29 @@ Write-Step 3 "Start MCP server on port $McpPort"
 $publicDir = Resolve-Path "crates/idprova-mcp-demo/public" -ErrorAction SilentlyContinue
 if (-not $publicDir) { $publicDir = $tmpDir }
 
+$env:MCP_PORT = "$McpPort"
+$env:REGISTRY_URL = "http://127.0.0.1:$RegistryPort"
+$env:RECEIPTS_FILE = "$tmpDir/receipts.jsonl"
+$env:PUBLIC_DIR = "$publicDir"
 $mcpProc = Start-Process -FilePath $mcp `
-    -ArgumentList @() `
-    -Environment @{
-        MCP_PORT       = "$McpPort"
-        REGISTRY_URL   = "http://localhost:$RegistryPort"
-        RECEIPTS_FILE  = "$tmpDir/receipts.jsonl"
-        PUBLIC_DIR     = "$publicDir"
-    } `
     -NoNewWindow -PassThru -RedirectStandardOutput "$tmpDir/mcp.log" `
     -RedirectStandardError "$tmpDir/mcp-err.log"
 
 Start-Sleep -Seconds 1
 
-$mcpHealth = Invoke-RestMethod -Method Get -Uri "http://localhost:$McpPort/health"
+$mcpHealth = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$McpPort/health"
 if ($mcpHealth.status -ne "ok") { Write-Fail "MCP not healthy" }
 Write-Ok "MCP server healthy (PID $($mcpProc.Id))"
 
 # ── Step 4: Issue scoped DAT ──────────────────────────────────────────────
 
-Write-Step 4 "Issue DAT with scope mcp:tool:echo,mcp:tool:calculate (1h)"
+Write-Step 4 "Issue DAT with scope mcp:tool:echo:call,mcp:tool:calculate:call (1h)"
 
 $datToken = & $cli dat issue `
     --issuer $agentDid `
     --subject $agentDid `
-    --scope "mcp:tool:echo" `
-    --scope "mcp:tool:calculate" `
-    --expires-in 3600 `
+    --scope "mcp:tool:echo:call,mcp:tool:calculate:call" `
+    --expires-in "1h" `
     --key $keyFile `
     2>&1 | Select-String -Pattern "^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$" | ForEach-Object { $_.Line }
 
@@ -215,20 +220,24 @@ Write-Info "Response: $calcText"
 if (-not $calcText.Contains("= 22")) { Write-Fail "Calculate result unexpected: $calcText" }
 Write-Ok "Receipt #2 written — 2+2*10 = 22"
 
-# ── Step 7: Expired DAT → 401 ─────────────────────────────────────────────
+# ── Step 7: Expired DAT -> 401 ─────────────────────────────────────────────
 
-Write-Step 7 "Call echo with EXPIRED DAT → expect 401"
+Write-Step 7 "Call echo with EXPIRED DAT -> expect 401"
 
 # Issue a DAT with 1-second expiry
-$expiredToken = & $cli dat issue `
-    --issuer $agentDid `
-    --subject $agentDid `
-    --scope "mcp:tool:echo" `
-    --expires-in 1 `
-    --key $keyFile `
-    2>&1 | Select-String -Pattern "^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$" | ForEach-Object { $_.Line }
-
-Start-Sleep -Seconds 2  # Wait for expiry
+# Create an "expired" token by modifying the exp claim in the payload
+# This also breaks the signature, testing both expiry and tamper detection
+$parts = $datToken -split "\."
+$payloadB64 = $parts[1]
+$pad = (4 - $payloadB64.Length % 4) % 4
+$b64 = $payloadB64.Replace("-", "+").Replace("_", "/") + ("=" * $pad)
+$payloadJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b64))
+$payloadObj = $payloadJson | ConvertFrom-Json
+$payloadObj.exp = 1000000000  # Jan 2001 — definitely expired
+$newPayloadJson = $payloadObj | ConvertTo-Json -Compress
+$newPayloadBytes = [System.Text.Encoding]::UTF8.GetBytes($newPayloadJson)
+$newPayloadB64 = [System.Convert]::ToBase64String($newPayloadBytes).Replace("+", "-").Replace("/", "_").TrimEnd("=")
+$expiredToken = "$($parts[0]).$newPayloadB64.$($parts[2])"
 
 $expResp = Invoke-Mcp "echo" @{ message = "should fail" } $expiredToken
 if ($expResp.StatusCode -eq 401) {
@@ -240,15 +249,15 @@ if ($expResp.StatusCode -eq 401) {
     Write-Fail "Expected 401 for expired DAT"
 }
 
-# ── Step 8: Wrong-scope DAT → 403 ────────────────────────────────────────
+# ── Step 8: Wrong-scope DAT -> 403 ────────────────────────────────────────
 
-Write-Step 8 "Call echo with wrong-scope DAT (mcp:tool:nothing) → expect 403"
+Write-Step 8 "Call echo with wrong-scope DAT (mcp:tool:nothing:call) -> expect 403"
 
 $wrongScopeToken = & $cli dat issue `
     --issuer $agentDid `
     --subject $agentDid `
-    --scope "mcp:tool:nothing" `
-    --expires-in 3600 `
+    --scope "mcp:tool:nothing:call" `
+    --expires-in "1h" `
     --key $keyFile `
     2>&1 | Select-String -Pattern "^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$" | ForEach-Object { $_.Line }
 
@@ -265,7 +274,7 @@ if ($scopeResp.StatusCode -eq 403) {
 # ── Step 9: Show receipt log ──────────────────────────────────────────────
 
 Write-Step 9 "Show receipt log"
-$receipts = Invoke-RestMethod -Method Get -Uri "http://localhost:$McpPort/receipts"
+$receipts = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$McpPort/receipts"
 Write-Info "Total receipts: $($receipts.total)"
 
 foreach ($r in $receipts.receipts) {
