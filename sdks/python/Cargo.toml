@@ -3,6 +3,9 @@ name = "idprova-python"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
 description = "IDProva Python SDK — PyO3 bindings to the Rust core"
 publish = false
 

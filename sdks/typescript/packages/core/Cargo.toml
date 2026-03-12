@@ -3,6 +3,9 @@ name = "idprova-typescript"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
 description = "IDProva TypeScript SDK — napi-rs bindings to the Rust core"
 publish = false
 

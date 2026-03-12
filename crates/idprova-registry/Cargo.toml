@@ -4,15 +4,25 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-registry"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "registry", "resolution", "did"]
+categories = ["authentication", "web-programming::http-server"]
+readme = "README.md"
 description = "IDProva Registry — HTTP service for AID resolution and management"
 
 [[bin]]
 name = "idprova-registry"
 path = "src/main.rs"
 
+[lib]
+name = "idprova_registry"
+path = "src/lib.rs"
+
 [dependencies]
-idprova-core = { path = "../idprova-core" }
-idprova-verify = { path = "../idprova-verify" }
+idprova-core = { path = "../idprova-core", version = "0.1.0" }
+idprova-verify = { path = "../idprova-verify", version = "0.1.0" }
 
 # Web framework
 axum.workspace = true
@@ -22,6 +32,8 @@ tokio.workspace = true
 
 # Database
 rusqlite.workspace = true
+r2d2.workspace = true
+r2d2_sqlite.workspace = true
 
 # Serialization
 serde.workspace = true
@@ -43,3 +55,8 @@ thiserror.workspace = true
 
 # Time
 chrono.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
+tower = { workspace = true }
+http-body-util = "0.1"
