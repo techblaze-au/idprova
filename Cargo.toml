@@ -5,6 +5,7 @@ members = [
     "crates/idprova-registry",
     "crates/idprova-cli",
     "crates/idprova-mcp-demo",
+    "crates/idprova-middleware",
     "sdks/python",
     "sdks/typescript/packages/core",
 ]
@@ -16,7 +17,11 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/techblaze-au/idprova"
 homepage = "https://idprova.dev"
+documentation = "https://docs.rs/idprova-core"
 description = "IDProva — The open protocol for AI agent identity"
+authors = ["Pratyush Sood <hello@techblaze.com.au>"]
+keywords = ["identity", "ai-agent", "cryptography", "delegation", "audit"]
+categories = ["authentication", "cryptography"]
 rust-version = "1.78"
 
 [workspace.dependencies]
@@ -59,6 +64,8 @@ reqwest = { version = "0.12", features = ["json", "blocking"] }
 
 # Database
 rusqlite = { version = "0.31", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
 
 # CLI
 clap = { version = "4", features = ["derive"] }

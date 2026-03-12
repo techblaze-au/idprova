@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-cli"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "cli", "delegation", "audit"]
+categories = ["command-line-utilities", "authentication"]
+readme = "README.md"
 description = "IDProva CLI — manage agent identities, delegation tokens, and receipts"
 
 [[bin]]
@@ -11,7 +17,7 @@ name = "idprova"
 path = "src/main.rs"
 
 [dependencies]
-idprova-core = { path = "../idprova-core" }
+idprova-core = { path = "../idprova-core", version = "0.1.0" }
 
 # CLI
 clap.workspace = true

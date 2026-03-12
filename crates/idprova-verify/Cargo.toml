@@ -4,10 +4,16 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-verify"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "verification", "delegation", "audit"]
+categories = ["authentication", "cryptography"]
+readme = "README.md"
 description = "IDProva verification utilities — DAT and receipt log verification"
 
 [dependencies]
-idprova-core = { path = "../idprova-core" }
+idprova-core = { path = "../idprova-core", version = "0.1.0" }
 thiserror.workspace = true
 
 [dev-dependencies]

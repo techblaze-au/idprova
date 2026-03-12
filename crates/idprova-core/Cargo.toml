@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-core"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "cryptography", "delegation", "ed25519"]
+categories = ["authentication", "cryptography"]
+readme = "README.md"
 description = "Core library for IDProva — AI agent identity, delegation, and audit"
 
 [dependencies]
