@@ -19,7 +19,7 @@ Every tool call through this MCP server is:
   "timestamp": "2026-01-01T00:00:00Z",
   "tool": "echo",
   "subject_did": "did:idprova:example:agent1",
-  "scope": "mcp:tool:echo",
+  "scope": "mcp:tool:echo:call",
   "request_hash": "...",
   "prev_receipt_hash": "genesis"
 }
