@@ -1,5 +1,6 @@
 use anyhow::Result;
-use rusqlite::Connection;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use serde::Serialize;
 
 use idprova_core::aid::AidDocument;
@@ -13,8 +14,11 @@ pub struct AidListEntry {
 }
 
 /// SQLite-backed store for AID documents and DAT revocations.
+///
+/// Uses an r2d2 connection pool for thread-safe concurrent access.
+#[derive(Clone)]
 pub struct AidStore {
-    conn: Connection,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 /// A recorded DAT revocation.
@@ -27,10 +31,13 @@ pub struct RevocationRecord {
 }
 
 impl AidStore {
-    /// Create or open the store database.
+    /// Create or open the store database with a connection pool.
     pub fn new(path: &str) -> Result<Self> {
-        let conn = Connection::open(path)?;
+        let manager = SqliteConnectionManager::file(path);
+        let pool = Pool::builder().max_size(8).build(manager)?;
 
+        // Initialize schema on one connection
+        let conn = pool.get()?;
         conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS aids (
@@ -51,91 +58,17 @@ impl AidStore {
             ",
         )?;
 
-        Ok(Self { conn })
-    }
-
-    // ── AID operations ───────────────────────────────────────────────────────
-
-    /// Store or update an AID document. Returns true if this is a new entry.
-    pub fn put(&self, did: &str, doc: &AidDocument) -> Result<bool> {
-        let json = serde_json::to_string(doc)?;
-
-        let existing =
-            self.conn
-                .query_row("SELECT COUNT(*) FROM aids WHERE did = ?", [did], |row| {
-                    row.get::<_, i64>(0)
-                })?;
-
-        if existing > 0 {
-            self.conn.execute(
-                "UPDATE aids SET document = ?, updated_at = datetime('now'), active = 1 WHERE did = ?",
-                rusqlite::params![json, did],
-            )?;
-            Ok(false)
-        } else {
-            self.conn.execute(
-                "INSERT INTO aids (did, document) VALUES (?, ?)",
-                rusqlite::params![did, json],
-            )?;
-            Ok(true)
-        }
-    }
-
-    /// Retrieve an AID document by DID (active only).
-    pub fn get(&self, did: &str) -> Result<Option<AidDocument>> {
-        let result = self.conn.query_row(
-            "SELECT document FROM aids WHERE did = ? AND active = 1",
-            [did],
-            |row| row.get::<_, String>(0),
-        );
-
-        match result {
-            Ok(json) => {
-                let doc: AidDocument = serde_json::from_str(&json)?;
-                Ok(Some(doc))
-            }
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    /// Deactivate an AID. Returns true if found and deactivated.
-    pub fn delete(&self, did: &str) -> Result<bool> {
-        let rows = self.conn.execute(
-            "UPDATE aids SET active = 0, updated_at = datetime('now') WHERE did = ? AND active = 1",
-            [did],
-        )?;
-        Ok(rows > 0)
-    }
-
-    // ── DAT revocation operations ────────────────────────────────────────────
-
-    /// Record a DAT revocation by JTI.
-    ///
-    /// Idempotent — revoking an already-revoked JTI is a no-op (returns false).
-    pub fn revoke(&self, jti: &str, reason: &str, revoked_by: &str) -> Result<bool> {
-        let rows = self.conn.execute(
-            "INSERT OR IGNORE INTO dat_revocations (jti, reason, revoked_by) VALUES (?, ?, ?)",
-            rusqlite::params![jti, reason, revoked_by],
-        )?;
-        Ok(rows > 0)
-    }
-
-    /// Return true if the given JTI has been revoked.
-    #[allow(dead_code)]
-    pub fn is_revoked(&self, jti: &str) -> Result<bool> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM dat_revocations WHERE jti = ?",
-            [jti],
-            |row| row.get(0),
-        )?;
-        Ok(count > 0)
+        Ok(Self { pool })
     }
 
     /// Open an in-memory database for testing.
-    #[cfg(test)]
+    ///
+    /// Uses max_size(1) to ensure all connections share the same in-memory DB.
     pub fn new_in_memory() -> Result<Self> {
-        let conn = Connection::open_in_memory()?;
+        let manager = SqliteConnectionManager::memory();
+        let pool = Pool::builder().max_size(1).build(manager)?;
+
+        let conn = pool.get()?;
         conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS aids (
@@ -153,12 +86,96 @@ impl AidStore {
             );
             ",
         )?;
-        Ok(Self { conn })
+
+        Ok(Self { pool })
+    }
+
+    // ── AID operations ───────────────────────────────────────────────────────
+
+    /// Store or update an AID document. Returns true if this is a new entry.
+    pub fn put(&self, did: &str, doc: &AidDocument) -> Result<bool> {
+        let conn = self.pool.get()?;
+        let json = serde_json::to_string(doc)?;
+
+        let existing =
+            conn.query_row("SELECT COUNT(*) FROM aids WHERE did = ?", [did], |row| {
+                row.get::<_, i64>(0)
+            })?;
+
+        if existing > 0 {
+            conn.execute(
+                "UPDATE aids SET document = ?, updated_at = datetime('now'), active = 1 WHERE did = ?",
+                rusqlite::params![json, did],
+            )?;
+            Ok(false)
+        } else {
+            conn.execute(
+                "INSERT INTO aids (did, document) VALUES (?, ?)",
+                rusqlite::params![did, json],
+            )?;
+            Ok(true)
+        }
+    }
+
+    /// Retrieve an AID document by DID (active only).
+    pub fn get(&self, did: &str) -> Result<Option<AidDocument>> {
+        let conn = self.pool.get()?;
+        let result = conn.query_row(
+            "SELECT document FROM aids WHERE did = ? AND active = 1",
+            [did],
+            |row| row.get::<_, String>(0),
+        );
+
+        match result {
+            Ok(json) => {
+                let doc: AidDocument = serde_json::from_str(&json)?;
+                Ok(Some(doc))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Deactivate an AID. Returns true if found and deactivated.
+    pub fn delete(&self, did: &str) -> Result<bool> {
+        let conn = self.pool.get()?;
+        let rows = conn.execute(
+            "UPDATE aids SET active = 0, updated_at = datetime('now') WHERE did = ? AND active = 1",
+            [did],
+        )?;
+        Ok(rows > 0)
+    }
+
+    // ── DAT revocation operations ────────────────────────────────────────────
+
+    /// Record a DAT revocation by JTI.
+    ///
+    /// Idempotent — revoking an already-revoked JTI is a no-op (returns false).
+    pub fn revoke(&self, jti: &str, reason: &str, revoked_by: &str) -> Result<bool> {
+        let conn = self.pool.get()?;
+        let rows = conn.execute(
+            "INSERT OR IGNORE INTO dat_revocations (jti, reason, revoked_by) VALUES (?, ?, ?)",
+            rusqlite::params![jti, reason, revoked_by],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Return true if the given JTI has been revoked.
+    #[allow(dead_code)]
+    pub fn is_revoked(&self, jti: &str) -> Result<bool> {
+        let conn = self.pool.get()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dat_revocations WHERE jti = ?",
+            [jti],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
     }
 
     /// Return all active AIDs (did + created_at + updated_at).
     pub fn list_active(&self) -> Result<Vec<AidListEntry>> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
             "SELECT did, created_at, updated_at FROM aids WHERE active = 1 ORDER BY created_at DESC",
         )?;
         let entries = stmt
@@ -175,7 +192,8 @@ impl AidStore {
 
     /// Return the revocation record for a JTI, if one exists.
     pub fn get_revocation(&self, jti: &str) -> Result<Option<RevocationRecord>> {
-        let result = self.conn.query_row(
+        let conn = self.pool.get()?;
+        let result = conn.query_row(
             "SELECT jti, reason, revoked_by, revoked_at FROM dat_revocations WHERE jti = ?",
             [jti],
             |row| {
