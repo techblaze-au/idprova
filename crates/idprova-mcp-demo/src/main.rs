@@ -1,12 +1,49 @@
-//! IDProva MCP Demo Server
+//! # IDProva MCP Demo Server
 //!
-//! JSON-RPC 2.0 over HTTP with DAT bearer token authentication.
-//! Every tool call is BLAKE3-chained into receipts.jsonl.
+//! A standalone MCP (Model Context Protocol) server secured by IDProva DAT
+//! (Delegation Attestation Token) bearer authentication. Every tool call is
+//! BLAKE3-chained into an append-only receipt log for tamper-evident auditing.
 //!
-//! Endpoints:
-//!   POST /        — JSON-RPC tool calls (requires Authorization: Bearer <DAT>)
-//!   GET /receipts — last 100 receipt entries
-//!   GET /health   — health check
+//! ## Architecture
+//!
+//! ```text
+//!   AI Agent ──Bearer DAT──▶ MCP Server ──verify──▶ IDProva Registry
+//!                               │
+//!                               ▼
+//!                         receipts.jsonl  (BLAKE3-chained)
+//! ```
+//!
+//! ## Endpoints
+//!
+//! | Method | Path       | Description                                      |
+//! |--------|------------|--------------------------------------------------|
+//! | POST   | `/`        | JSON-RPC 2.0 tool calls (requires `Authorization: Bearer <DAT>`) |
+//! | GET    | `/receipts`| Last 100 receipt entries                         |
+//! | GET    | `/health`  | Health check                                     |
+//!
+//! ## Scope Grammar
+//!
+//! Tool scopes follow the IDProva 4-part format: `mcp:tool:<name>:call`
+//!
+//! ## Quick Start
+//!
+//! ```bash
+//! # 1. Start the IDProva registry (port 3000)
+//! REGISTRY_PORT=3000 idprova-registry
+//!
+//! # 2. Start this MCP server (port 3001)
+//! REGISTRY_URL=http://localhost:3000 MCP_PORT=3001 idprova-mcp-demo
+//!
+//! # 3. Issue a DAT with tool scopes
+//! idprova dat issue --subject did:idprova:demo:agent \
+//!   --scope "mcp:tool:echo:call,mcp:tool:calculate:call" --expires-in 1h
+//!
+//! # 4. Call a tool
+//! curl -X POST http://localhost:3001/ \
+//!   -H "Authorization: Bearer <DAT>" \
+//!   -H "Content-Type: application/json" \
+//!   -d '{"jsonrpc":"2.0","id":1,"method":"echo","params":{"message":"hello"}}'
+//! ```
 
 use anyhow::Result;
 use axum::{
@@ -93,10 +130,6 @@ pub struct ReceiptEntry {
 fn blake3_hex(data: &str) -> String {
     let hash = blake3::hash(data.as_bytes());
     hash.to_hex().to_string()
-}
-
-fn bytes_to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 pub struct ReceiptLog {
@@ -216,8 +249,58 @@ struct AppState {
     public_dir: PathBuf,
 }
 
+// ── Tool catalogue (for tools/list discovery) ────────────────────────────────
+
+/// Returns the MCP tool catalogue so clients can discover available tools
+/// without prior knowledge. Called via JSON-RPC method `tools/list`.
+fn tool_catalogue() -> Value {
+    json!({
+        "tools": [
+            {
+                "name": "echo",
+                "description": "Echoes a message with IDProva DAT verification stamp",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "message": { "type": "string", "description": "Message to echo" }
+                    },
+                    "required": ["message"]
+                }
+            },
+            {
+                "name": "calculate",
+                "description": "Evaluates a math expression (max 200 chars). Supported: +, -, *, /, parentheses.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "expression": { "type": "string", "description": "Math expression to evaluate, e.g. '2+2*10'" }
+                    },
+                    "required": ["expression"]
+                }
+            },
+            {
+                "name": "read_file",
+                "description": "Reads a file from the server's public/ directory (max 100 KB). Path traversal is rejected.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filename": { "type": "string", "description": "Filename relative to public/, e.g. 'readme.txt'" }
+                    },
+                    "required": ["filename"]
+                }
+            }
+        ]
+    })
+}
+
 // ── Tool handlers ─────────────────────────────────────────────────────────────
 
+/// Echo tool: returns the input message with an IDProva verification stamp.
+///
+/// # Example (JSON-RPC request)
+/// ```json
+/// {"jsonrpc":"2.0","id":1,"method":"echo","params":{"message":"hello"}}
+/// ```
 pub fn handle_echo(params: &Value) -> Result<Value, String> {
     let msg = params
         .get("message")
@@ -229,6 +312,12 @@ pub fn handle_echo(params: &Value) -> Result<Value, String> {
     }))
 }
 
+/// Calculate tool: evaluates a safe math expression and returns the result.
+///
+/// # Example (JSON-RPC request)
+/// ```json
+/// {"jsonrpc":"2.0","id":1,"method":"calculate","params":{"expression":"2+2*10"}}
+/// ```
 pub fn handle_calculate(params: &Value) -> Result<Value, String> {
     let expr = params
         .get("expression")
@@ -249,6 +338,17 @@ pub fn handle_calculate(params: &Value) -> Result<Value, String> {
     }))
 }
 
+/// Read file tool: serves files from the public/ directory with path-traversal protection.
+///
+/// # Security
+/// - Rejects `..`, backslashes, and absolute paths
+/// - Canonicalizes paths to catch symlink escapes
+/// - Enforces a 100 KB size limit
+///
+/// # Example (JSON-RPC request)
+/// ```json
+/// {"jsonrpc":"2.0","id":1,"method":"read_file","params":{"filename":"readme.txt"}}
+/// ```
 pub fn handle_read_public_file(
     params: &Value,
     public_dir: &std::path::Path,
@@ -323,6 +423,11 @@ async fn handle_rpc(
             .into_response();
     }
 
+    // tools/list is unauthenticated — clients need to discover tools before auth
+    if req.method == "tools/list" {
+        return Json(McpResponse::ok(id, tool_catalogue())).into_response();
+    }
+
     // Extract Bearer token
     let token = match headers
         .get("authorization")
@@ -345,8 +450,8 @@ async fn handle_rpc(
         }
     };
 
-    // Determine required scope from method name (3-part grammar)
-    let scope = format!("mcp:tool:{}", req.method);
+    // Determine required scope from method name (4-part grammar: mcp:tool:<name>:call)
+    let scope = format!("mcp:tool:{}:call", req.method);
 
     // Verify DAT via registry
     let verified = match verify_with_registry(&state.registry_url, &token, &scope).await {
@@ -416,7 +521,7 @@ async fn handle_rpc(
 
     // Write receipt with BLAKE3 chain
     let request_bytes = serde_json::to_vec(&req.params).unwrap_or_default();
-    let request_hash = bytes_to_hex(blake3::hash(&request_bytes).as_bytes());
+    let request_hash = blake3::hash(&request_bytes).to_hex().to_string();
 
     let prev_hash = state.receipts.lock().unwrap().last_hash();
 
@@ -528,7 +633,7 @@ mod tests {
             timestamp: "2026-01-01T00:00:00Z".into(),
             tool: "echo".into(),
             subject_did: "did:idprova:test:agent".into(),
-            scope: "mcp:tool:echo".into(),
+            scope: "mcp:tool:echo:call".into(),
             request_hash: "abc".into(),
             prev_receipt_hash: "genesis".into(),
         };
@@ -543,7 +648,7 @@ mod tests {
             timestamp: "2026-01-01T00:00:01Z".into(),
             tool: "echo".into(),
             subject_did: "did:idprova:test:agent".into(),
-            scope: "mcp:tool:echo".into(),
+            scope: "mcp:tool:echo:call".into(),
             request_hash: "def".into(),
             prev_receipt_hash: expected.clone(),
         };
@@ -562,7 +667,7 @@ mod tests {
                 timestamp: "t".into(),
                 tool: "echo".into(),
                 subject_did: "did:test".into(),
-                scope: "mcp:tool:echo".into(),
+                scope: "mcp:tool:echo:call".into(),
                 request_hash: "h".into(),
                 prev_receipt_hash: "genesis".into(),
             })
@@ -680,13 +785,38 @@ mod tests {
     // ── Scope format test ─────────────────────────────────────────────────────
 
     #[test]
-    fn test_scope_format() {
+    fn test_scope_format_4_part() {
         for method in ["echo", "calculate", "read_file"] {
-            let scope = format!("mcp:tool:{method}");
+            let scope = format!("mcp:tool:{method}:call");
             let parts: Vec<&str> = scope.split(':').collect();
-            assert_eq!(parts.len(), 3, "scope must be 3-part for method {method}");
+            assert_eq!(parts.len(), 4, "scope must be 4-part for method {method}");
             assert_eq!(parts[0], "mcp");
             assert_eq!(parts[1], "tool");
+            assert_eq!(parts[2], method);
+            assert_eq!(parts[3], "call");
+        }
+    }
+
+    // ── tools/list discovery test ────────────────────────────────────────────
+
+    #[test]
+    fn test_tool_catalogue_structure() {
+        let catalogue = tool_catalogue();
+        let tools = catalogue["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 3, "expected 3 tools in catalogue");
+
+        let names: Vec<&str> = tools
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"echo"));
+        assert!(names.contains(&"calculate"));
+        assert!(names.contains(&"read_file"));
+
+        // Every tool must have inputSchema
+        for tool in tools {
+            assert!(tool.get("inputSchema").is_some(), "tool {} missing inputSchema", tool["name"]);
+            assert!(tool.get("description").is_some(), "tool {} missing description", tool["name"]);
         }
     }
 }
