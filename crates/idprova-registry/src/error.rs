@@ -47,14 +47,6 @@ impl ApiError {
             Json(Self::new("INTERNAL_ERROR", error)),
         )
     }
-
-    #[allow(dead_code)]
-    pub fn too_many_requests(error: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(Self::new("RATE_LIMITED", error)),
-        )
-    }
 }
 
 impl IntoResponse for ApiError {
