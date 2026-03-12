@@ -9,14 +9,31 @@ description = "IDProva SDK — AI agent identity, delegation, and audit"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
+authors = [
+    { name = "Pratyush Sood", email = "hello@techblaze.com.au" },
+]
+keywords = ["identity", "ai-agent", "cryptography", "delegation", "audit"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries",
 ]
+
+[project.urls]
+Homepage = "https://idprova.dev"
+Repository = "https://github.com/techblaze-au/idprova"
+Documentation = "https://idprova.dev/docs"
+"Bug Tracker" = "https://github.com/techblaze-au/idprova/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
