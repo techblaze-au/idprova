@@ -63,7 +63,7 @@ export function AidPanel({ registryUrl }: { registryUrl: string }) {
     setRegisterLoading(true);
     try {
       const client = new RegistryClient(registryUrl);
-      const id = doc.id.replace('did:idprova:', '');
+      const id = doc.id.replace('did:aid:', '');
       const res = await client.registerAid(id, doc);
       setRegisterResult(JSON.stringify(res, null, 2));
     } catch (e) {
@@ -105,9 +105,9 @@ export function AidPanel({ registryUrl }: { registryUrl: string }) {
       {subTab === 'create' && (
         <div className="card space-y-4">
           <h3 className="text-lg font-medium">Create AID Document</h3>
-          <input value={did} onChange={e => setDid(e.target.value)} placeholder="did:idprova:example.com:agent-name" className="w-full" />
+          <input value={did} onChange={e => setDid(e.target.value)} placeholder="did:aid:example.com:agent-name" className="w-full" />
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Agent Name" className="w-full" />
-          <input value={controllerDid} onChange={e => setControllerDid(e.target.value)} placeholder="Controller DID (e.g. did:idprova:example.com:alice)" className="w-full" />
+          <input value={controllerDid} onChange={e => setControllerDid(e.target.value)} placeholder="Controller DID (e.g. did:aid:example.com:alice)" className="w-full" />
           <div className="grid grid-cols-2 gap-4">
             <input value={model} onChange={e => setModel(e.target.value)} placeholder="Model (optional)" />
             <input value={runtime} onChange={e => setRuntime(e.target.value)} placeholder="Runtime (optional)" />

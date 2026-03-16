@@ -10,7 +10,7 @@
 //   console.log(identity.did);
 //
 //   const dat = identity.issueDat(
-//     "did:idprova:example.com:sub-agent",
+//     "did:aid:example.com:sub-agent",
 //     ["mcp:tool:read"],
 //     3600,
 //   );

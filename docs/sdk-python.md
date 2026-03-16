@@ -30,7 +30,7 @@ from idprova import AgentIdentity
 
 # 1. Create an identity
 identity = AgentIdentity.create("my-agent", domain="example.com")
-print(identity.did)  # did:idprova:example.com:my-agent
+print(identity.did)  # did:aid:example.com:my-agent
 
 # 2. Get the AID document
 aid = identity.aid()
@@ -38,12 +38,12 @@ print(aid.trust_level)  # L0
 
 # 3. Issue a DAT to another agent
 dat = identity.issue_dat(
-    subject_did="did:idprova:example.com:worker",
+    subject_did="did:aid:example.com:worker",
     scope=["mcp:mcp:tool:read", "mcp:mcp:tool:write"],
     expires_in_seconds=3600,
 )
-print(dat.issuer)   # did:idprova:example.com:my-agent
-print(dat.subject)  # did:idprova:example.com:worker
+print(dat.issuer)   # did:aid:example.com:my-agent
+print(dat.subject)  # did:aid:example.com:worker
 print(dat.scope)    # ['mcp:mcp:tool:read', 'mcp:mcp:tool:write']
 
 # 4. Serialize DAT for transport
@@ -90,8 +90,8 @@ from idprova import KeyPair, AIDBuilder, AID
 kp = KeyPair.generate()
 
 builder = AIDBuilder()
-builder.id("did:idprova:example.com:my-agent")
-builder.controller("did:idprova:example.com:alice")
+builder.id("did:aid:example.com:my-agent")
+builder.controller("did:aid:example.com:alice")
 builder.name("My Agent")
 builder.description("Reads and summarises documents")
 builder.model("gpt-4o")
@@ -120,8 +120,8 @@ from idprova import KeyPair, DAT
 issuer_kp = KeyPair.generate()
 
 dat = DAT.issue(
-    issuer_did="did:idprova:example.com:alice",
-    subject_did="did:idprova:example.com:agent",
+    issuer_did="did:aid:example.com:alice",
+    subject_did="did:aid:example.com:agent",
     scope=["mcp:mcp:tool:read"],
     expires_in_seconds=3600,
     signing_key=issuer_kp,
@@ -130,8 +130,8 @@ dat = DAT.issue(
 )
 
 print(dat.jti)        # dat_<uuid>
-print(dat.issuer)     # did:idprova:example.com:alice
-print(dat.subject)    # did:idprova:example.com:agent
+print(dat.issuer)     # did:aid:example.com:alice
+print(dat.subject)    # did:aid:example.com:agent
 print(dat.expires_at) # Unix timestamp
 print(dat.is_expired) # False
 
@@ -156,7 +156,7 @@ if not dat.verify_signature(issuer_pubkey_bytes):
 
 # Inspect claims
 print(dat.scope)   # ['mcp:mcp:tool:read']
-print(dat.issuer)  # did:idprova:...
+print(dat.issuer)  # did:aid:...
 ```
 
 ## Scopes
@@ -253,7 +253,7 @@ All IDProva errors are standard Python exceptions:
 from idprova import DAT, KeyPair
 
 kp = KeyPair.generate()
-dat = DAT.issue("did:idprova:a:b", "did:idprova:a:c", ["mcp:*:*:*"], -1, kp)
+dat = DAT.issue("did:aid:a:b", "did:aid:a:c", ["mcp:*:*:*"], -1, kp)
 
 try:
     dat.validate_timing()

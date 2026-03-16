@@ -87,9 +87,9 @@ idprova keygen --output ~/.idprova/operator.key
 
 ```bash
 idprova aid create \
-  --id "did:idprova:yourorg.com:operator" \
+  --id "did:aid:yourorg.com:operator" \
   --name "Org Operator" \
-  --controller "did:idprova:yourorg.com:operator" \
+  --controller "did:aid:yourorg.com:operator" \
   --key ~/.idprova/operator.key \
   > ~/.idprova/operator-aid.json
 ```
@@ -142,9 +142,9 @@ idprova keygen --output agent-alpha.key
 
 # 2. Create AID (operator is the controller)
 idprova aid create \
-  --id "did:idprova:yourorg.com:agent-alpha" \
+  --id "did:aid:yourorg.com:agent-alpha" \
   --name "Agent Alpha (Code Review)" \
-  --controller "did:idprova:yourorg.com:operator" \
+  --controller "did:aid:yourorg.com:operator" \
   --model "claude-sonnet-4-6" \
   --runtime "langchain/0.3" \
   --key agent-alpha.key \
@@ -165,7 +165,7 @@ from idprova import AgentIdentity
 agent = AgentIdentity.create(
     name="agent-alpha",
     domain="yourorg.com",
-    controller="did:idprova:yourorg.com:operator"
+    controller="did:aid:yourorg.com:operator"
 )
 
 # Persist identity to ~/.idprova/identities/agent-alpha/
@@ -173,7 +173,7 @@ agent.save()
 
 # Later: reload
 agent = AgentIdentity.load("~/.idprova/identities/agent-alpha")
-print(agent.did)  # did:idprova:yourorg.com:agent-alpha
+print(agent.did)  # did:aid:yourorg.com:agent-alpha
 ```
 
 ### TypeScript SDK
@@ -184,14 +184,14 @@ import { AgentIdentity } from '@idprova/core';
 const agent = AgentIdentity.create(
   'agent-alpha',
   'yourorg.com',
-  'did:idprova:yourorg.com:operator'
+  'did:aid:yourorg.com:operator'
 );
 
 agent.save();  // ~/.idprova/identities/agent-alpha/
 
 // Reload
 const loaded = AgentIdentity.load('~/.idprova/identities/agent-alpha');
-console.log(loaded.did);  // did:idprova:yourorg.com:agent-alpha
+console.log(loaded.did);  // did:aid:yourorg.com:agent-alpha
 ```
 
 ---
@@ -211,8 +211,8 @@ Operator → Agent
 
 ```bash
 idprova dat issue \
-  --issuer "did:idprova:yourorg.com:operator" \
-  --subject "did:idprova:yourorg.com:agent-alpha" \
+  --issuer "did:aid:yourorg.com:operator" \
+  --subject "did:aid:yourorg.com:agent-alpha" \
   --scope "mcp:tool:*,mcp:resource:*:read" \
   --expires-in "8h" \
   --key ~/.idprova/operator.key
@@ -228,16 +228,16 @@ Operator → Team Lead Agent → Worker Agents
 ```bash
 # Operator → team-lead (broad)
 idprova dat issue \
-  --issuer "did:idprova:yourorg.com:operator" \
-  --subject "did:idprova:yourorg.com:team-lead" \
+  --issuer "did:aid:yourorg.com:operator" \
+  --subject "did:aid:yourorg.com:team-lead" \
   --scope "mcp:tool:*,a2a:agent:*:execute" \
   --expires-in "24h" \
   --key ~/.idprova/operator.key
 
 # Team-lead → worker (narrowed — can only grant what it holds)
 idprova dat issue \
-  --issuer "did:idprova:yourorg.com:team-lead" \
-  --subject "did:idprova:yourorg.com:worker-1" \
+  --issuer "did:aid:yourorg.com:team-lead" \
+  --subject "did:aid:yourorg.com:worker-1" \
   --scope "mcp:tool:read" \
   --expires-in "1h" \
   --key team-lead.key
@@ -271,7 +271,7 @@ from idprova import AgentIdentity
 
 operator = AgentIdentity.load("~/.idprova/identities/operator")
 dat = operator.issue_dat(
-    subject_did="did:idprova:yourorg.com:agent-alpha",
+    subject_did="did:aid:yourorg.com:agent-alpha",
     scope=["mcp:tool:read", "mcp:resource:data:read"],
     expires_in_seconds=3600  # 1 hour
 )
@@ -286,7 +286,7 @@ import { AgentIdentity } from '@idprova/core';
 
 const operator = AgentIdentity.load('~/.idprova/identities/operator');
 const dat = operator.issueDat(
-  'did:idprova:yourorg.com:agent-alpha',
+  'did:aid:yourorg.com:agent-alpha',
   ['mcp:tool:read', 'mcp:resource:data:read'],
   3600  // 1 hour
 );
@@ -361,7 +361,7 @@ curl -X POST http://localhost:3000/v1/dat/verify \
     "request_ip": "203.0.113.42",
     "trust_level": 80
   }'
-# Response: {"valid":true,"issuer":"did:idprova:...","subject":"did:idprova:...","scopes":["mcp:tool:read"]}
+# Response: {"valid":true,"issuer":"did:aid:...","subject":"did:aid:...","scopes":["mcp:tool:read"]}
 ```
 
 ### Revocation
@@ -370,7 +370,7 @@ curl -X POST http://localhost:3000/v1/dat/verify \
 # Revoke by JTI
 curl -X POST http://localhost:3000/v1/dat/revoke \
   -H "Content-Type: application/json" \
-  -d '{"jti":"<token-jti>","reason":"compromised","revoked_by":"did:idprova:yourorg.com:operator"}'
+  -d '{"jti":"<token-jti>","reason":"compromised","revoked_by":"did:aid:yourorg.com:operator"}'
 
 # Check revocation status
 curl http://localhost:3000/v1/dat/revoked/<jti>
@@ -385,9 +385,9 @@ idprova keygen --output agent-alpha-v2.key
 
 # 2. Update AID document with new key
 idprova aid create \
-  --id "did:idprova:yourorg.com:agent-alpha" \
+  --id "did:aid:yourorg.com:agent-alpha" \
   --name "Agent Alpha (Code Review)" \
-  --controller "did:idprova:yourorg.com:operator" \
+  --controller "did:aid:yourorg.com:operator" \
   --key agent-alpha-v2.key \
   > agent-alpha-aid-v2.json
 

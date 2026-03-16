@@ -288,8 +288,8 @@ mod tests {
         let expires = Utc::now() + Duration::hours(24);
 
         let dat = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             expires,
             None,
@@ -298,8 +298,8 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(dat.claims.iss, "did:idprova:example.com:alice");
-        assert_eq!(dat.claims.sub, "did:idprova:example.com:agent");
+        assert_eq!(dat.claims.iss, "did:aid:example.com:alice");
+        assert_eq!(dat.claims.sub, "did:aid:example.com:agent");
         assert!(dat.claims.jti.starts_with("dat_"));
 
         // Verify signature
@@ -313,8 +313,8 @@ mod tests {
         let expires = Utc::now() + Duration::hours(24);
 
         let dat = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:*:*:*".to_string()],
             expires,
             Some(DatConstraints {
@@ -346,8 +346,8 @@ mod tests {
         let expires = Utc::now() + Duration::hours(24);
 
         let dat = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             expires,
             None,
@@ -366,8 +366,8 @@ mod tests {
 
         // Expired DAT
         let expired = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() - Duration::hours(1),
             None,
@@ -380,8 +380,8 @@ mod tests {
 
         // Valid DAT
         let valid = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() + Duration::hours(24),
             None,
@@ -397,8 +397,8 @@ mod tests {
 
     fn issue_valid(kp: &KeyPair, scope: &str, constraints: Option<DatConstraints>) -> Dat {
         Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec![scope.to_string()],
             Utc::now() + Duration::hours(24),
             constraints,
@@ -433,8 +433,8 @@ mod tests {
     fn test_verify_expired_token() {
         let kp = test_keypair();
         let dat = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() - Duration::hours(1),
             None,
@@ -544,8 +544,8 @@ mod tests {
         let hash = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899".to_string();
         let kp = test_keypair();
         let dat = Dat::issue(
-            "did:idprova:example.com:alice",
-            "did:idprova:example.com:agent",
+            "did:aid:example.com:alice",
+            "did:aid:example.com:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() + Duration::hours(24),
             Some(DatConstraints {

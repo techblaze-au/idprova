@@ -81,8 +81,8 @@ export function RevocationPanel({ registryUrl }: { registryUrl: string }) {
 
       log('Step 2: Issuing DAT...');
       const token = issueDat({
-        issuerDid: 'did:idprova:demo.example:issuer',
-        subjectDid: 'did:idprova:demo.example:agent',
+        issuerDid: 'did:aid:demo.example:issuer',
+        subjectDid: 'did:aid:demo.example:agent',
         scopes: ['mcp:tool:*:read'],
         expiresInSeconds: 3600,
         privateKey: fromHex(key.privateKeyHex),

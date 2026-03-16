@@ -15,11 +15,11 @@ from idprova import AgentIdentity
 
 # Create an agent identity
 identity = AgentIdentity.create("my-agent", domain="example.com")
-print(identity.did)  # did:idprova:example.com:my-agent
+print(identity.did)  # did:aid:example.com:my-agent
 
 # Issue a delegation token
 dat = identity.issue_dat(
-    "did:idprova:example.com:sub-agent",
+    "did:aid:example.com:sub-agent",
     ["mcp:tool:read"],
     expires_in_seconds=3600,
 )

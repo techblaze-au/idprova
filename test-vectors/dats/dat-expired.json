@@ -1,7 +1,7 @@
 {
   "description": "Expired DAT — negative test vector. validate_timing() must fail.",
-  "issuer": "did:idprova:example.com:controller",
-  "subject": "did:idprova:example.com:test-agent",
+  "issuer": "did:aid:example.com:controller",
+  "subject": "did:aid:example.com:test-agent",
   "scope": [
     "mcp:tool:read"
   ],

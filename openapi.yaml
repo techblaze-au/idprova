@@ -73,7 +73,7 @@ paths:
                 properties:
                   protocolVersion: { type: string, example: "0.1" }
                   registryVersion: { type: string, example: "0.1.0" }
-                  didMethod: { type: string, example: "did:idprova" }
+                  didMethod: { type: string, example: "did:aid" }
                   supportedAlgorithms:
                     type: array
                     items: { type: string }
@@ -88,7 +88,7 @@ paths:
       - name: id
         in: path
         required: true
-        description: "DID suffix after `did:idprova:` (e.g. `example.com:my-agent`)"
+        description: "DID suffix after `did:aid:` (e.g. `example.com:my-agent`)"
         schema: { type: string }
 
     put:
@@ -311,7 +311,7 @@ components:
       properties:
         id:
           type: string
-          description: "DID identifier (e.g. `did:idprova:example.com:my-agent`)"
+          description: "DID identifier (e.g. `did:aid:example.com:my-agent`)"
         controller:
           type: string
           description: "DID of the controlling entity"

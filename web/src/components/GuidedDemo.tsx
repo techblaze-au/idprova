@@ -66,20 +66,20 @@ export function GuidedDemo({ registryUrl, onTabChange }: Props) {
       updateStep(1, { status: 'running' });
       onTabChange('aid');
       const aid1 = buildAidDocument({
-        did: 'did:idprova:demo.example:issuer',
-        controllerDid: 'did:idprova:demo.example:root',
+        did: 'did:aid:demo.example:issuer',
+        controllerDid: 'did:aid:demo.example:root',
         name: 'Demo Issuer',
         publicKey: fromHex(key1.publicKeyHex),
       });
       const aid2 = buildAidDocument({
-        did: 'did:idprova:demo.example:agent',
-        controllerDid: 'did:idprova:demo.example:issuer',
+        did: 'did:aid:demo.example:agent',
+        controllerDid: 'did:aid:demo.example:issuer',
         name: 'Demo Agent',
         publicKey: fromHex(key2.publicKeyHex),
       });
       const aid3 = buildAidDocument({
-        did: 'did:idprova:demo.example:verifier',
-        controllerDid: 'did:idprova:demo.example:root',
+        did: 'did:aid:demo.example:verifier',
+        controllerDid: 'did:aid:demo.example:root',
         name: 'Demo Verifier',
         publicKey: fromHex(key3.publicKeyHex),
       });
@@ -96,8 +96,8 @@ export function GuidedDemo({ registryUrl, onTabChange }: Props) {
       updateStep(3, { status: 'running' });
       onTabChange('dat');
       const token = issueDat({
-        issuerDid: 'did:idprova:demo.example:issuer',
-        subjectDid: 'did:idprova:demo.example:agent',
+        issuerDid: 'did:aid:demo.example:issuer',
+        subjectDid: 'did:aid:demo.example:agent',
         scopes: ['mcp:tool:*:read', 'mcp:resource:data:read'],
         expiresInSeconds: 3600,
         privateKey: fromHex(key1.privateKeyHex),

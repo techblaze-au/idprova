@@ -48,9 +48,9 @@ An AID is a W3C DID document that describes your agent — its DID, public key, 
 
 ```bash
 idprova aid create \
-  --id "did:idprova:example.com:my-agent" \
+  --id "did:aid:example.com:my-agent" \
   --name "My Agent" \
-  --controller "did:idprova:example.com:operator" \
+  --controller "did:aid:example.com:operator" \
   --key ~/.idprova/keys/my-agent.key
 ```
 
@@ -58,9 +58,9 @@ Optional fields:
 
 ```bash
 idprova aid create \
-  --id "did:idprova:example.com:my-agent" \
+  --id "did:aid:example.com:my-agent" \
   --name "My Agent" \
-  --controller "did:idprova:example.com:operator" \
+  --controller "did:aid:example.com:operator" \
   --model "gpt-4o" \
   --runtime "langchain-0.3" \
   --key ~/.idprova/keys/my-agent.key
@@ -72,13 +72,13 @@ Example AID document:
 
 ```json
 {
-  "id": "did:idprova:example.com:my-agent",
-  "controller": "did:idprova:example.com:operator",
+  "id": "did:aid:example.com:my-agent",
+  "controller": "did:aid:example.com:operator",
   "verificationMethod": [
     {
-      "id": "did:idprova:example.com:my-agent#key-ed25519",
+      "id": "did:aid:example.com:my-agent#key-ed25519",
       "type": "Ed25519VerificationKey2020",
-      "controller": "did:idprova:example.com:my-agent",
+      "controller": "did:aid:example.com:my-agent",
       "publicKeyMultibase": "z6Mk..."
     }
   ],
@@ -134,7 +134,7 @@ Push your AID document to the registry:
 curl -X PUT http://localhost:3000/v1/aid/example.com:my-agent \
   -H "Content-Type: application/json" \
   -d @did_idprova_example.com_my-agent.json
-# {"id":"did:idprova:example.com:my-agent","status":"created"}
+# {"id":"did:aid:example.com:my-agent","status":"created"}
 ```
 
 > In production mode, add `-H "Authorization: Bearer <admin-dat>"`.
@@ -148,7 +148,7 @@ curl http://localhost:3000/v1/aid/example.com:my-agent
 Or via CLI:
 
 ```bash
-idprova aid resolve did:idprova:example.com:my-agent \
+idprova aid resolve did:aid:example.com:my-agent \
   --registry http://localhost:3000
 ```
 
@@ -162,8 +162,8 @@ idprova keygen --output ~/.idprova/keys/operator.key
 
 # Issue a DAT from operator to my-agent, granting filesystem read for 24h
 idprova dat issue \
-  --issuer "did:idprova:example.com:operator" \
-  --subject "did:idprova:example.com:my-agent" \
+  --issuer "did:aid:example.com:operator" \
+  --subject "did:aid:example.com:my-agent" \
   --scope "mcp:tool:filesystem:read" \
   --expires-in 24h \
   --key ~/.idprova/keys/operator.key
@@ -198,8 +198,8 @@ Output:
 ```
 IDProva DAT Verification
 ────────────────────────────────────────
-Issuer:  did:idprova:example.com:operator
-Subject: did:idprova:example.com:my-agent
+Issuer:  did:aid:example.com:operator
+Subject: did:aid:example.com:my-agent
 JTI:     <uuid>
 Scopes:  mcp:tool:filesystem:read
 Expires: in 86399s
@@ -264,8 +264,8 @@ Response:
 ```json
 {
   "valid": true,
-  "issuer": "did:idprova:example.com:operator",
-  "subject": "did:idprova:example.com:my-agent",
+  "issuer": "did:aid:example.com:operator",
+  "subject": "did:aid:example.com:my-agent",
   "scopes": ["mcp:tool:filesystem:read"],
   "jti": "<uuid>"
 }
@@ -279,12 +279,12 @@ idprova keygen --output operator.key
 idprova keygen --output agent.key
 
 # 2. Create AIDs
-idprova aid create --id "did:idprova:example.com:operator" \
-  --name "Operator" --controller "did:idprova:example.com:operator" \
+idprova aid create --id "did:aid:example.com:operator" \
+  --name "Operator" --controller "did:aid:example.com:operator" \
   --key operator.key
 
-idprova aid create --id "did:idprova:example.com:agent" \
-  --name "Worker Agent" --controller "did:idprova:example.com:operator" \
+idprova aid create --id "did:aid:example.com:agent" \
+  --name "Worker Agent" --controller "did:aid:example.com:operator" \
   --key agent.key
 
 # 3. Start registry
@@ -301,8 +301,8 @@ curl -sX PUT http://localhost:3000/v1/aid/example.com:agent \
 
 # 5. Issue DAT
 TOKEN=$(idprova dat issue \
-  --issuer "did:idprova:example.com:operator" \
-  --subject "did:idprova:example.com:agent" \
+  --issuer "did:aid:example.com:operator" \
+  --subject "did:aid:example.com:agent" \
   --scope "mcp:tool:search:execute" \
   --expires-in 1h \
   --key operator.key)

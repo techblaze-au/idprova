@@ -63,14 +63,14 @@ export function buildAidDocument(opts: BuildAidOptions): AidDocument {
 export function validateAidDocument(doc: AidDocument): string[] {
   const errors: string[] = [];
 
-  if (!doc.id || !doc.id.startsWith('did:idprova:')) {
-    errors.push('id must start with did:idprova:');
+  if (!doc.id || !doc.id.startsWith('did:aid:')) {
+    errors.push('id must start with did:aid:');
   }
 
-  // Validate DID format: did:idprova:{domain}:{name}
+  // Validate DID format: did:aid:{domain}:{name}
   const parts = doc.id.split(':');
   if (parts.length !== 4) {
-    errors.push('id must have format did:idprova:{domain}:{name}');
+    errors.push('id must have format did:aid:{domain}:{name}');
   } else {
     if (!parts[2].includes('.')) errors.push('domain must contain a dot');
     if (!/^[a-z0-9-]+$/.test(parts[3])) errors.push('local name must be lowercase alphanumeric with hyphens');

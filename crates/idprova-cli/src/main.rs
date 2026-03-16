@@ -44,7 +44,7 @@ enum Commands {
 enum AidCommands {
     /// Create a new Agent Identity Document.
     Create {
-        /// The DID identifier (e.g., "did:idprova:example.com:my-agent").
+        /// The DID identifier (e.g., "did:aid:example.com:my-agent").
         #[arg(long)]
         id: String,
         /// Human-readable agent name.

@@ -35,19 +35,19 @@ graph TB
 
 ---
 
-## The `did:idprova` DID Method
+## The `did:aid` DID Method
 
-Every agent in IDProva is identified by a **Decentralized Identifier (DID)** following the W3C DID Core specification. IDProva defines the `did:idprova:` method.
+Every agent in IDProva is identified by a **Decentralized Identifier (DID)** following the W3C DID Core specification. IDProva defines the `did:aid:` method.
 
 ### DID format
 
 ```
-did:idprova:<authority>:<agent-name>
+did:aid:<authority>:<agent-name>
 
 Examples:
-  did:idprova:example.com:kai-lead-agent
-  did:idprova:techblaze.com.au:registry-agent
-  did:idprova:localhost:dev-agent-01
+  did:aid:example.com:kai-lead-agent
+  did:aid:techblaze.com.au:registry-agent
+  did:aid:localhost:dev-agent-01
 ```
 
 - **Authority** — the domain or org ID of the namespace owner. For L1+ trust, this must be a domain the controller can prove via DNS TXT record.
@@ -88,12 +88,12 @@ stateDiagram-v2
     "https://www.w3.org/ns/did/v1",
     "https://idprova.dev/v1"
   ],
-  "id": "did:idprova:example.com:my-agent",
-  "controller": "did:idprova:example.com:alice",
+  "id": "did:aid:example.com:my-agent",
+  "controller": "did:aid:example.com:alice",
   "verificationMethod": [{
     "id": "#key-ed25519",
     "type": "Ed25519VerificationKey2020",
-    "controller": "did:idprova:example.com:my-agent",
+    "controller": "did:aid:example.com:my-agent",
     "publicKeyMultibase": "z6MkhaXgBZDvotDkL5..."
   }],
   "authentication": ["#key-ed25519"],
@@ -163,7 +163,7 @@ A DAT is a compact JWS string: `base64url(header).base64url(claims).base64url(si
 {
   "alg": "EdDSA",
   "typ": "idprova-dat+jwt",
-  "kid": "did:idprova:example.com:alice#key-ed25519"
+  "kid": "did:aid:example.com:alice#key-ed25519"
 }
 ```
 
@@ -171,8 +171,8 @@ A DAT is a compact JWS string: `base64url(header).base64url(claims).base64url(si
 
 ```json
 {
-  "iss": "did:idprova:example.com:alice",
-  "sub": "did:idprova:example.com:my-agent",
+  "iss": "did:aid:example.com:alice",
+  "sub": "did:aid:example.com:my-agent",
   "iat": 1741305600,
   "exp": 1741392000,
   "nbf": 1741305600,
@@ -303,7 +303,7 @@ Every significant action performed by an agent produces a signed **Action Receip
 {
   "id": "rcpt_01JP4X7...",
   "timestamp": "2026-03-07T12:34:56Z",
-  "agent": "did:idprova:example.com:my-agent",
+  "agent": "did:aid:example.com:my-agent",
   "dat": "dat_01JP4X7...",
   "action": {
     "type": "mcp:tool-call",

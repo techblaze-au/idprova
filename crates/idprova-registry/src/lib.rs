@@ -295,7 +295,7 @@ async fn meta() -> Json<Value> {
     Json(json!({
         "protocolVersion": "0.1",
         "registryVersion": env!("CARGO_PKG_VERSION"),
-        "didMethod": "did:idprova",
+        "didMethod": "did:aid",
         "supportedAlgorithms": ["EdDSA"],
         "supportedHashAlgorithms": ["blake3", "sha-256"]
     }))
@@ -324,7 +324,7 @@ async fn register_aid(
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
     require_write_auth(&state, &headers)?;
 
-    let did = format!("did:idprova:{id}");
+    let did = format!("did:aid:{id}");
 
     let doc: idprova_core::aid::AidDocument = serde_json::from_value(body).map_err(|e| {
         (
@@ -366,7 +366,7 @@ async fn resolve_aid(
     State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let did = format!("did:idprova:{id}");
+    let did = format!("did:aid:{id}");
 
     match state.store.get(&did) {
         Ok(Some(doc)) => Ok(Json(serde_json::to_value(doc).unwrap())),
@@ -387,7 +387,7 @@ async fn deactivate_aid(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     require_write_auth(&state, &headers)?;
-    let did = format!("did:idprova:{id}");
+    let did = format!("did:aid:{id}");
 
     match state.store.delete(&did) {
         Ok(true) => Ok(Json(json!({ "id": did, "status": "deactivated" }))),
@@ -406,7 +406,7 @@ async fn get_public_key(
     State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let did = format!("did:idprova:{id}");
+    let did = format!("did:aid:{id}");
 
     match state.store.get(&did) {
         Ok(Some(doc)) => {

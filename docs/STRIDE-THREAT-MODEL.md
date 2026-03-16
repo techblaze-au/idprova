@@ -62,7 +62,7 @@ IDprova is an open protocol for verifiable AI agent identity with three pillars:
 
 | Threat | Category | Description | Severity | Likelihood |
 |--------|----------|-------------|----------|------------|
-| AID-S1 | **Spoofing** | Attacker creates an AID for a domain they don't control (`did:idprova:target.com:evil-agent`) | **Critical** | Medium |
+| AID-S1 | **Spoofing** | Attacker creates an AID for a domain they don't control (`did:aid:target.com:evil-agent`) | **Critical** | Medium |
 | AID-S2 | **Spoofing** | DNS hijack → attacker serves malicious DID document for a legitimate domain | **Critical** | Low |
 | AID-T1 | **Tampering** | Registry compromise → modification of stored AID documents | **High** | Low |
 | AID-T2 | **Tampering** | Man-in-the-middle modifies AID during DID resolution (if TLS downgraded) | **High** | Low |

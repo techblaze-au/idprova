@@ -80,7 +80,7 @@ let raw: [u8; 32] = KeyPair::decode_multibase_pubkey("z...")?;
 
 ## `aid::AidBuilder` / `AidDocument`
 
-Agent Identity Documents follow the W3C DID specification under the `did:idprova` method.
+Agent Identity Documents follow the W3C DID specification under the `did:aid` method.
 
 ### Building an AID
 
@@ -91,8 +91,8 @@ use idprova_core::crypto::KeyPair;
 let kp = KeyPair::generate();
 
 let doc = AidBuilder::new()
-    .id("did:idprova:example.com:my-agent")       // required
-    .controller("did:idprova:example.com:alice")   // required
+    .id("did:aid:example.com:my-agent")       // required
+    .controller("did:aid:example.com:alice")   // required
     .name("My Agent")                              // required
     .description("An example agent")
     .model("acme-ai/agent-v2")
@@ -109,7 +109,7 @@ Required fields: `id`, `controller`, `name`, and at least one verification metho
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | `String` | The agent's DID (`did:idprova:<domain>:<name>`) |
+| `id` | `String` | The agent's DID (`did:aid:<domain>:<name>`) |
 | `controller` | `String` | DID of the controlling entity |
 | `verification_method` | `Vec<VerificationMethod>` | Ed25519 keys |
 | `authentication` | `Vec<String>` | Key ID references |
@@ -150,8 +150,8 @@ let kp = KeyPair::generate(); // issuer's keypair
 let expires = Utc::now() + Duration::hours(24);
 
 let dat = Dat::issue(
-    "did:idprova:example.com:alice",              // issuer DID
-    "did:idprova:example.com:my-agent",           // subject DID
+    "did:aid:example.com:alice",              // issuer DID
+    "did:aid:example.com:my-agent",           // subject DID
     vec!["mcp:tool:filesystem:read".to_string()], // granted scopes (4-part)
     expires,
     None,   // constraints (see below)
@@ -323,7 +323,7 @@ let mut log = ReceiptLog::new();
 let receipt = Receipt {
     id: "rcpt_01J...".to_string(),
     timestamp: Utc::now(),
-    agent: "did:idprova:example.com:my-agent".to_string(),
+    agent: "did:aid:example.com:my-agent".to_string(),
     dat: "dat_01J...".to_string(),           // jti from the authorizing DAT
     action: ActionDetails {
         action_type: "mcp:tool-call".to_string(),
@@ -551,8 +551,8 @@ fn main() -> idprova_core::Result<()> {
 
     // 2. Build the agent's AID
     let _aid = AidBuilder::new()
-        .id("did:idprova:example.com:my-agent")
-        .controller("did:idprova:example.com:alice")
+        .id("did:aid:example.com:my-agent")
+        .controller("did:aid:example.com:alice")
         .name("My Agent")
         .trust_level("L1")
         .add_ed25519_key(&agent_kp)
@@ -560,8 +560,8 @@ fn main() -> idprova_core::Result<()> {
 
     // 3. Issuer creates a DAT for the agent
     let dat = Dat::issue(
-        "did:idprova:example.com:alice",
-        "did:idprova:example.com:my-agent",
+        "did:aid:example.com:alice",
+        "did:aid:example.com:my-agent",
         vec!["mcp:tool:filesystem:read".to_string(), "mcp:tool:filesystem:write".to_string()],
         Utc::now() + Duration::hours(8),
         Some(DatConstraints {

@@ -32,13 +32,13 @@ impl AidBuilder {
         }
     }
 
-    /// Set the DID identifier (e.g., "did:idprova:example.com:my-agent").
+    /// Set the DID identifier (e.g., "did:aid:example.com:my-agent").
     pub fn id(mut self, id: impl Into<String>) -> Self {
         self.id = Some(id.into());
         self
     }
 
-    /// Set the controller DID (e.g., "did:idprova:example.com:alice").
+    /// Set the controller DID (e.g., "did:aid:example.com:alice").
     pub fn controller(mut self, controller: impl Into<String>) -> Self {
         self.controller = Some(controller.into());
         self
@@ -169,15 +169,15 @@ mod tests {
     fn test_build_minimal_aid() {
         let kp = KeyPair::generate();
         let doc = AidBuilder::new()
-            .id("did:idprova:example.com:test-agent")
-            .controller("did:idprova:example.com:alice")
+            .id("did:aid:example.com:test-agent")
+            .controller("did:aid:example.com:alice")
             .name("Test Agent")
             .add_ed25519_key(&kp)
             .build()
             .unwrap();
 
-        assert_eq!(doc.id, "did:idprova:example.com:test-agent");
-        assert_eq!(doc.controller, "did:idprova:example.com:alice");
+        assert_eq!(doc.id, "did:aid:example.com:test-agent");
+        assert_eq!(doc.controller, "did:aid:example.com:alice");
         assert_eq!(doc.verification_method.len(), 1);
         assert!(doc.proof.is_none());
     }
@@ -186,8 +186,8 @@ mod tests {
     fn test_build_full_aid() {
         let kp = KeyPair::generate();
         let doc = AidBuilder::new()
-            .id("did:idprova:techblaze.com.au:kai")
-            .controller("did:idprova:techblaze.com.au:pratyush")
+            .id("did:aid:techblaze.com.au:kai")
+            .controller("did:aid:techblaze.com.au:pratyush")
             .name("Kai Lead Agent")
             .description("Primary orchestration agent")
             .model("acme-ai/agent-v2")
@@ -206,7 +206,7 @@ mod tests {
     fn test_build_missing_id_fails() {
         let kp = KeyPair::generate();
         let result = AidBuilder::new()
-            .controller("did:idprova:example.com:alice")
+            .controller("did:aid:example.com:alice")
             .name("Test")
             .add_ed25519_key(&kp)
             .build();
@@ -216,8 +216,8 @@ mod tests {
     #[test]
     fn test_build_no_keys_fails() {
         let result = AidBuilder::new()
-            .id("did:idprova:example.com:agent")
-            .controller("did:idprova:example.com:alice")
+            .id("did:aid:example.com:agent")
+            .controller("did:aid:example.com:alice")
             .name("Test")
             .build();
         assert!(result.is_err());
@@ -227,8 +227,8 @@ mod tests {
     fn test_serialization_roundtrip() {
         let kp = KeyPair::generate();
         let doc = AidBuilder::new()
-            .id("did:idprova:example.com:agent")
-            .controller("did:idprova:example.com:alice")
+            .id("did:aid:example.com:agent")
+            .controller("did:aid:example.com:alice")
             .name("Test Agent")
             .add_ed25519_key(&kp)
             .build()

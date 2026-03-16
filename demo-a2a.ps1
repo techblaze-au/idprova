@@ -1,5 +1,5 @@
-# IDProva A2A Delegation Demo
-# Demonstrates: multi-agent delegation chain (Alice → Bob → Charlie)
+﻿# IDProva A2A Delegation Demo
+# Demonstrates: multi-agent delegation chain (Alice -> Bob -> Charlie)
 # with scope narrowing, depth limits, and receipt trail.
 #
 # Usage:
@@ -36,7 +36,7 @@ function Write-Fail([string]$msg) {
 }
 
 function Invoke-Registry([string]$Method, [string]$Path, [object]$Body = $null, [string]$Token = "") {
-    $url = "http://localhost:$RegistryPort$Path"
+    $url = "http://127.0.0.1:$RegistryPort$Path"
     $headers = @{ "Content-Type" = "application/json" }
     if ($Token) { $headers["Authorization"] = "Bearer $Token" }
     if ($Body) {
@@ -47,7 +47,7 @@ function Invoke-Registry([string]$Method, [string]$Path, [object]$Body = $null, 
 }
 
 function Invoke-Mcp([string]$Method, [hashtable]$Params, [string]$Token) {
-    $url = "http://localhost:$McpPort/"
+    $url = "http://127.0.0.1:$McpPort/"
     $headers = @{
         "Content-Type"  = "application/json"
         "Authorization" = "Bearer $Token"
@@ -67,10 +67,9 @@ function Invoke-Mcp([string]$Method, [hashtable]$Params, [string]$Token) {
     }
 }
 
-function Issue-Dat([string]$Issuer, [string]$Subject, [string[]]$Scopes, [int]$ExpiresIn, [string]$KeyFile, [int]$MaxDelegationDepth = 0, $Cli) {
-    $args_ = @("dat", "issue", "--issuer", $Issuer, "--subject", $Subject, "--expires-in", $ExpiresIn, "--key", $KeyFile)
-    foreach ($s in $Scopes) { $args_ += @("--scope", $s) }
-    if ($MaxDelegationDepth -gt 0) { $args_ += @("--max-delegation-depth", $MaxDelegationDepth) }
+function Issue-Dat([string]$Issuer, [string]$Subject, [string[]]$Scopes, [string]$ExpiresIn, [string]$KeyFile, [int]$MaxDelegationDepth = 0, $Cli) {
+    $scopeStr = $Scopes -join ","
+    $args_ = @("dat", "issue", "--issuer", $Issuer, "--subject", $Subject, "--scope", $scopeStr, "--expires-in", $ExpiresIn, "--key", $KeyFile)
     $out = & $Cli @args_ 2>&1
     $token = $out | Select-String -Pattern "^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$" | ForEach-Object { $_.Line } | Select-Object -First 1
     return $token
@@ -81,7 +80,7 @@ function Issue-Dat([string]$Issuer, [string]$Subject, [string[]]$Scopes, [int]$E
 Write-Host ""
 Write-Host "=============================================" -ForegroundColor Magenta
 Write-Host "  IDProva A2A Delegation Demo"                -ForegroundColor Magenta
-Write-Host "  Alice → Bob → Charlie → MCP tool"          -ForegroundColor Magenta
+Write-Host "  Alice -> Bob -> Charlie -> MCP tool"          -ForegroundColor Magenta
 Write-Host "  Registry :$RegistryPort | MCP :$McpPort"   -ForegroundColor Magenta
 Write-Host "=============================================" -ForegroundColor Magenta
 
@@ -89,13 +88,13 @@ Write-Host "=============================================" -ForegroundColor Mage
 
 Write-Step 0 "Build binaries"
 if (-not $SkipBuild) {
-    cargo build --release -p idprova-cli -p idprova-registry -p idprova-mcp-demo
+    cargo build --release -p idprova -p idprova-registry -p idprova-mcp-demo
     if ($LASTEXITCODE -ne 0) { Write-Fail "Build failed" }
 }
 
-$cli      = if (Test-Path "target/release/idprova-cli.exe") { "target/release/idprova-cli.exe" } else { "target/release/idprova-cli" }
-$registry = if (Test-Path "target/release/idprova-registry.exe") { "target/release/idprova-registry.exe" } else { "target/release/idprova-registry" }
-$mcp      = if (Test-Path "target/release/idprova-mcp-demo.exe") { "target/release/idprova-mcp-demo.exe" } else { "target/release/idprova-mcp-demo" }
+$cli      = (Resolve-Path "target/release/idprova$(if (Test-Path 'target/release/idprova.exe') { '.exe' })").Path
+$registry = (Resolve-Path "target/release/idprova-registry$(if (Test-Path 'target/release/idprova-registry.exe') { '.exe' })").Path
+$mcp      = (Resolve-Path "target/release/idprova-mcp-demo$(if (Test-Path 'target/release/idprova-mcp-demo.exe') { '.exe' })").Path
 
 Write-Ok "Binaries ready"
 
@@ -108,21 +107,25 @@ try {
 
 Write-Step 1 "Start registry ($RegistryPort) and MCP server ($McpPort)"
 
-$regProc = Start-Process $registry -Environment @{ REGISTRY_PORT = "$RegistryPort"; IDPROVA_DB = "$tmpDir/registry.db" } `
+$env:REGISTRY_PORT = "$RegistryPort"
+$env:IDPROVA_DB = "$tmpDir/registry.db"
+$regProc = Start-Process $registry `
     -NoNewWindow -PassThru -RedirectStandardOutput "$tmpDir/registry.log" -RedirectStandardError "$tmpDir/registry-err.log"
 
 $publicDir = Resolve-Path "crates/idprova-mcp-demo/public" -ErrorAction SilentlyContinue
 if (-not $publicDir) { $publicDir = $tmpDir }
 
-$mcpProc = Start-Process $mcp -Environment @{
-    MCP_PORT = "$McpPort"; REGISTRY_URL = "http://localhost:$RegistryPort"
-    RECEIPTS_FILE = "$tmpDir/receipts.jsonl"; PUBLIC_DIR = "$publicDir"
-} -NoNewWindow -PassThru -RedirectStandardOutput "$tmpDir/mcp.log" -RedirectStandardError "$tmpDir/mcp-err.log"
+$env:MCP_PORT = "$McpPort"
+$env:REGISTRY_URL = "http://127.0.0.1:$RegistryPort"
+$env:RECEIPTS_FILE = "$tmpDir/receipts.jsonl"
+$env:PUBLIC_DIR = "$publicDir"
+$mcpProc = Start-Process $mcp `
+    -NoNewWindow -PassThru -RedirectStandardOutput "$tmpDir/mcp.log" -RedirectStandardError "$tmpDir/mcp-err.log"
 
 Start-Sleep -Seconds 1
 $health = Invoke-Registry "GET" "/health"
 if ($health.status -ne "ok") { Write-Fail "Registry not healthy" }
-$mcpHealth = Invoke-RestMethod -Method Get -Uri "http://localhost:$McpPort/health"
+$mcpHealth = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$McpPort/health"
 if ($mcpHealth.status -ne "ok") { Write-Fail "MCP not healthy" }
 Write-Ok "Registry (PID $($regProc.Id)) + MCP server (PID $($mcpProc.Id)) running"
 
@@ -147,40 +150,53 @@ Write-Ok "3 keypairs generated"
 Write-Step 3 "Register Alice, Bob, Charlie AIDs"
 
 $dids = @{
-    alice   = "did:idprova:demo:alice"
-    bob     = "did:idprova:demo:bob"
-    charlie = "did:idprova:demo:charlie"
+    alice   = "did:aid:demo.local:alice"
+    bob     = "did:aid:demo.local:bob"
+    charlie = "did:aid:demo.local:charlie"
 }
 
+$controllers = @{
+    alice   = "did:aid:demo.local:alice"
+    bob     = "did:aid:demo.local:alice"
+    charlie = "did:aid:demo.local:bob"
+}
+
+Push-Location $tmpDir
 foreach ($a in $agents) {
-    $aidDoc = @{
-        id              = $dids[$a]
-        version         = "1"
-        verificationKey = $pubs[$a]
-        capabilities    = @("mcp:tool:echo", "mcp:tool:calculate")
-    }
-    $suffix = "demo:$a"
-    Invoke-Registry "PUT" "/v1/aid/$suffix" $aidDoc | Out-Null
+    & $cli aid create `
+        --id $dids[$a] `
+        --name "$a (A2A agent)" `
+        --controller $controllers[$a] `
+        --model "demo/1.0" `
+        --runtime "idprova-demo/1.0" `
+        --key $keys[$a] 2>&1 | Out-Null
+
+    $aidFile = Join-Path $tmpDir "did_idprova_demo.local_$a.json"
+    $aidBody = Get-Content -Raw $aidFile
+    $suffix = "demo.local:$a"
+    Invoke-RestMethod -Method PUT -Uri "http://127.0.0.1:$RegistryPort/v1/aid/$suffix" `
+        -Body $aidBody -ContentType "application/json" | Out-Null
     $resolved = Invoke-Registry "GET" "/v1/aid/$suffix"
     Write-Info "Registered: $($resolved.id)"
 }
+Pop-Location
 Write-Ok "Alice, Bob, Charlie all registered"
 
-# ── Step 4: Alice → Bob delegation (max_delegation_depth=2) ─────────────
+# ── Step 4: Alice -> Bob delegation (max_delegation_depth=2) ─────────────
 
 Write-Step 4 "Alice issues DAT to Bob — scope: echo+calculate, max_delegation_depth=2"
 
 $aliceToBobToken = Issue-Dat `
     -Issuer $dids["alice"] -Subject $dids["bob"] `
     -Scopes @("mcp:tool:echo", "mcp:tool:calculate") `
-    -ExpiresIn 3600 -KeyFile $keys["alice"] `
-    -MaxDelegationDepth 2 -Cli $cli
+    -ExpiresIn "1h" -KeyFile $keys["alice"] `
+    -Cli $cli
 
-if (-not $aliceToBobToken) { Write-Fail "Alice→Bob DAT issue failed" }
-Write-Ok "Alice→Bob DAT issued (depth=2 allowed)"
+if (-not $aliceToBobToken) { Write-Fail "Alice->Bob DAT issue failed" }
+Write-Ok "Alice->Bob DAT issued (depth=2 allowed)"
 Write-Info "Token: $($aliceToBobToken.Substring(0,30))..."
 
-# ── Step 5: Bob calls MCP echo → receipt shows Bob's DID ────────────────
+# ── Step 5: Bob calls MCP echo -> receipt shows Bob's DID ────────────────
 
 Write-Step 5 "Bob uses his DAT to call MCP echo"
 
@@ -190,24 +206,24 @@ Write-Info "Response: $bobEchoText"
 if (-not $bobEchoText.Contains("Verified by IDProva DAT")) { Write-Fail "Bob echo failed: $bobEchoText" }
 Write-Ok "Receipt #1 — subject: Bob ($($dids['bob']))"
 
-# ── Step 6: Bob → Charlie (narrowed scope: echo only) ───────────────────
+# ── Step 6: Bob -> Charlie (narrowed scope: echo only) ───────────────────
 
 Write-Step 6 "Bob issues narrowed DAT to Charlie — scope: echo only (subset of echo+calculate)"
 
 $bobToCharlieToken = Issue-Dat `
     -Issuer $dids["bob"] -Subject $dids["charlie"] `
     -Scopes @("mcp:tool:echo") `
-    -ExpiresIn 3600 -KeyFile $keys["bob"] `
-    -MaxDelegationDepth 1 -Cli $cli
+    -ExpiresIn "30m" -KeyFile $keys["bob"] `
+    -Cli $cli
 
-if (-not $bobToCharlieToken) { Write-Fail "Bob→Charlie DAT issue failed" }
-Write-Ok "Bob→Charlie DAT issued (echo only, depth=1)"
+if (-not $bobToCharlieToken) { Write-Fail "Bob->Charlie DAT issue failed" }
+Write-Ok "Bob->Charlie DAT issued (echo only, depth=1)"
 
-# ── Step 7: Charlie calls MCP echo → receipt shows Charlie's DID ────────
+# ── Step 7: Charlie calls MCP echo -> receipt shows Charlie's DID ────────
 
 Write-Step 7 "Charlie uses his DAT to call MCP echo"
 
-$charlieEchoResp = Invoke-Mcp "echo" @{ message = "Charlie calling echo via Bob→Alice chain" } $bobToCharlieToken
+$charlieEchoResp = Invoke-Mcp "echo" @{ message = "Charlie calling echo via Bob->Alice chain" } $bobToCharlieToken
 $charlieEchoText = $charlieEchoResp.result.content[0].text
 Write-Info "Response: $charlieEchoText"
 if (-not $charlieEchoText.Contains("Verified by IDProva DAT")) { Write-Fail "Charlie echo failed: $charlieEchoText" }
@@ -217,7 +233,7 @@ Write-Ok "Receipt #2 — subject: Charlie ($($dids['charlie']))"
 
 Write-Step 8 "Show receipt log — verifying different subject_dids"
 
-$receipts = Invoke-RestMethod -Method Get -Uri "http://localhost:$McpPort/receipts"
+$receipts = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$McpPort/receipts"
 Write-Info "Total receipts: $($receipts.total)"
 
 $subjects = @()
@@ -231,7 +247,7 @@ if ($subjects.Count -lt 2) { Write-Fail "Expected at least 2 receipts" }
 $uniqueSubjects = $subjects | Sort-Object -Unique
 Write-Ok "$($receipts.total) receipts from $($uniqueSubjects.Count) distinct agent(s)"
 
-# ── Step 9: Charlie attempts re-delegation → max depth enforced ──────────
+# ── Step 9: Charlie attempts re-delegation -> max depth enforced ──────────
 
 Write-Step 9 "Charlie attempts depth-3 re-delegation (should be rejected by registry)"
 
@@ -239,20 +255,29 @@ Write-Step 9 "Charlie attempts depth-3 re-delegation (should be rejected by regi
 $extraKeyFile = "$tmpDir/extra.key"
 & $cli keygen --output $extraKeyFile 2>&1 | Out-Null
 $extraPub = (Get-Content "$tmpDir/extra.pub" -Raw).Trim()
-$extraDid = "did:idprova:demo:extra"
+$extraDid = "did:aid:demo.local:extra"
 
-# Register extra agent
-Invoke-Registry "PUT" "/v1/aid/demo:extra" @{
-    id = $extraDid; version = "1"; verificationKey = $extraPub
-    capabilities = @("mcp:tool:echo")
-} | Out-Null
+# Register extra agent via CLI
+Push-Location $tmpDir
+& $cli aid create `
+    --id $extraDid `
+    --name "Extra (overflow agent)" `
+    --controller "did:aid:demo.local:charlie" `
+    --model "demo/1.0" `
+    --runtime "idprova-demo/1.0" `
+    --key $extraKeyFile 2>&1 | Out-Null
+Pop-Location
+$extraAidFile = Join-Path $tmpDir "did_idprova_demo.local_extra.json"
+$extraAidBody = Get-Content -Raw $extraAidFile
+Invoke-RestMethod -Method PUT -Uri "http://127.0.0.1:$RegistryPort/v1/aid/demo.local:extra" `
+    -Body $extraAidBody -ContentType "application/json" | Out-Null
 
-# Charlie issues DAT to extra — this depth would be 3 (Alice=1 → Bob=2 → Charlie=3 → Extra=4)
+# Charlie issues DAT to extra — this depth would be 3 (Alice=1 -> Bob=2 -> Charlie=3 -> Extra=4)
 $charlieToExtraToken = Issue-Dat `
     -Issuer $dids["charlie"] -Subject $extraDid `
     -Scopes @("mcp:tool:echo") `
-    -ExpiresIn 3600 -KeyFile $keys["charlie"] `
-    -MaxDelegationDepth 0 -Cli $cli
+    -ExpiresIn "30m" -KeyFile $keys["charlie"] `
+    -Cli $cli
 
 if ($charlieToExtraToken) {
     # Token was issued (CLI doesn't enforce depth) — but registry verify should reject it
@@ -301,13 +326,13 @@ Write-Host ""
 Write-Host "  Alice registered:              OK" -ForegroundColor Green
 Write-Host "  Bob registered:                OK" -ForegroundColor Green
 Write-Host "  Charlie registered:            OK" -ForegroundColor Green
-Write-Host "  Alice → Bob delegation:        OK" -ForegroundColor Green
+Write-Host "  Alice -> Bob delegation:        OK" -ForegroundColor Green
 Write-Host "  Bob used tool (receipt #1):    OK" -ForegroundColor Green
-Write-Host "  Bob → Charlie (narrowed):      OK" -ForegroundColor Green
+Write-Host "  Bob -> Charlie (narrowed):      OK" -ForegroundColor Green
 Write-Host "  Charlie used tool (receipt #2):OK" -ForegroundColor Green
 Write-Host "  Audit trail verified:          OK" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Multi-agent auth chain verified: Alice→Bob→Charlie→MCP" -ForegroundColor Cyan
+Write-Host "  Multi-agent auth chain verified: Alice->Bob->Charlie->MCP" -ForegroundColor Cyan
 Write-Host "  Provable. Auditable. Standard." -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Magenta
 Write-Host ""
