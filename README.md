@@ -61,15 +61,15 @@ idprova keygen --output operator.key
 
 # 2. Create an Agent Identity Document
 idprova aid create \
-  --id "did:idprova:example.com:my-agent" \
+  --id "did:aid:example.com:my-agent" \
   --name "My Agent" \
-  --controller "did:idprova:example.com:operator" \
+  --controller "did:aid:example.com:operator" \
   --key operator.key
 
 # 3. Issue a scoped delegation token (read-only, 24h expiry)
 idprova dat issue \
-  --issuer "did:idprova:example.com:operator" \
-  --subject "did:idprova:example.com:my-agent" \
+  --issuer "did:aid:example.com:operator" \
+  --subject "did:aid:example.com:my-agent" \
   --scope "mcp:tool:filesystem:read" \
   --expires-in 24h \
   --key operator.key
@@ -91,16 +91,16 @@ let keypair = KeyPair::generate();
 
 // Create an Agent Identity Document
 let aid = AidBuilder::new()
-    .id("did:idprova:example.com:my-agent")
-    .controller("did:idprova:example.com:operator")
+    .id("did:aid:example.com:my-agent")
+    .controller("did:aid:example.com:operator")
     .name("My Agent")
     .add_ed25519_key(&keypair)
     .build()?;
 
 // Issue a Delegation Attestation Token
 let dat = Dat::issue(
-    "did:idprova:example.com:operator",   // issuer
-    "did:idprova:example.com:my-agent",   // subject
+    "did:aid:example.com:operator",   // issuer
+    "did:aid:example.com:my-agent",   // subject
     vec!["mcp:tool:filesystem:read".into()],
     Utc::now() + Duration::hours(24),     // expiry
     None,                                  // constraints
@@ -163,7 +163,7 @@ docs/                  Protocol specification and guides
 IDProva uses a W3C DID-compatible identifier scheme:
 
 ```
-did:idprova:techblaze.com.au:kai
+did:aid:techblaze.com.au:kai
 │   │       │                 └─ agent name
 │   │       └─ domain (verification anchor)
 │   └─ did method

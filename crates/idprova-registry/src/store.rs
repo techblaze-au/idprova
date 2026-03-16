@@ -282,7 +282,7 @@ mod tests {
     fn test_unicode_in_fields() {
         let store = AidStore::new_in_memory().unwrap();
         let unicode_jti = "jtī-\u{1F600}-测试-\u{200B}";
-        let result = store.revoke(unicode_jti, "测试 reason 🎉", "did:idprova:测试");
+        let result = store.revoke(unicode_jti, "测试 reason 🎉", "did:aid:测试");
         assert!(result.is_ok(), "unicode fields should be handled safely");
         let found = store.is_revoked(unicode_jti).unwrap();
         assert!(found, "unicode JTI not found after insert");

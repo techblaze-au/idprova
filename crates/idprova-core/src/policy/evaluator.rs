@@ -99,11 +99,11 @@ mod tests {
         let issuer_kp = KeyPair::generate();
         let subject_kp = KeyPair::generate();
         let issuer_did = format!(
-            "did:idprova:test:{}",
+            "did:aid:test:{}",
             hex::encode(&issuer_kp.public_key_bytes()[..8])
         );
         let subject_did = format!(
-            "did:idprova:test:{}",
+            "did:aid:test:{}",
             hex::encode(&subject_kp.public_key_bytes()[..8])
         );
         let expires = Utc::now() + Duration::hours(24);
@@ -143,11 +143,11 @@ mod tests {
         let issuer_kp = KeyPair::generate();
         let subject_kp = KeyPair::generate();
         let issuer_did = format!(
-            "did:idprova:test:{}",
+            "did:aid:test:{}",
             hex::encode(&issuer_kp.public_key_bytes()[..8])
         );
         let subject_did = format!(
-            "did:idprova:test:{}",
+            "did:aid:test:{}",
             hex::encode(&subject_kp.public_key_bytes()[..8])
         );
         // Already expired

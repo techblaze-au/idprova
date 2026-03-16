@@ -1,7 +1,7 @@
 {
   "description": "DAT with multiple scopes, constraints (max_actions=100, require_receipt=true)",
-  "issuer": "did:idprova:example.com:controller",
-  "subject": "did:idprova:example.com:test-agent",
+  "issuer": "did:aid:example.com:controller",
+  "subject": "did:aid:example.com:test-agent",
   "scope": [
     "mcp:tool:read",
     "mcp:tool:write",

@@ -24,7 +24,7 @@ class IDProvaAuditCallbackHandler(BaseCallbackHandler):
 
     Usage:
         handler = IDProvaAuditCallbackHandler(
-            agent_did="did:idprova:example.com:myagent",
+            agent_did="did:aid:example.com:myagent",
             dat_token="...",
             receipts_path="receipts.jsonl",
         )

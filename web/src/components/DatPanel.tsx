@@ -129,8 +129,8 @@ export function DatPanel({ registryUrl }: { registryUrl: string }) {
       {subTab === 'issue' && (
         <div className="card space-y-4">
           <h3 className="text-lg font-medium">Issue DAT</h3>
-          <input value={issuerDid} onChange={e => setIssuerDid(e.target.value)} placeholder="Issuer DID (did:idprova:...)" className="w-full" />
-          <input value={subjectDid} onChange={e => setSubjectDid(e.target.value)} placeholder="Subject DID (did:idprova:...)" className="w-full" />
+          <input value={issuerDid} onChange={e => setIssuerDid(e.target.value)} placeholder="Issuer DID (did:aid:...)" className="w-full" />
+          <input value={subjectDid} onChange={e => setSubjectDid(e.target.value)} placeholder="Subject DID (did:aid:...)" className="w-full" />
           <input value={scopesStr} onChange={e => setScopesStr(e.target.value)} placeholder="Scopes (comma-separated, e.g. mcp:tool:*:read)" className="w-full" />
           <div className="grid grid-cols-2 gap-4">
             <div>

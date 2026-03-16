@@ -158,7 +158,7 @@ mod tests {
         let mut r = Receipt {
             id: format!("rcpt_{seq}"),
             timestamp: Utc::now(),
-            agent: "did:idprova:example.com:kai".to_string(),
+            agent: "did:aid:example.com:kai".to_string(),
             dat: "dat_test".to_string(),
             action,
             context: None,

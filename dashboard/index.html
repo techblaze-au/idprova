@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDProva Registry Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --warn: #f0883e;
+    --danger: #f85149;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --heading: #e6edf3;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ── Top bar ───────────────────────────────────────────────────────────── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    height: 56px;
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--heading); }
+
+  .topbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .registry-url-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .registry-url-form label {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .registry-url-form input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 5px 10px;
+    font-size: 13px;
+    width: 240px;
+    outline: none;
+  }
+
+  .registry-url-form input:focus {
+    border-color: var(--accent);
+  }
+
+  .btn {
+    background: var(--accent);
+    color: #0d1117;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn:hover { opacity: 0.85; }
+
+  .btn-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .btn-outline:hover { background: rgba(88,166,255,0.1); }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+  }
+
+  .status-dot.ok { background: var(--accent2); }
+  .status-dot.err { background: var(--danger); }
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .full-width { grid-column: 1 / -1; }
+
+  /* ── Cards ─────────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .badge {
+    background: rgba(88,166,255,0.15);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-green {
+    background: rgba(63,185,80,0.15);
+    color: var(--accent2);
+  }
+
+  .badge-warn {
+    background: rgba(240,136,62,0.15);
+    color: var(--warn);
+  }
+
+  .badge-red {
+    background: rgba(248,81,73,0.15);
+    color: var(--danger);
+  }
+
+  .card-body { padding: 16px 18px; }
+
+  /* ── Health row ─────────────────────────────────────────────────────────── */
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metric-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── AID table ──────────────────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(255,255,255,0.02);
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .did-cell {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    word-break: break-all;
+  }
+
+  .time-cell {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* ── Verify panel ───────────────────────────────────────────────────────── */
+  .verify-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .form-row label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  textarea, input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  textarea:focus, input[type="text"]:focus {
+    border-color: var(--accent);
+  }
+
+  .verify-result {
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .verify-result.success {
+    background: rgba(63,185,80,0.08);
+    border: 1px solid rgba(63,185,80,0.3);
+    color: var(--accent2);
+  }
+
+  .verify-result.failure {
+    background: rgba(248,81,73,0.08);
+    border: 1px solid rgba(248,81,73,0.3);
+    color: var(--danger);
+  }
+
+  .verify-result.idle {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* ── Revocations ────────────────────────────────────────────────────────── */
+  .jti-cell {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11px;
+    color: var(--warn);
+    word-break: break-all;
+  }
+
+  /* ── Refresh bar ────────────────────────────────────────────────────────── */
+  .refresh-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  .spinner.active { display: inline-block; }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Empty state ────────────────────────────────────────────────────────── */
+  .empty {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+  }
+
+  .empty-icon { font-size: 28px; margin-bottom: 8px; }
+
+  /* ── Protocol flow diagram ──────────────────────────────────────────────── */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 20px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .flow-node {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .flow-node-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .flow-node-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-top: 3px;
+  }
+
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+    gap: 2px;
+  }
+
+  .flow-arrow-line {
+    width: 50px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    position: relative;
+  }
+
+  .flow-arrow-label {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* ── Footer ─────────────────────────────────────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+
+  /* ── Responsive ─────────────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .health-grid { grid-template-columns: 1fr 1fr; }
+    .full-width { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Top Bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="logo">ID<span>Prova</span></div>
+  <span class="status-dot" id="statusDot"></span>
+  <span id="statusText" style="font-size:12px;color:var(--muted)">Connecting...</span>
+
+  <div class="topbar-right">
+    <div class="registry-url-form">
+      <label>Registry URL</label>
+      <input type="text" id="registryUrl" value="http://localhost:4242" placeholder="http://localhost:4242">
+    </div>
+    <button class="btn btn-sm" onclick="connect()">Connect</button>
+    <div class="refresh-bar">
+      <div class="spinner" id="spinner"></div>
+      <span id="lastRefresh">—</span>
+      <button class="btn btn-sm btn-outline" onclick="refresh()">Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main Layout ───────────────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Health Metrics (full width) -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-title">Registry Health</span>
+    </div>
+    <div class="card-body">
+      <div class="health-grid">
+        <div class="metric">
+          <span class="metric-label">Status</span>
+          <span class="metric-value" id="mStatus">—</span>
+          <span class="metric-sub" id="mVersion">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Protocol</span>
+          <span class="metric-value" id="mProtocol">—</span>
+          <span class="metric-sub">DID Method: did:aid</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Registered Agents</span>
+          <span class="metric-value" id="mAgents">—</span>
+          <span class="metric-sub">Active AIDs</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Algorithm</span>
+          <span class="metric-value" id="mAlgo">—</span>
+          <span class="metric-sub">Signature scheme</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Protocol Flow -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-title">Protocol Flow</span>
+      <span class="badge">How IDProva Works</span>
+    </div>
+    <div class="card-body">
+      <div class="flow-diagram">
+        <div class="flow-node">
+          <div class="flow-node-label">Human / Org</div>
+          <div class="flow-node-name">Issuer</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-label">Issue DAT</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-label">AI Agent</div>
+          <div class="flow-node-name">Delegate</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-label">Sub-delegate</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-label">Tool Agent</div>
+          <div class="flow-node-name">Executor</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-label">Verify via Registry</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-label">MCP Server</div>
+          <div class="flow-node-name">Protected API</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-label">Audit log</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-label">BLAKE3 Chain</div>
+          <div class="flow-node-name">Receipts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AIDs List -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Registered Agents</span>
+      <span class="badge" id="aidCount">0</span>
+      <div style="margin-left:auto">
+        <span style="font-size:11px;color:var(--muted)">GET /v1/aids</span>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>DID</th>
+            <th>Registered</th>
+            <th>Updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="aidTableBody">
+          <tr><td colspan="4"><div class="empty"><div class="empty-icon">🤖</div>No agents registered yet</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DAT Verification Panel -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Verify a DAT</span>
+      <span class="badge badge-green">POST /v1/dat/verify</span>
+    </div>
+    <div class="card-body">
+      <div class="verify-form">
+        <div class="form-row">
+          <label>Compact JWS Token</label>
+          <textarea id="verifyToken" rows="4" placeholder="Paste a DAT compact JWS here...&#10;&#10;Format: header.payload.signature"></textarea>
+        </div>
+        <div style="display:flex;gap:10px">
+          <div class="form-row" style="flex:1">
+            <label>Required Scope (optional)</label>
+            <input type="text" id="verifyScope" placeholder="e.g. mcp:tool:read">
+          </div>
+          <div class="form-row" style="flex:1">
+            <label>Trust Level (0-100)</label>
+            <input type="text" id="verifyTrust" placeholder="80">
+          </div>
+        </div>
+        <button class="btn" onclick="verifyDat()" style="align-self:flex-start">Verify Token</button>
+        <div class="verify-result idle" id="verifyResult">Result will appear here after verification.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AID Document Inspector -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Resolve AID</span>
+      <span class="badge">GET /v1/aid/:id</span>
+    </div>
+    <div class="card-body">
+      <div class="verify-form">
+        <div class="form-row">
+          <label>DID or Agent Identifier</label>
+          <input type="text" id="resolveId" placeholder="demo.local:alice  or  did:aid:demo.local:alice">
+        </div>
+        <button class="btn" onclick="resolveAid()" style="align-self:flex-start">Resolve</button>
+        <div class="verify-result idle" id="resolveResult">AID document will appear here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Revocation Log -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-title">Check Revocation Status</span>
+      <span class="badge badge-warn">GET /v1/dat/revoked/:jti</span>
+    </div>
+    <div class="card-body">
+      <div class="verify-form">
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div class="form-row" style="flex:1">
+            <label>JTI (JWT ID to check)</label>
+            <input type="text" id="revokeCheckJti" placeholder="Paste a JTI (from DAT inspect output)...">
+          </div>
+          <button class="btn" onclick="checkRevocation()" style="margin-bottom:1px">Check</button>
+        </div>
+        <div class="verify-result idle" id="revokeResult">Revocation status will appear here.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /layout -->
+
+<div class="footer">
+  IDProva Protocol v0.1 · Ed25519 · BLAKE3 · did:aid ·
+  <a href="https://idprova.dev" target="_blank">idprova.dev</a> ·
+  Built by <a href="https://techblaze.com.au" target="_blank">Tech Blaze Consulting</a>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let registryUrl = 'http://localhost:4242';
+  let refreshTimer = null;
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('idprova_registry_url');
+    if (saved) {
+      document.getElementById('registryUrl').value = saved;
+      registryUrl = saved;
+    }
+    connect();
+  });
+
+  // ── Connect / refresh ──────────────────────────────────────────────────────
+  function connect() {
+    registryUrl = document.getElementById('registryUrl').value.trim().replace(/\/$/, '');
+    localStorage.setItem('idprova_registry_url', registryUrl);
+    refresh();
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(refresh, 8000);
+  }
+
+  async function refresh() {
+    const spinner = document.getElementById('spinner');
+    spinner.classList.add('active');
+    try {
+      await Promise.all([loadHealth(), loadAids()]);
+      document.getElementById('lastRefresh').textContent =
+        'Updated ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      setStatus(false, e.message);
+    } finally {
+      spinner.classList.remove('active');
+    }
+  }
+
+  // ── Health ─────────────────────────────────────────────────────────────────
+  async function loadHealth() {
+    try {
+      const [health, meta] = await Promise.all([
+        fetchJson('/health'),
+        fetchJson('/v1/meta'),
+      ]);
+      setStatus(true, health.version);
+      document.getElementById('mStatus').textContent = health.status === 'ok' ? 'Healthy' : health.status;
+      document.getElementById('mVersion').textContent = 'v' + health.version;
+      document.getElementById('mProtocol').textContent = health.protocol || '—';
+      document.getElementById('mAlgo').textContent = (meta.supportedAlgorithms || []).join(', ') || 'EdDSA';
+    } catch {
+      setStatus(false, 'Registry unreachable');
+    }
+  }
+
+  function setStatus(ok, msg) {
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    dot.className = 'status-dot ' + (ok ? 'ok' : 'err');
+    txt.textContent = ok ? ('Connected — ' + msg) : ('Offline — ' + msg);
+  }
+
+  // ── AIDs ───────────────────────────────────────────────────────────────────
+  async function loadAids() {
+    try {
+      const data = await fetchJson('/v1/aids');
+      document.getElementById('aidCount').textContent = data.total ?? 0;
+      document.getElementById('mAgents').textContent = data.total ?? 0;
+      renderAids(data.aids || []);
+    } catch {
+      document.getElementById('aidTableBody').innerHTML =
+        '<tr><td colspan="4"><div class="empty">Unable to load agents — is the registry running?</div></td></tr>';
+    }
+  }
+
+  function renderAids(aids) {
+    const body = document.getElementById('aidTableBody');
+    if (!aids.length) {
+      body.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="empty-icon">🤖</div>No agents registered yet. Run demo.ps1 to populate.</div></td></tr>';
+      return;
+    }
+    body.innerHTML = aids.map(a => {
+      const id = a.did.replace('did:aid:', '');
+      return `
+        <tr>
+          <td class="did-cell">${escHtml(a.did)}</td>
+          <td class="time-cell">${fmtTime(a.created_at)}</td>
+          <td class="time-cell">${fmtTime(a.updated_at)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="quickResolve('${escJs(a.did)}')">Inspect</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function quickResolve(did) {
+    const id = did.replace('did:aid:', '');
+    document.getElementById('resolveId').value = id;
+    resolveAid();
+    document.getElementById('resolveResult').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ── Verify DAT ─────────────────────────────────────────────────────────────
+  async function verifyDat() {
+    const token = document.getElementById('verifyToken').value.trim();
+    const scope = document.getElementById('verifyScope').value.trim();
+    const trust = parseInt(document.getElementById('verifyTrust').value.trim()) || undefined;
+    const el = document.getElementById('verifyResult');
+
+    if (!token) {
+      showResult(el, 'error', 'Please paste a compact JWS token.');
+      return;
+    }
+
+    el.className = 'verify-result idle';
+    el.textContent = 'Verifying...';
+
+    try {
+      const body = { token, scope };
+      if (trust !== undefined) body.trust_level = trust;
+
+      const resp = await fetch(registryUrl + '/v1/dat/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+
+      if (data.valid) {
+        showResult(el, 'success',
+          '✓ VALID\n\n' +
+          `  Issuer:  ${data.issuer || '—'}\n` +
+          `  Subject: ${data.subject || '—'}\n` +
+          `  JTI:     ${data.jti || '—'}\n` +
+          `  Scopes:  ${(data.scopes || []).join(', ')}`
+        );
+      } else {
+        showResult(el, 'failure', '✗ INVALID\n\n  ' + (data.error || 'Verification failed'));
+      }
+    } catch (e) {
+      showResult(el, 'failure', '✗ Request failed: ' + e.message);
+    }
+  }
+
+  // ── Resolve AID ────────────────────────────────────────────────────────────
+  async function resolveAid() {
+    let id = document.getElementById('resolveId').value.trim();
+    if (!id) return;
+    id = id.replace(/^did:aid:/, '');
+    const el = document.getElementById('resolveResult');
+    el.className = 'verify-result idle';
+    el.textContent = 'Resolving...';
+
+    try {
+      const data = await fetchJson('/v1/aid/' + encodeURIComponent(id));
+      showResult(el, 'success', JSON.stringify(data, null, 2));
+    } catch (e) {
+      showResult(el, 'failure', '✗ Not found or error: ' + e.message);
+    }
+  }
+
+  // ── Revocation check ───────────────────────────────────────────────────────
+  async function checkRevocation() {
+    const jti = document.getElementById('revokeCheckJti').value.trim();
+    const el = document.getElementById('revokeResult');
+    if (!jti) {
+      showResult(el, 'error', 'Please enter a JTI.');
+      return;
+    }
+    el.className = 'verify-result idle';
+    el.textContent = 'Checking...';
+    try {
+      const data = await fetchJson('/v1/dat/revoked/' + encodeURIComponent(jti));
+      if (data.revoked) {
+        showResult(el, 'failure',
+          `✗ REVOKED\n\n  JTI:         ${data.jti}\n  Reason:      ${data.reason || '—'}\n  Revoked by:  ${data.revoked_by || '—'}\n  Revoked at:  ${data.revoked_at}`
+        );
+      } else {
+        showResult(el, 'success', '✓ NOT REVOKED — this JTI has not been revoked');
+      }
+    } catch (e) {
+      showResult(el, 'failure', '✗ Check failed: ' + e.message);
+    }
+  }
+
+  // ── Utilities ──────────────────────────────────────────────────────────────
+  async function fetchJson(path) {
+    const resp = await fetch(registryUrl + path);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }
+
+  function showResult(el, type, text) {
+    el.textContent = text;
+    el.className = 'verify-result ' + (type === 'success' ? 'success' : type === 'failure' ? 'failure' : 'idle');
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso.replace(' ', 'T') + 'Z');
+      return d.toLocaleString();
+    } catch { return iso; }
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function escJs(s) {
+    return s.replace(/'/g, "\\'");
+  }
+</script>
+</body>
+</html>

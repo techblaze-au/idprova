@@ -88,7 +88,7 @@ Protocol metadata. No authentication required.
 {
   "protocolVersion": "0.1",
   "registryVersion": "0.1.0",
-  "didMethod": "did:idprova",
+  "didMethod": "did:aid",
   "supportedAlgorithms": ["EdDSA"],
   "supportedHashAlgorithms": ["blake3", "sha-256"]
 }
@@ -106,7 +106,7 @@ curl http://localhost:3000/v1/meta
 
 Register or update an AID document. Requires authentication in production mode.
 
-The `:id` path parameter is the DID suffix after `did:idprova:` — e.g. for `did:idprova:example.com:my-agent`, use `example.com:my-agent`.
+The `:id` path parameter is the DID suffix after `did:aid:` — e.g. for `did:aid:example.com:my-agent`, use `example.com:my-agent`.
 
 **Request body:** AID document JSON (see [Protocol Specification](protocol-spec-v0.1.md) for schema).
 
@@ -114,7 +114,7 @@ The `:id` path parameter is the DID suffix after `did:idprova:` — e.g. for `di
 
 ```json
 {
-  "id": "did:idprova:example.com:my-agent",
+  "id": "did:aid:example.com:my-agent",
   "status": "created"
 }
 ```
@@ -123,7 +123,7 @@ The `:id` path parameter is the DID suffix after `did:idprova:` — e.g. for `di
 
 ```json
 {
-  "id": "did:idprova:example.com:my-agent",
+  "id": "did:aid:example.com:my-agent",
   "status": "updated"
 }
 ```
@@ -165,13 +165,13 @@ Resolve an AID document. No authentication required.
 
 ```json
 {
-  "id": "did:idprova:example.com:my-agent",
-  "controller": "did:idprova:example.com:operator",
+  "id": "did:aid:example.com:my-agent",
+  "controller": "did:aid:example.com:operator",
   "verificationMethod": [
     {
-      "id": "did:idprova:example.com:my-agent#key-ed25519",
+      "id": "did:aid:example.com:my-agent#key-ed25519",
       "type": "Ed25519VerificationKey2020",
-      "controller": "did:idprova:example.com:my-agent",
+      "controller": "did:aid:example.com:my-agent",
       "publicKeyMultibase": "z6Mk..."
     }
   ],
@@ -184,7 +184,7 @@ Resolve an AID document. No authentication required.
 **Response 404:**
 
 ```json
-{ "error": "AID not found: did:idprova:example.com:my-agent" }
+{ "error": "AID not found: did:aid:example.com:my-agent" }
 ```
 
 **curl example:**
@@ -203,7 +203,7 @@ Deactivate (remove) an AID from the registry. Requires authentication in product
 
 ```json
 {
-  "id": "did:idprova:example.com:my-agent",
+  "id": "did:aid:example.com:my-agent",
   "status": "deactivated"
 }
 ```
@@ -211,7 +211,7 @@ Deactivate (remove) an AID from the registry. Requires authentication in product
 **Response 404:**
 
 ```json
-{ "error": "AID not found: did:idprova:example.com:my-agent" }
+{ "error": "AID not found: did:aid:example.com:my-agent" }
 ```
 
 **curl example:**
@@ -231,10 +231,10 @@ Get the verification keys for an AID. No authentication required. Used by servic
 
 ```json
 {
-  "id": "did:idprova:example.com:my-agent",
+  "id": "did:aid:example.com:my-agent",
   "keys": [
     {
-      "id": "did:idprova:example.com:my-agent#key-ed25519",
+      "id": "did:aid:example.com:my-agent#key-ed25519",
       "type": "Ed25519VerificationKey2020",
       "publicKeyMultibase": "z6Mk..."
     }
@@ -245,7 +245,7 @@ Get the verification keys for an AID. No authentication required. Used by servic
 **Response 404:**
 
 ```json
-{ "error": "AID not found: did:idprova:example.com:my-agent" }
+{ "error": "AID not found: did:aid:example.com:my-agent" }
 ```
 
 **curl example:**
@@ -291,8 +291,8 @@ Verify a DAT token against the issuer's registered public key. No authentication
 ```json
 {
   "valid": true,
-  "issuer": "did:idprova:example.com:operator",
-  "subject": "did:idprova:example.com:my-agent",
+  "issuer": "did:aid:example.com:operator",
+  "subject": "did:aid:example.com:my-agent",
   "scopes": ["mcp:tool:filesystem:read"],
   "jti": "01234567-89ab-cdef-0123-456789abcdef"
 }
@@ -303,8 +303,8 @@ Verify a DAT token against the issuer's registered public key. No authentication
 ```json
 {
   "valid": false,
-  "issuer": "did:idprova:example.com:operator",
-  "subject": "did:idprova:example.com:my-agent",
+  "issuer": "did:aid:example.com:operator",
+  "subject": "did:aid:example.com:my-agent",
   "scopes": ["mcp:tool:filesystem:read"],
   "jti": "01234567-89ab-cdef-0123-456789abcdef",
   "error": "DAT has expired"
@@ -347,7 +347,7 @@ Revoke a DAT by JTI. Requires authentication in production mode. Revocation is i
 {
   "jti": "01234567-89ab-cdef-0123-456789abcdef",
   "reason": "key compromise",
-  "revoked_by": "did:idprova:example.com:operator"
+  "revoked_by": "did:aid:example.com:operator"
 }
 ```
 
@@ -364,7 +364,7 @@ Revoke a DAT by JTI. Requires authentication in production mode. Revocation is i
   "jti": "01234567-89ab-cdef-0123-456789abcdef",
   "status": "revoked",
   "reason": "key compromise",
-  "revoked_by": "did:idprova:example.com:operator"
+  "revoked_by": "did:aid:example.com:operator"
 }
 ```
 
@@ -388,7 +388,7 @@ curl -X POST http://localhost:3000/v1/dat/revoke \
   -d '{
     "jti": "01234567-89ab-cdef-0123-456789abcdef",
     "reason": "key compromise",
-    "revoked_by": "did:idprova:example.com:operator"
+    "revoked_by": "did:aid:example.com:operator"
   }'
 ```
 
@@ -413,7 +413,7 @@ List DAT revocations with pagination. No authentication required.
     {
       "jti": "01234567-89ab-cdef-0123-456789abcdef",
       "reason": "key compromise",
-      "revoked_by": "did:idprova:example.com:operator",
+      "revoked_by": "did:aid:example.com:operator",
       "revoked_at": "2026-03-07T12:00:00Z"
     }
   ],
@@ -442,7 +442,7 @@ Check whether a specific JTI has been revoked. No authentication required.
   "revoked": true,
   "jti": "01234567-89ab-cdef-0123-456789abcdef",
   "reason": "key compromise",
-  "revoked_by": "did:idprova:example.com:operator",
+  "revoked_by": "did:aid:example.com:operator",
   "revoked_at": "2026-03-07T12:00:00Z"
 }
 ```

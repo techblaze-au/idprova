@@ -10,7 +10,7 @@
 
 ## Abstract
 
-IDProva (AI Agent Identity Specification) is an open protocol for establishing verifiable identity, scoped delegation, and auditable action tracking for autonomous AI agents. Built on the W3C Decentralized Identifier (DID) standard, IDProva introduces the `did:idprova:` method alongside a Delegation Attestation Token (DAT) format and hash-chained Action Receipts. The protocol employs a hybrid cryptographic scheme combining Ed25519 with ML-DSA-65 (FIPS 204) to provide both classical and post-quantum security from day one. IDProva is designed to integrate with existing agent communication protocols including the Model Context Protocol (MCP) and Agent-to-Agent (A2A) protocol, enabling any AI agent — regardless of vendor, runtime, or deployment model — to prove its identity, demonstrate its authority, and produce tamper-evident audit trails of its actions.
+IDProva (AI Agent Identity Specification) is an open protocol for establishing verifiable identity, scoped delegation, and auditable action tracking for autonomous AI agents. Built on the W3C Decentralized Identifier (DID) standard, IDProva introduces the `did:aid:` method alongside a Delegation Attestation Token (DAT) format and hash-chained Action Receipts. The protocol employs a hybrid cryptographic scheme combining Ed25519 with ML-DSA-65 (FIPS 204) to provide both classical and post-quantum security from day one. IDProva is designed to integrate with existing agent communication protocols including the Model Context Protocol (MCP) and Agent-to-Agent (A2A) protocol, enabling any AI agent — regardless of vendor, runtime, or deployment model — to prove its identity, demonstrate its authority, and produce tamper-evident audit trails of its actions.
 
 ---
 
@@ -100,7 +100,7 @@ The IDProva protocol is guided by the following design principles, listed in pri
 
 IDProva builds upon and integrates with several existing standards:
 
-**W3C Decentralized Identifiers (DIDs) v1.0** — IDProva defines a new DID method (`did:idprova:`) conforming to the W3C DID Core specification. AID Documents are valid DID Documents with additional agent-specific service extensions.
+**W3C Decentralized Identifiers (DIDs) v1.0** — IDProva defines a new DID method (`did:aid:`) conforming to the W3C DID Core specification. AID Documents are valid DID Documents with additional agent-specific service extensions.
 
 **W3C Verifiable Credentials Data Model v2.0** — Future versions of IDProva may express trust level attestations as Verifiable Credentials. The current version uses a simpler inline model.
 
@@ -135,7 +135,7 @@ IDProva is built on three pillars:
 │    IDENTITY       │   DELEGATION     │     AUDIT        │
 │                   │                  │                  │
 │  DID Documents    │  Attestation     │  Action          │
-│  (did:idprova:)     │  Tokens (DAT)    │  Receipts        │
+│  (did:aid:)     │  Tokens (DAT)    │  Receipts        │
 │                   │                  │                  │
 │  - Key pairs      │  - Scoped perms  │  - Hash chains   │
 │  - Agent metadata │  - Constraints   │  - Signatures    │
@@ -150,7 +150,7 @@ IDProva is built on three pillars:
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Identity (Pillar 1):** Every agent is identified by a `did:idprova:` DID with an associated DID Document containing public keys, agent metadata, and capability declarations. The DID Document is the root of trust for an agent.
+**Identity (Pillar 1):** Every agent is identified by a `did:aid:` DID with an associated DID Document containing public keys, agent metadata, and capability declarations. The DID Document is the root of trust for an agent.
 
 **Delegation (Pillar 2):** Authority flows from principals to agents (and from agents to sub-agents) via Delegation Attestation Tokens. DATs are signed, scoped, time-bounded, and chain-able. A verifier can trace any delegation back to its root principal.
 
@@ -197,14 +197,14 @@ IDProva is designed for cryptographic agility while maintaining a strong default
 
 ---
 
-## 3. DID Method: `did:idprova`
+## 3. DID Method: `did:aid`
 
 ### 3.1 Method Syntax
 
-The `did:idprova:` method follows the W3C DID Core syntax:
+The `did:aid:` method follows the W3C DID Core syntax:
 
 ```abnf
-did-idprova        = "did:idprova:" method-specific-id
+did-aid        = "did:aid:" method-specific-id
 method-specific-id = authority ":" agent-name
 authority        = domain / org-id
 domain           = 1*( ALPHA / DIGIT / "." / "-" )
@@ -215,11 +215,11 @@ agent-name       = 1*( ALPHA / DIGIT / "-" / "_" )
 **Examples:**
 
 ```
-did:idprova:example.com:kai-lead-agent
-did:idprova:example.com:pratyush
-did:idprova:techblaze.com.au:registry-agent
-did:idprova:localhost:dev-agent-01
-did:idprova:192-168-1-100:local-agent
+did:aid:example.com:kai-lead-agent
+did:aid:example.com:pratyush
+did:aid:techblaze.com.au:registry-agent
+did:aid:localhost:dev-agent-01
+did:aid:192-168-1-100:local-agent
 ```
 
 **Authority Component:** The authority identifies the namespace owner. For domain-verified agents (L1+), this MUST be a domain name the controller can prove ownership of via DNS TXT records. For unverified agents (L0), any syntactically valid authority is accepted.
@@ -245,38 +245,38 @@ An IDProva DID Document is a valid W3C DID Document with specific required and o
     "https://w3id.org/security/suites/ed25519-2020/v1",
     "https://idprova.dev/v1"
   ],
-  "id": "did:idprova:example.com:kai-lead-agent",
-  "controller": "did:idprova:example.com:pratyush",
+  "id": "did:aid:example.com:kai-lead-agent",
+  "controller": "did:aid:example.com:pratyush",
   "created": "2026-02-24T00:00:00Z",
   "updated": "2026-02-24T00:00:00Z",
   "verificationMethod": [
     {
-      "id": "did:idprova:example.com:kai-lead-agent#key-ed25519-1",
+      "id": "did:aid:example.com:kai-lead-agent#key-ed25519-1",
       "type": "Ed25519VerificationKey2020",
-      "controller": "did:idprova:example.com:kai-lead-agent",
+      "controller": "did:aid:example.com:kai-lead-agent",
       "publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
     },
     {
-      "id": "did:idprova:example.com:kai-lead-agent#key-mldsa65-1",
+      "id": "did:aid:example.com:kai-lead-agent#key-mldsa65-1",
       "type": "MLDSA65VerificationKey2024",
-      "controller": "did:idprova:example.com:kai-lead-agent",
+      "controller": "did:aid:example.com:kai-lead-agent",
       "publicKeyMultibase": "z2Drjgb4TxNYuSiDBqd7pJAn5MfgF1YfNfsaHH3gZXQxqR7kW..."
     }
   ],
   "authentication": [
-    "did:idprova:example.com:kai-lead-agent#key-ed25519-1",
-    "did:idprova:example.com:kai-lead-agent#key-mldsa65-1"
+    "did:aid:example.com:kai-lead-agent#key-ed25519-1",
+    "did:aid:example.com:kai-lead-agent#key-mldsa65-1"
   ],
   "assertionMethod": [
-    "did:idprova:example.com:kai-lead-agent#key-ed25519-1",
-    "did:idprova:example.com:kai-lead-agent#key-mldsa65-1"
+    "did:aid:example.com:kai-lead-agent#key-ed25519-1",
+    "did:aid:example.com:kai-lead-agent#key-mldsa65-1"
   ],
   "capabilityDelegation": [
-    "did:idprova:example.com:kai-lead-agent#key-ed25519-1"
+    "did:aid:example.com:kai-lead-agent#key-ed25519-1"
   ],
   "service": [
     {
-      "id": "did:idprova:example.com:kai-lead-agent#idprova-metadata",
+      "id": "did:aid:example.com:kai-lead-agent#idprova-metadata",
       "type": "IDProvaAgentMetadata",
       "serviceEndpoint": {
         "name": "Kai Lead Agent",
@@ -297,7 +297,7 @@ An IDProva DID Document is a valid W3C DID Document with specific required and o
   "proof": {
     "type": "Ed25519Signature2020",
     "created": "2026-02-24T00:00:00Z",
-    "verificationMethod": "did:idprova:example.com:pratyush#key-ed25519-1",
+    "verificationMethod": "did:aid:example.com:pratyush#key-ed25519-1",
     "proofPurpose": "assertionMethod",
     "proofValue": "z3FXQjecWg3dBGZBCY9KJTA..."
   }
@@ -309,7 +309,7 @@ An IDProva DID Document is a valid W3C DID Document with specific required and o
 | Property | Description |
 |----------|-----------|
 | `@context` | MUST include the W3C DID v1 context and the IDProva v1 context. |
-| `id` | The `did:idprova:` DID for this agent. |
+| `id` | The `did:aid:` DID for this agent. |
 | `controller` | The DID of the entity that controls this agent. MAY be the same as `id` for self-sovereign agents. |
 | `verificationMethod` | MUST contain at least one Ed25519 key. SHOULD contain at least one ML-DSA-65 key. |
 | `authentication` | MUST reference at least one verification method. |
@@ -391,16 +391,16 @@ To create a new IDProva identity:
 **Self-sovereign creation (no external controller):**
 
 ```
-Controller: did:idprova:example.com:alice
-Creates:    did:idprova:example.com:alice (self)
+Controller: did:aid:example.com:alice
+Creates:    did:aid:example.com:alice (self)
 Proof:      Signed by alice's own key
 ```
 
 **Delegated creation (controller creates agent):**
 
 ```
-Controller: did:idprova:example.com:alice
-Creates:    did:idprova:example.com:alice-assistant
+Controller: did:aid:example.com:alice
+Creates:    did:aid:example.com:alice-assistant
 Proof:      Signed by alice's key (controller assertion)
 ```
 
@@ -443,8 +443,8 @@ A deactivated DID Document looks like:
     "https://www.w3.org/ns/did/v1",
     "https://idprova.dev/v1"
   ],
-  "id": "did:idprova:example.com:retired-agent",
-  "controller": "did:idprova:example.com:alice",
+  "id": "did:aid:example.com:retired-agent",
+  "controller": "did:aid:example.com:alice",
   "deactivated": true,
   "updated": "2026-06-01T00:00:00Z"
 }
@@ -465,7 +465,7 @@ IDProva DID resolution follows a layered strategy:
 
 **Well-Known Endpoint Resolution:**
 
-For `did:idprova:example.com:kai-lead-agent`, the resolver makes an HTTPS GET request to:
+For `did:aid:example.com:kai-lead-agent`, the resolver makes an HTTPS GET request to:
 
 ```
 https://example.com/.well-known/did/idprova/kai-lead-agent/did.json
@@ -478,7 +478,7 @@ The response MUST be a valid IDProva DID Document with `Content-Type: applicatio
 For registry-based resolution, the resolver queries the registry API (Section 9.1):
 
 ```
-GET /v1/identities/did:idprova:example.com:kai-lead-agent
+GET /v1/identities/did:aid:example.com:kai-lead-agent
 ```
 
 **Resolution Metadata:**
@@ -680,9 +680,9 @@ For hybrid signatures, an additional JWS Unprotected Header carries the ML-DSA-6
 {
   "alg": "EdDSA",
   "typ": "idprova-dat+jwt",
-  "kid": "did:idprova:example.com:pratyush#key-ed25519-1",
+  "kid": "did:aid:example.com:pratyush#key-ed25519-1",
   "pqalg": "MLDSA65",
-  "pqkid": "did:idprova:example.com:pratyush#key-mldsa65-1"
+  "pqkid": "did:aid:example.com:pratyush#key-mldsa65-1"
 }
 ```
 
@@ -710,9 +710,9 @@ The DAT payload contains the following claims:
 
 ```json
 {
-  "iss": "did:idprova:example.com:pratyush",
-  "sub": "did:idprova:example.com:kai-lead-agent",
-  "aud": "did:idprova:example.com:target-service",
+  "iss": "did:aid:example.com:pratyush",
+  "sub": "did:aid:example.com:kai-lead-agent",
+  "aud": "did:aid:example.com:target-service",
   "iat": 1708732800,
   "exp": 1708819200,
   "nbf": 1708732800,
@@ -949,7 +949,7 @@ The revocation list format:
 
 ```json
 {
-  "issuer": "did:idprova:example.com:pratyush",
+  "issuer": "did:aid:example.com:pratyush",
   "updated": "2026-02-24T12:00:00Z",
   "revocations": [
     {
@@ -1006,7 +1006,7 @@ An Action Receipt is a signed record of an action performed by an agent. Receipt
   "id": "rcpt_01HQ3P9LYCD8ZH3ENQWT6G7F0U",
   "version": "0.1.0",
   "timestamp": "2026-02-24T12:30:00.000Z",
-  "agent": "did:idprova:example.com:kai-lead-agent",
+  "agent": "did:aid:example.com:kai-lead-agent",
   "delegation": "dat_01HQ3N8KXBC7YG2DMPVS5F6E9T",
   "action": {
     "type": "mcp:tool:filesystem:read",
@@ -1035,7 +1035,7 @@ An Action Receipt is a signed record of an action performed by an agent. Receipt
   },
   "signature": {
     "algorithm": "hybrid-ed25519-mldsa65",
-    "keyId": "did:idprova:example.com:kai-lead-agent#key-ed25519-1",
+    "keyId": "did:aid:example.com:kai-lead-agent#key-ed25519-1",
     "value": "z4sK7qN2vR8wX1yT5uP3mJ6nB9cF0dA..."
   }
 }
@@ -1221,7 +1221,7 @@ To achieve L1 trust, the agent's controller MUST publish a DNS TXT record provin
 **DNS TXT Record Format:**
 
 ```
-_idprova.example.com.  IN  TXT  "idprova=1 did=did:idprova:example.com:pratyush fingerprint=z6MkhaXgBZD..."
+_idprova.example.com.  IN  TXT  "idprova=1 did=did:aid:example.com:pratyush fingerprint=z6MkhaXgBZD..."
 ```
 
 **Record Fields:**
@@ -1236,7 +1236,7 @@ _idprova.example.com.  IN  TXT  "idprova=1 did=did:idprova:example.com:pratyush 
 
 ```
 VerifyDNS(did):
-  1. Parse authority from DID: did:idprova:{authority}:{name} → authority
+  1. Parse authority from DID: did:aid:{authority}:{name} → authority
   2. Query DNS TXT records for _idprova.{authority}
   3. Parse the TXT record fields
   4. Resolve the controller DID from the record
@@ -1431,7 +1431,7 @@ The A2A Agent Card is extended with IDProva identity information:
     "schemes": ["idprova-dat"]
   },
   "idprova": {
-    "did": "did:idprova:example.com:kai-lead-agent",
+    "did": "did:aid:example.com:kai-lead-agent",
     "trustLevel": "L1",
     "supportedAlgorithms": ["EdDSA", "MLDSA65"]
   }
@@ -1460,7 +1460,7 @@ When sending a task to another agent via A2A, the sender includes its DAT:
     },
     "metadata": {
       "idprova": {
-        "senderDID": "did:idprova:example.com:kai-lead-agent",
+        "senderDID": "did:aid:example.com:kai-lead-agent",
         "dat": "eyJhbGciOi...",
         "receiptRequested": true
       }
@@ -1482,7 +1482,7 @@ POST /api/v1/action HTTP/1.1
 Host: agent.example.com
 Content-Type: application/json
 Authorization: IDProva eyJhbGciOi...
-X-IDProva-DID: did:idprova:example.com:kai-lead-agent
+X-IDProva-DID: did:aid:example.com:kai-lead-agent
 X-IDProva-Receipt-Request: true
 ```
 
@@ -1640,7 +1640,7 @@ POST /v1/receipts/verify
 Content-Type: application/json
 
 {
-  "agent": "did:idprova:example.com:kai-lead-agent",
+  "agent": "did:aid:example.com:kai-lead-agent",
   "fromSequence": 0,
   "toSequence": 100
 }
@@ -1665,7 +1665,7 @@ Organisations MAY operate their own IDProva registry. A self-hosted registry:
 
 - MUST implement the full Registry API (Section 9.1).
 - MUST serve DID Documents at the well-known endpoint (Section 3.5).
-- MUST publish its own IDProva identity (`did:idprova:{domain}:_registry`).
+- MUST publish its own IDProva identity (`did:aid:{domain}:_registry`).
 - SHOULD implement rate limiting and access controls.
 - SHOULD persist data with appropriate backup and disaster recovery.
 
@@ -1813,7 +1813,7 @@ IDProva is designed with the following privacy principles:
 
 ### 12.1 DID Method Registration
 
-This specification registers the `did:idprova:` method in the W3C DID Method Registry:
+This specification registers the `did:aid:` method in the W3C DID Method Registry:
 
 | Field | Value |
 |-------|-------|
@@ -1880,38 +1880,38 @@ The following is a complete, valid IDProva DID Document for a production agent:
     "https://w3id.org/security/suites/ed25519-2020/v1",
     "https://idprova.dev/v1"
   ],
-  "id": "did:idprova:techblaze.com.au:kai-lead-agent",
-  "controller": "did:idprova:techblaze.com.au:pratyush",
+  "id": "did:aid:techblaze.com.au:kai-lead-agent",
+  "controller": "did:aid:techblaze.com.au:pratyush",
   "created": "2026-02-24T00:00:00Z",
   "updated": "2026-02-24T10:30:00Z",
   "verificationMethod": [
     {
-      "id": "did:idprova:techblaze.com.au:kai-lead-agent#key-ed25519-1",
+      "id": "did:aid:techblaze.com.au:kai-lead-agent#key-ed25519-1",
       "type": "Ed25519VerificationKey2020",
-      "controller": "did:idprova:techblaze.com.au:kai-lead-agent",
+      "controller": "did:aid:techblaze.com.au:kai-lead-agent",
       "publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
     },
     {
-      "id": "did:idprova:techblaze.com.au:kai-lead-agent#key-mldsa65-1",
+      "id": "did:aid:techblaze.com.au:kai-lead-agent#key-mldsa65-1",
       "type": "MLDSA65VerificationKey2024",
-      "controller": "did:idprova:techblaze.com.au:kai-lead-agent",
+      "controller": "did:aid:techblaze.com.au:kai-lead-agent",
       "publicKeyMultibase": "z2Drjgb4TxNYuSiDBqd7pJAn5MfgF1YfNfsaHH3gZXQxqR7kWvBcPmTq9sN8rY6jK3hL2dF7wX4eU1aR5oC0iV8bG9mJ6nH3pZ2tS5qA7yW4xD1fE8cB0uK9vL6gM3jI2rO5sT8nQ4wP1aZ7hX0dY6bC9eR3fG4kN2mJ8tV5uW7iA6oL1pS0qE3xD9yB2cF4gH8jK7lM5nO0rT6wU1vX3zA9bC2dE4fG7hI8jK0lM3nO6pQ1rS5tU9wV2xY4zA8bC0dE3fG6hI7jK1lM4nO9pQ2rS5tU8wV0xY3zA7bC1dE2fG5hI6jK4lM8nO0pQ3rS9tU1wV7xY2zA6bC4dE0fG3hI5jK9lM1nO7pQ8rS2tU4wV6xY0zA5bC3dE9fG1hI2jK8lM0nO4pQ7rS6tU3wV5xY9zA1bC8dE4fG0hI3jK7lM6nO5pQ2rS9tU1wV8xY4zA0bC7dE3fG6hI9jK2lM5nO8pQ1rS4tU7wV0xY3zA6bC9dE2fG5hI8jK1lM4nO7pQ0rS3tU6wV9xY2zA5bC8dE1fG4hI7jK0lM3nO6pQ9rS2tU5wV8x"
     }
   ],
   "authentication": [
-    "did:idprova:techblaze.com.au:kai-lead-agent#key-ed25519-1",
-    "did:idprova:techblaze.com.au:kai-lead-agent#key-mldsa65-1"
+    "did:aid:techblaze.com.au:kai-lead-agent#key-ed25519-1",
+    "did:aid:techblaze.com.au:kai-lead-agent#key-mldsa65-1"
   ],
   "assertionMethod": [
-    "did:idprova:techblaze.com.au:kai-lead-agent#key-ed25519-1",
-    "did:idprova:techblaze.com.au:kai-lead-agent#key-mldsa65-1"
+    "did:aid:techblaze.com.au:kai-lead-agent#key-ed25519-1",
+    "did:aid:techblaze.com.au:kai-lead-agent#key-mldsa65-1"
   ],
   "capabilityDelegation": [
-    "did:idprova:techblaze.com.au:kai-lead-agent#key-ed25519-1"
+    "did:aid:techblaze.com.au:kai-lead-agent#key-ed25519-1"
   ],
   "service": [
     {
-      "id": "did:idprova:techblaze.com.au:kai-lead-agent#idprova-metadata",
+      "id": "did:aid:techblaze.com.au:kai-lead-agent#idprova-metadata",
       "type": "IDProvaAgentMetadata",
       "serviceEndpoint": {
         "name": "Kai Lead Agent",
@@ -1929,11 +1929,11 @@ The following is a complete, valid IDProva DID Document for a production agent:
           "a2a:task-execute"
         ],
         "maxDelegationDepth": 3,
-        "organisationDID": "did:idprova:techblaze.com.au:_root"
+        "organisationDID": "did:aid:techblaze.com.au:_root"
       }
     },
     {
-      "id": "did:idprova:techblaze.com.au:kai-lead-agent#idprova-revocation",
+      "id": "did:aid:techblaze.com.au:kai-lead-agent#idprova-revocation",
       "type": "IDProvaRevocationList",
       "serviceEndpoint": "https://techblaze.com.au/.well-known/idprova/revocations.json"
     }
@@ -1941,7 +1941,7 @@ The following is a complete, valid IDProva DID Document for a production agent:
   "proof": {
     "type": "Ed25519Signature2020",
     "created": "2026-02-24T10:30:00Z",
-    "verificationMethod": "did:idprova:techblaze.com.au:pratyush#key-ed25519-1",
+    "verificationMethod": "did:aid:techblaze.com.au:pratyush#key-ed25519-1",
     "proofPurpose": "assertionMethod",
     "proofValue": "z3FXQjecWg3dBGZBCY9KJTA1BgVPGHuS3RwQxMDwFkNUTxGgJdTLDNS7oS1i3yrA2A5UcHxG8FJvQyP1d9BCpWu3"
   }
@@ -1956,9 +1956,9 @@ The following is a complete, valid IDProva DID Document for a production agent:
 {
   "alg": "EdDSA",
   "typ": "idprova-dat+jwt",
-  "kid": "did:idprova:techblaze.com.au:pratyush#key-ed25519-1",
+  "kid": "did:aid:techblaze.com.au:pratyush#key-ed25519-1",
   "pqalg": "MLDSA65",
-  "pqkid": "did:idprova:techblaze.com.au:pratyush#key-mldsa65-1"
+  "pqkid": "did:aid:techblaze.com.au:pratyush#key-mldsa65-1"
 }
 ```
 
@@ -1966,9 +1966,9 @@ The following is a complete, valid IDProva DID Document for a production agent:
 
 ```json
 {
-  "iss": "did:idprova:techblaze.com.au:pratyush",
-  "sub": "did:idprova:techblaze.com.au:kai-lead-agent",
-  "aud": "did:idprova:techblaze.com.au:secure-mcp-server",
+  "iss": "did:aid:techblaze.com.au:pratyush",
+  "sub": "did:aid:techblaze.com.au:kai-lead-agent",
+  "aud": "did:aid:techblaze.com.au:secure-mcp-server",
   "iat": 1708732800,
   "exp": 1708819200,
   "nbf": 1708732800,
@@ -2023,7 +2023,7 @@ ImRpZDphc3BlYzp0ZWNoYmxhemUuY29tLmF1OmthaS1sZWFkLWFnZW50Iiw...
   "id": "rcpt_01HQ3P9LYCD8ZH3ENQWT6G7F0U",
   "version": "0.1.0",
   "timestamp": "2026-02-24T12:30:45.123Z",
-  "agent": "did:idprova:techblaze.com.au:kai-lead-agent",
+  "agent": "did:aid:techblaze.com.au:kai-lead-agent",
   "delegation": "dat_01HQ3N8KXBC7YG2DMPVS5F6E9T",
   "action": {
     "type": "mcp:tool:filesystem:read",
@@ -2052,7 +2052,7 @@ ImRpZDphc3BlYzp0ZWNoYmxhemUuY29tLmF1OmthaS1sZWFkLWFnZW50Iiw...
   },
   "signature": {
     "algorithm": "hybrid-ed25519-mldsa65",
-    "keyId": "did:idprova:techblaze.com.au:kai-lead-agent#key-ed25519-1",
+    "keyId": "did:aid:techblaze.com.au:kai-lead-agent#key-ed25519-1",
     "value": "z4sK7qN2vR8wX1yT5uP3mJ6nB9cF0dA8eH2iL4kM7oQ1rS3tU6vW9xY0zA5bC8dE3fG6hI9jK2lM5nO8pQ1rS4tU7wV0xY3zA6bC9dE2fG5hI8jK1"
   }
 }
@@ -2065,8 +2065,8 @@ This example shows a three-level delegation chain:
 **Level 0 — Human Principal creates root DAT:**
 
 ```
-Issuer:  did:idprova:techblaze.com.au:pratyush (human)
-Subject: did:idprova:techblaze.com.au:kai-lead-agent
+Issuer:  did:aid:techblaze.com.au:pratyush (human)
+Subject: did:aid:techblaze.com.au:kai-lead-agent
 JTI:     dat_ROOT_001
 Scopes:  [mcp:tool:*:*, mcp:resource:*:*, idprova:*:*]
 Chain:   []
@@ -2075,8 +2075,8 @@ Chain:   []
 **Level 1 — Lead agent delegates to sub-agent:**
 
 ```
-Issuer:  did:idprova:techblaze.com.au:kai-lead-agent
-Subject: did:idprova:techblaze.com.au:writer-agent
+Issuer:  did:aid:techblaze.com.au:kai-lead-agent
+Subject: did:aid:techblaze.com.au:writer-agent
 JTI:     dat_LEVEL1_001
 Scopes:  [mcp:tool:filesystem:read, mcp:tool:filesystem:write, mcp:resource:context:read]
 Chain:   [dat_ROOT_001]
@@ -2085,8 +2085,8 @@ Chain:   [dat_ROOT_001]
 **Level 2 — Sub-agent delegates to specialist:**
 
 ```
-Issuer:  did:idprova:techblaze.com.au:writer-agent
-Subject: did:idprova:techblaze.com.au:spellcheck-agent
+Issuer:  did:aid:techblaze.com.au:writer-agent
+Subject: did:aid:techblaze.com.au:spellcheck-agent
 JTI:     dat_LEVEL2_001
 Scopes:  [mcp:tool:filesystem:read]
 Chain:   [dat_ROOT_001, dat_LEVEL1_001]
@@ -2162,37 +2162,37 @@ SegmentMatches(required, granted):
 ### C.1 DID Parsing Test Vectors
 
 ```
-Input:  "did:idprova:example.com:kai-lead-agent"
+Input:  "did:aid:example.com:kai-lead-agent"
 Method: "idprova"
 Authority: "example.com"
 AgentName: "kai-lead-agent"
 Valid: true
 
-Input:  "did:idprova:my-org:agent-01"
+Input:  "did:aid:my-org:agent-01"
 Method: "idprova"
 Authority: "my-org"
 AgentName: "agent-01"
 Valid: true
 
-Input:  "did:idprova:localhost:dev-agent"
+Input:  "did:aid:localhost:dev-agent"
 Method: "idprova"
 Authority: "localhost"
 AgentName: "dev-agent"
 Valid: true
 
-Input:  "did:idprova:example.com"
+Input:  "did:aid:example.com"
 Valid: false (missing agent-name)
 
-Input:  "did:idprova::agent"
+Input:  "did:aid::agent"
 Valid: false (empty authority)
 
 Input:  "did:web:example.com:agent"
 Valid: false (wrong method)
 
-Input:  "did:idprova:example.com:Agent_With_Caps"
+Input:  "did:aid:example.com:Agent_With_Caps"
 Valid: false (uppercase not allowed)
 
-Input:  "did:idprova:example.com:valid_agent-01"
+Input:  "did:aid:example.com:valid_agent-01"
 Valid: true
 ```
 
@@ -2241,8 +2241,8 @@ Result:   NO MATCH (granted resource path longer than required)
 **Genesis Hash:**
 
 ```
-Agent DID: "did:idprova:example.com:test-agent"
-Input:     "GENESIS:did:idprova:example.com:test-agent"
+Agent DID: "did:aid:example.com:test-agent"
+Input:     "GENESIS:did:aid:example.com:test-agent"
 BLAKE3:    "blake3:b3a1d4f7e2c5b8a1d4f7e2c5b8a1d4f7e2c5b8a1d4f7e2c5b8a1d4f7e2c5b8a1"
 ```
 
@@ -2252,7 +2252,7 @@ Note: The above hash is illustrative. Implementations MUST compute the actual BL
 
 ```
 Receipt[0]:
-  chain.previousHash = BLAKE3("GENESIS:did:idprova:example.com:test-agent")
+  chain.previousHash = BLAKE3("GENESIS:did:aid:example.com:test-agent")
   chain.sequenceNumber = 0
   Compute: hash_0 = BLAKE3(JCS(Receipt[0] without signature))
 
@@ -2278,11 +2278,11 @@ Receipt[2]:
 Header:
   alg: "EdDSA"
   typ: "idprova-dat+jwt"
-  kid: "did:idprova:example.com:alice#key-ed25519-1"
+  kid: "did:aid:example.com:alice#key-ed25519-1"
 
 Payload:
-  iss: "did:idprova:example.com:alice"
-  sub: "did:idprova:example.com:agent-01"
+  iss: "did:aid:example.com:alice"
+  sub: "did:aid:example.com:agent-01"
   iat: 1708732800 (2026-02-24T00:00:00Z)
   exp: 1708819200 (2026-02-25T00:00:00Z)
   jti: "dat_test_valid_001"
@@ -2348,7 +2348,7 @@ The following checklist is provided for implementers to track conformance:
 
 ### D.1 Core (REQUIRED)
 
-- [ ] Parse and validate `did:idprova:` DIDs
+- [ ] Parse and validate `did:aid:` DIDs
 - [ ] Create and validate DID Documents with Ed25519 keys
 - [ ] Generate and verify Ed25519 signatures
 - [ ] Create DATs in JWS Compact Serialization

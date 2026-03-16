@@ -225,7 +225,7 @@ pub struct AID {
 
 #[napi]
 impl AID {
-    /// Get the DID identifier (e.g., "did:idprova:example.com:my-agent").
+    /// Get the DID identifier (e.g., "did:aid:example.com:my-agent").
     #[napi(getter)]
     pub fn did(&self) -> String {
         self.inner.id.clone()
@@ -274,8 +274,8 @@ impl AID {
 ///
 /// Usage:
 ///   const builder = new AIDBuilder();
-///   builder.setId("did:idprova:example.com:my-agent");
-///   builder.setController("did:idprova:example.com:alice");
+///   builder.setId("did:aid:example.com:my-agent");
+///   builder.setController("did:aid:example.com:alice");
 ///   builder.setName("My Agent");
 ///   builder.addEd25519Key(keypair);
 ///   const aid = builder.build();
@@ -756,8 +756,8 @@ impl AgentIdentity {
     ) -> Result<Self> {
         let domain = domain.unwrap_or_else(|| "local.dev".to_string());
         let keypair = RustKeyPair::generate();
-        let did = format!("did:idprova:{domain}:{name}");
-        let ctrl = controller.unwrap_or_else(|| format!("did:idprova:{domain}:controller"));
+        let did = format!("did:aid:{domain}:{name}");
+        let ctrl = controller.unwrap_or_else(|| format!("did:aid:{domain}:controller"));
 
         let aid_doc = AidBuilder::new()
             .id(&did)

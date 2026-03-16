@@ -122,8 +122,8 @@ mod tests {
             Utc::now() - Duration::hours(1)
         };
         Dat::issue(
-            "did:idprova:test:issuer",
-            "did:idprova:test:agent",
+            "did:aid:test:issuer",
+            "did:aid:test:agent",
             vec![scope.to_string()],
             expires,
             None,
@@ -137,7 +137,7 @@ mod tests {
         Receipt {
             id: ulid::Ulid::new().to_string(),
             timestamp: Utc::now(),
-            agent: "did:idprova:test:agent".to_string(),
+            agent: "did:aid:test:agent".to_string(),
             dat: "dat_test".to_string(),
             action: ActionDetails {
                 action_type: "mcp:tool-call".to_string(),
@@ -174,8 +174,8 @@ mod tests {
         );
         assert!(result.is_ok(), "expected Ok, got: {:?}", result.err());
         let verified = result.unwrap();
-        assert_eq!(verified.claims.iss, "did:idprova:test:issuer");
-        assert_eq!(verified.claims.sub, "did:idprova:test:agent");
+        assert_eq!(verified.claims.iss, "did:aid:test:issuer");
+        assert_eq!(verified.claims.sub, "did:aid:test:agent");
     }
 
     #[test]
@@ -267,8 +267,8 @@ mod tests {
     fn test_verify_dat_constraint_rate_limit_blocks() {
         let kp = KeyPair::generate();
         let dat = Dat::issue(
-            "did:idprova:test:issuer",
-            "did:idprova:test:agent",
+            "did:aid:test:issuer",
+            "did:aid:test:agent",
             vec!["mcp:tool:filesystem:read".to_string()],
             Utc::now() + Duration::hours(24),
             Some(DatConstraints {
@@ -317,7 +317,7 @@ mod tests {
         let result = verify_dat_from_jws(&compact, &kp.public_key_bytes());
         assert!(result.is_ok());
         let verified = result.unwrap();
-        assert_eq!(verified.claims.iss, "did:idprova:test:issuer");
+        assert_eq!(verified.claims.iss, "did:aid:test:issuer");
     }
 
     #[test]
@@ -390,7 +390,7 @@ mod tests {
         let tampered = Receipt {
             id: ulid::Ulid::new().to_string(),
             timestamp: Utc::now(),
-            agent: "did:idprova:test:agent".to_string(),
+            agent: "did:aid:test:agent".to_string(),
             dat: "dat_test".to_string(),
             action: ActionDetails {
                 action_type: "mcp:tool-call".to_string(),

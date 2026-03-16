@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn test_record_and_count() {
         let tracker = RateTracker::new();
-        let did = "did:idprova:test:agent1";
+        let did = "did:aid:test:agent1";
 
         assert_eq!(tracker.get_counts(did), (0, 0, 0));
 
@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn test_concurrent_tracking() {
         let tracker = RateTracker::new();
-        let did = "did:idprova:test:agent1";
+        let did = "did:aid:test:agent1";
 
         tracker.acquire_concurrent(did);
         tracker.acquire_concurrent(did);
@@ -141,8 +141,8 @@ mod tests {
     #[test]
     fn test_separate_agents() {
         let tracker = RateTracker::new();
-        let agent1 = "did:idprova:test:agent1";
-        let agent2 = "did:idprova:test:agent2";
+        let agent1 = "did:aid:test:agent1";
+        let agent2 = "did:aid:test:agent2";
 
         tracker.record_action(agent1);
         tracker.record_action(agent1);
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn test_thread_safety() {
         let tracker = std::sync::Arc::new(RateTracker::new());
-        let did = "did:idprova:test:agent1";
+        let did = "did:aid:test:agent1";
         let mut handles = vec![];
 
         for _ in 0..10 {

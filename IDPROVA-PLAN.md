@@ -20,7 +20,7 @@
 | GitHub | github.com/techblaze-au/idprova |
 | Documentation | idprova.dev |
 | Landing Page | techblaze.com.au/idprova |
-| Protocol DID | `did:idprova:` |
+| Protocol DID | `did:aid:` |
 
 ### Why IDProva Exists
 
@@ -82,7 +82,7 @@ MCP SERVER / A2A SERVICE
 ### DID Method Format
 
 ```
-did:idprova:techblaze.com.au:kai
+did:aid:techblaze.com.au:kai
 │   │       │                 │
 │   │       │                 └─ local name
 │   │       └─ domain (namespace + L1 verification anchor)
@@ -374,7 +374,7 @@ idprova/
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| DID method | Custom `did:idprova:` | W3C compatible, domain-anchored, agent-native |
+| DID method | Custom `did:aid:` | W3C compatible, domain-anchored, agent-native |
 | Signature algorithm | Ed25519 (hybrid PQC planned) | Audited library, small signatures, PQC-agile |
 | Hashing | BLAKE3 (SHA-256 for interop) | Fast, secure, modern |
 | Token format | JWS (compact serialization) | JWT/JWS ecosystem compatibility |

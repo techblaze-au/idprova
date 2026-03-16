@@ -136,16 +136,16 @@ mod tests {
 
         // Root DAT: human → agent0
         chain.push(make_dat(
-            "did:idprova:example.com:human",
-            &format!("did:idprova:example.com:agent0"),
+            "did:aid:example.com:human",
+            &format!("did:aid:example.com:agent0"),
             scopes.clone(),
             &kp,
         ));
 
         // Re-delegations: agent_i → agent_{i+1}
         for i in 0..depth.saturating_sub(1) {
-            let issuer = format!("did:idprova:example.com:agent{i}");
-            let subject = format!("did:idprova:example.com:agent{}", i + 1);
+            let issuer = format!("did:aid:example.com:agent{i}");
+            let subject = format!("did:aid:example.com:agent{}", i + 1);
             chain.push(make_dat(&issuer, &subject, scopes.clone(), &kp));
         }
 

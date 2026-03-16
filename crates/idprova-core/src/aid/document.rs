@@ -6,9 +6,9 @@ use std::fmt;
 use crate::{IdprovaError, Result};
 
 /// The DID method name for IDProva identifiers.
-pub const DID_METHOD: &str = "idprova";
+pub const DID_METHOD: &str = "aid";
 
-/// A parsed IDProva DID identifier: `did:idprova:{domain}:{local_name}`
+/// A parsed IDProva DID identifier: `did:aid:{domain}:{local_name}`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct AidIdentifier {
     /// The domain namespace (e.g., "techblaze.com.au").
@@ -20,12 +20,12 @@ pub struct AidIdentifier {
 impl AidIdentifier {
     /// Parse a DID string into an AidIdentifier.
     ///
-    /// Expected format: `did:idprova:{domain}:{local_name}`
+    /// Expected format: `did:aid:{domain}:{local_name}`
     pub fn parse(did: &str) -> Result<Self> {
         let parts: Vec<&str> = did.splitn(4, ':').collect();
         if parts.len() != 4 {
             return Err(IdprovaError::InvalidAid(format!(
-                "expected did:idprova:{{domain}}:{{name}}, got: {did}"
+                "expected did:aid:{{domain}}:{{name}}, got: {did}"
             )));
         }
         if parts[0] != "did" || parts[1] != DID_METHOD {
@@ -111,7 +111,7 @@ pub struct AidDocument {
     #[serde(rename = "@context")]
     pub context: Vec<String>,
 
-    /// The DID identifier (e.g., "did:idprova:techblaze.com.au:kai").
+    /// The DID identifier (e.g., "did:aid:techblaze.com.au:kai").
     pub id: String,
 
     /// The controller DID (the human/entity who controls this agent).
@@ -229,10 +229,10 @@ mod tests {
 
     #[test]
     fn test_parse_valid_did() {
-        let id = AidIdentifier::parse("did:idprova:techblaze.com.au:kai").unwrap();
+        let id = AidIdentifier::parse("did:aid:techblaze.com.au:kai").unwrap();
         assert_eq!(id.domain, "techblaze.com.au");
         assert_eq!(id.local_name, "kai");
-        assert_eq!(id.to_did(), "did:idprova:techblaze.com.au:kai");
+        assert_eq!(id.to_did(), "did:aid:techblaze.com.au:kai");
     }
 
     #[test]
@@ -243,20 +243,20 @@ mod tests {
     #[test]
     fn test_parse_invalid_format() {
         assert!(AidIdentifier::parse("not-a-did").is_err());
-        assert!(AidIdentifier::parse("did:idprova:nodomain").is_err());
+        assert!(AidIdentifier::parse("did:aid:nodomain").is_err());
     }
 
     #[test]
     fn test_parse_invalid_local_name() {
-        assert!(AidIdentifier::parse("did:idprova:example.com:UPPERCASE").is_err());
-        assert!(AidIdentifier::parse("did:idprova:example.com:has spaces").is_err());
+        assert!(AidIdentifier::parse("did:aid:example.com:UPPERCASE").is_err());
+        assert!(AidIdentifier::parse("did:aid:example.com:has spaces").is_err());
     }
 
     #[test]
     fn test_parse_valid_local_names() {
-        assert!(AidIdentifier::parse("did:idprova:example.com:kai").is_ok());
-        assert!(AidIdentifier::parse("did:idprova:example.com:billing-agent").is_ok());
-        assert!(AidIdentifier::parse("did:idprova:example.com:agent-v2").is_ok());
+        assert!(AidIdentifier::parse("did:aid:example.com:kai").is_ok());
+        assert!(AidIdentifier::parse("did:aid:example.com:billing-agent").is_ok());
+        assert!(AidIdentifier::parse("did:aid:example.com:agent-v2").is_ok());
     }
 
     #[test]
@@ -265,7 +265,7 @@ mod tests {
             domain: "example.com".into(),
             local_name: "kai".into(),
         };
-        assert_eq!(format!("{id}"), "did:idprova:example.com:kai");
+        assert_eq!(format!("{id}"), "did:aid:example.com:kai");
     }
 
     fn sample_aid_document() -> AidDocument {
@@ -274,12 +274,12 @@ mod tests {
                 "https://www.w3.org/ns/did/v1".into(),
                 "https://idprova.dev/ns/v1".into(),
             ],
-            id: "did:idprova:example.com:kai".into(),
-            controller: "did:idprova:example.com:root".into(),
+            id: "did:aid:example.com:kai".into(),
+            controller: "did:aid:example.com:root".into(),
             verification_method: vec![VerificationMethod {
                 id: "#key-ed25519".into(),
                 key_type: "Ed25519VerificationKey2020".into(),
-                controller: "did:idprova:example.com:kai".into(),
+                controller: "did:aid:example.com:kai".into(),
                 public_key_multibase: "zABCDEF".into(),
             }],
             authentication: vec!["#key-ed25519".into()],

@@ -32,7 +32,7 @@ import { AgentIdentity, DAT } from '@idprova/core';
 
 // 1. Create an identity
 const identity = AgentIdentity.create('my-agent', 'example.com');
-console.log(identity.did);  // did:idprova:example.com:my-agent
+console.log(identity.did);  // did:aid:example.com:my-agent
 
 // 2. Get the AID document
 const aid = identity.aid();
@@ -40,12 +40,12 @@ console.log(aid.trustLevel);  // 'L0'
 
 // 3. Issue a DAT to another agent
 const dat = identity.issueDat(
-  'did:idprova:example.com:worker',
+  'did:aid:example.com:worker',
   ['mcp:mcp:tool:read', 'mcp:mcp:tool:write'],
   3600,  // expires in 1 hour
 );
-console.log(dat.issuer);   // did:idprova:example.com:my-agent
-console.log(dat.subject);  // did:idprova:example.com:worker
+console.log(dat.issuer);   // did:aid:example.com:my-agent
+console.log(dat.subject);  // did:aid:example.com:worker
 console.log(dat.scope);    // ['mcp:mcp:tool:read', 'mcp:mcp:tool:write']
 
 // 4. Serialize DAT for transport (JWS compact)
@@ -91,8 +91,8 @@ import { KeyPair, AIDBuilder, AID } from '@idprova/core';
 const kp = KeyPair.generate();
 
 const builder = new AIDBuilder();
-builder.setId('did:idprova:example.com:my-agent');
-builder.setController('did:idprova:example.com:alice');
+builder.setId('did:aid:example.com:my-agent');
+builder.setController('did:aid:example.com:alice');
 builder.setName('My Agent');
 builder.setDescription('Reads and summarises documents');
 builder.setModel('gpt-4o');
@@ -121,8 +121,8 @@ import { KeyPair, DAT } from '@idprova/core';
 const issuerKp = KeyPair.generate();
 
 const dat = DAT.issue(
-  'did:idprova:example.com:alice',   // issuerDid
-  'did:idprova:example.com:agent',   // subjectDid
+  'did:aid:example.com:alice',   // issuerDid
+  'did:aid:example.com:agent',   // subjectDid
   ['mcp:mcp:tool:read'],               // scope
   3600,                               // expiresInSeconds
   issuerKp,                           // signingKey
@@ -131,8 +131,8 @@ const dat = DAT.issue(
 );
 
 console.log(dat.jti);        // dat_<uuid>
-console.log(dat.issuer);     // did:idprova:example.com:alice
-console.log(dat.subject);    // did:idprova:example.com:agent
+console.log(dat.issuer);     // did:aid:example.com:alice
+console.log(dat.subject);    // did:aid:example.com:agent
 console.log(dat.expiresAt);  // Unix timestamp (number)
 console.log(dat.isExpired);  // false
 
@@ -157,7 +157,7 @@ if (!dat.verifySignature(issuerPubKeyBytes)) {
 
 // Inspect claims
 console.log(dat.scope);   // ['mcp:mcp:tool:read']
-console.log(dat.issuer);  // did:idprova:...
+console.log(dat.issuer);  // did:aid:...
 ```
 
 ## Scopes
@@ -255,7 +255,7 @@ All IDProva errors are thrown as standard JavaScript `Error` objects. Check `err
 import { DAT, KeyPair } from '@idprova/core';
 
 const kp = KeyPair.generate();
-const dat = DAT.issue('did:idprova:a:b', 'did:idprova:a:c', ['mcp:*:*:*'], -1, kp);
+const dat = DAT.issue('did:aid:a:b', 'did:aid:a:c', ['mcp:*:*:*'], -1, kp);
 
 try {
   dat.validateTiming();

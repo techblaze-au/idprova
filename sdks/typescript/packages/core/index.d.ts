@@ -35,7 +35,7 @@ export type AID = Aid
  * Create with AIDBuilder or parse from JSON.
  */
 export declare class Aid {
-  /** Get the DID identifier (e.g., "did:idprova:example.com:my-agent"). */
+  /** Get the DID identifier (e.g., "did:aid:example.com:my-agent"). */
   get did(): string
   /** Get the controller DID. */
   get controller(): string
@@ -54,8 +54,8 @@ export type AIDBuilder = AidBuilder
  *
  * Usage:
  *   const builder = new AIDBuilder();
- *   builder.setId("did:idprova:example.com:my-agent");
- *   builder.setController("did:idprova:example.com:alice");
+ *   builder.setId("did:aid:example.com:my-agent");
+ *   builder.setController("did:aid:example.com:alice");
  *   builder.setName("My Agent");
  *   builder.addEd25519Key(keypair);
  *   const aid = builder.build();

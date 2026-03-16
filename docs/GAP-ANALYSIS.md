@@ -1,68 +1,57 @@
 # IDprova SDK — Gap Analysis
 
-**Version:** 1.0
-**Date:** 2026-03-02
-**Status:** Active — to be published to Notion when API recovers
+**Version:** 1.1
+**Date:** 2026-03-14
+**Status:** Active — most gaps resolved
 
 ---
 
 ## Summary
 
-17 gaps identified, prioritized by impact on SDK release and market positioning.
+17 gaps identified originally, 10 now resolved. Remaining gaps are ecosystem/strategic items.
 
-| Priority | Count | Category |
-|----------|-------|----------|
-| URGENT | 3 | Infrastructure (git, GitHub, docs site) |
-| HIGH | 7 | Core functionality + security |
-| MEDIUM | 6 | Ecosystem + testing + monetization |
-| LOW | 1 | Hardware attestation |
+| Priority | Original | Resolved | Remaining |
+|----------|----------|----------|-----------|
+| URGENT | 3 | 3 | 0 |
+| HIGH | 7 | 6 | 1 (SPIFFE bridge) |
+| MEDIUM | 6 | 0 | 6 |
+| LOW | 1 | 0 | 1 |
 
 ---
 
-## URGENT — This Week
+## URGENT — ~~This Week~~ RESOLVED
 
-### Gap 1: No git commits in aidspec repo
-**Status:** Blocking everything
-The aidspec directory has a complete Rust core (33 tests), CLI, registry, protocol spec, and NIST submission — but zero git commits. One accidental delete loses everything.
-**Action:** `git init` + initial commit immediately.
+### Gap 1: No git commits in aidspec repo ✅ RESOLVED
+Git repo initialized, code committed and pushed to GitHub.
 
-### Gap 2: No GitHub repos created (404)
-**Status:** No public presence
-`techblaze-au/idprova` returns 404. No way for community or NIST reviewers to access the code.
-**Action:** Create GitHub org repo, push initial commit, set up branch protection.
+### Gap 2: No GitHub repos created (404) ✅ RESOLVED
+`techblaze-au/idprova` exists (currently private, pending public launch).
 
-### Gap 3: idprova.dev not deployed
-**Status:** Docs site built but not live
-18/28 documentation pages are complete in the Astro/Starlight site, but the domain isn't serving content.
-**Action:** Deploy to Vercel/Netlify, configure DNS for idprova.dev.
+### Gap 3: idprova.dev not deployed ✅ RESOLVED
+Live on Vercel with 25+ pages, SEO/OG tags, Cloudflare Turnstile CAPTCHA, and Google Analytics.
 
 ---
 
 ## HIGH Priority — Weeks 2-4
 
-### Gap 4: SDKs are placeholder only
-PyO3/napi-rs bindings not implemented. Only empty scaffolding exists at `sdks/python/` and `sdks/typescript/`.
-**Action:** Implement PyO3 bindings (Python) weeks 2-3, napi-rs bindings (TypeScript) month 2.
+### Gap 4: SDKs are placeholder only ✅ RESOLVED
+Python SDK (PyO3) and TypeScript SDK (napi-rs) both built from Rust core. Ready for PyPI and npm publish.
 
 ### Gap 5: No SPIFFE/OAuth bridge
 Industry converging on SPIFFE for workload identity. No bridge from SPIFFE SVID to IDprova AID.
 **Action:** Design one-way SPIFFE bridge with explicit mapping config. Implement month 3.
 
-### Gap 6: No agent discovery mechanism
-A2A has AgentCard, AGNTCY has DID resolution. IDprova has no equivalent.
-**Action:** Implement DID resolution endpoint in registry + `.well-known/did.json` discovery.
+### Gap 6: No agent discovery mechanism ✅ RESOLVED
+DID resolution implemented: local cache, `.well-known/did/idprova/{agent-name}/did.json`, registry lookup, universal resolver fallback.
 
-### Gap 7: No DAT revocation system
-No CRL, OCSP, or short-lived token rotation. Compromised DATs remain valid until expiry.
-**Action:** Implement short-lived tokens (default 1hr) + optional revocation list in registry.
+### Gap 7: No DAT revocation system ✅ RESOLVED
+Per-token revocation via `POST /v1/delegations/{jti}/revoke`, cascading revocation, short-lived DATs (24hr max for L0-L1).
 
-### Gap 8: No key lifecycle management
-Key rotation, escrow, and recovery are undefined. Single key compromise = full agent compromise.
-**Action:** Define key rotation protocol, implement in CLI and SDKs.
+### Gap 8: No key lifecycle management ✅ RESOLVED
+Key rotation defined (Ed25519 every 90 days, ML-DSA-65 every 180 days), emergency rotation, key storage hierarchy (HSM > TPM > OS Keychain > Encrypted File).
 
-### Gap 9: No multi-hop delegation verification
-User→Agent→Sub-agent chain validation not implemented.
-**Action:** Implement chain validation with strict scope subset inheritance (SR-3).
+### Gap 9: No multi-hop delegation verification ✅ RESOLVED
+Delegation chain validation with scope narrowing rule enforced at every step. Cascading revocation implemented.
 
 ### Gap 10: Formal threat model ✅ RESOLVED
 STRIDE threat model created and saved to `aidspec/docs/STRIDE-THREAT-MODEL.md`.
@@ -106,15 +95,15 @@ NEAR IronClaw and Teleport support hardware attestation. IDprova only has softwa
 
 ---
 
-## Strategic Timeline
+## Strategic Timeline (Updated March 14, 2026)
 
 | Timeframe | Deliverables |
 |-----------|-------------|
-| **This week** | Git init + initial commit, create GitHub repos, deploy idprova.dev |
-| **Weeks 2-4** | Python SDK (PyO3), populate test vectors, CLI `aid resolve` |
-| **Month 2** | TypeScript SDK (napi-rs), MCP middleware, A2A binding |
-| **Month 3** | SPIFFE bridge, revocation system, key lifecycle, NCCoE response (April 2 deadline) |
-| **Month 4-6** | Enterprise features, Go SDK, managed registry pilot |
+| ~~**This week**~~ | ~~Git init, GitHub repos, idprova.dev~~ ✅ ALL DONE |
+| ~~**Weeks 2-4**~~ | ~~Python SDK, test vectors, CLI~~ ✅ SDKs DONE |
+| **Now (Mar 14-21)** | Make repo public, publish packages, submit NCCoE feedback, CAISI registration |
+| **Month 2 (April)** | SPIFFE bridge, OTel integration, NCCoE response deadline (Apr 2), W3C DIDs (Apr 5) |
+| **Month 3-6** | Enterprise features, Go SDK, managed registry pilot, interop testing |
 
 ---
 

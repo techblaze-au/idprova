@@ -747,10 +747,10 @@ impl AgentIdentity {
     #[pyo3(signature = (name, domain="local.dev", controller=None))]
     fn create(name: &str, domain: &str, controller: Option<&str>) -> PyResult<Self> {
         let keypair = RustKeyPair::generate();
-        let did = format!("did:idprova:{domain}:{name}");
+        let did = format!("did:aid:{domain}:{name}");
         let ctrl = controller
             .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("did:idprova:{domain}:controller"));
+            .unwrap_or_else(|| format!("did:aid:{domain}:controller"));
 
         let aid = AidBuilder::new()
             .id(&did)

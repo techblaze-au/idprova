@@ -39,18 +39,18 @@ describe('KeyPair', () => {
 describe('AgentIdentity', () => {
   it('creates with default domain', () => {
     const identity = AgentIdentity.create('test-agent');
-    expect(identity.did).toBe('did:idprova:local.dev:test-agent');
+    expect(identity.did).toBe('did:aid:local.dev:test-agent');
   });
 
   it('creates with custom domain', () => {
     const identity = AgentIdentity.create('kai', 'techblaze.com.au');
-    expect(identity.did).toBe('did:idprova:techblaze.com.au:kai');
+    expect(identity.did).toBe('did:aid:techblaze.com.au:kai');
   });
 
   it('returns AID document', () => {
     const identity = AgentIdentity.create('test', 'example.com');
     const aid = identity.aid();
-    expect(aid.did).toBe('did:idprova:example.com:test');
+    expect(aid.did).toBe('did:aid:example.com:test');
     expect(aid.trustLevel).toBe('L0');
   });
 
@@ -59,7 +59,7 @@ describe('AgentIdentity', () => {
     const aid = identity.aid();
     const json = aid.toJson();
     const parsed = JSON.parse(json);
-    expect(parsed.id).toBe('did:idprova:example.com:test');
+    expect(parsed.id).toBe('did:aid:example.com:test');
 
     const aid2 = AID.fromJson(json);
     expect(aid2.did).toBe(aid.did);
@@ -68,12 +68,12 @@ describe('AgentIdentity', () => {
   it('issues a DAT', () => {
     const issuer = AgentIdentity.create('alice', 'example.com');
     const dat = issuer.issueDat(
-      'did:idprova:example.com:agent',
+      'did:aid:example.com:agent',
       ['mcp:tool:read'],
       3600,
     );
-    expect(dat.issuer).toBe('did:idprova:example.com:alice');
-    expect(dat.subject).toBe('did:idprova:example.com:agent');
+    expect(dat.issuer).toBe('did:aid:example.com:alice');
+    expect(dat.subject).toBe('did:aid:example.com:agent');
     expect(dat.isExpired).toBe(false);
   });
 });
@@ -82,8 +82,8 @@ describe('DAT', () => {
   it('issues and verifies', () => {
     const kp = KeyPair.generate();
     const dat = DAT.issue(
-      'did:idprova:example.com:alice',
-      'did:idprova:example.com:agent',
+      'did:aid:example.com:alice',
+      'did:aid:example.com:agent',
       ['mcp:tool:read'],
       3600,
       kp,
@@ -94,8 +94,8 @@ describe('DAT', () => {
   it('roundtrips through compact JWS', () => {
     const kp = KeyPair.generate();
     const dat = DAT.issue(
-      'did:idprova:example.com:alice',
-      'did:idprova:example.com:agent',
+      'did:aid:example.com:alice',
+      'did:aid:example.com:agent',
       ['mcp:tool:read', 'mcp:tool:write'],
       3600,
       kp,
@@ -110,8 +110,8 @@ describe('DAT', () => {
   it('detects expired DAT', () => {
     const kp = KeyPair.generate();
     const dat = DAT.issue(
-      'did:idprova:example.com:alice',
-      'did:idprova:example.com:agent',
+      'did:aid:example.com:alice',
+      'did:aid:example.com:agent',
       ['mcp:tool:read'],
       -1, // Already expired
       kp,
@@ -124,8 +124,8 @@ describe('DAT', () => {
     const kp1 = KeyPair.generate();
     const kp2 = KeyPair.generate();
     const dat = DAT.issue(
-      'did:idprova:example.com:alice',
-      'did:idprova:example.com:agent',
+      'did:aid:example.com:alice',
+      'did:aid:example.com:agent',
       ['mcp:tool:read'],
       3600,
       kp1,
@@ -136,8 +136,8 @@ describe('DAT', () => {
   it('supports constraints', () => {
     const kp = KeyPair.generate();
     const dat = DAT.issue(
-      'did:idprova:example.com:alice',
-      'did:idprova:example.com:agent',
+      'did:aid:example.com:alice',
+      'did:aid:example.com:agent',
       ['mcp:tool:read'],
       3600,
       kp,

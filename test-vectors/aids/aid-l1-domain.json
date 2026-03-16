@@ -1,20 +1,20 @@
 {
   "description": "L1 AID with full metadata, Ed25519 key from keypair-002",
-  "did": "did:idprova:techblaze.com.au:kai",
-  "controller": "did:idprova:techblaze.com.au:admin",
+  "did": "did:aid:techblaze.com.au:kai",
+  "controller": "did:aid:techblaze.com.au:admin",
   "trust_level": "L1",
   "document": {
     "@context": [
       "https://www.w3.org/ns/did/v1",
       "https://idprova.dev/v1"
     ],
-    "id": "did:idprova:techblaze.com.au:kai",
-    "controller": "did:idprova:techblaze.com.au:admin",
+    "id": "did:aid:techblaze.com.au:kai",
+    "controller": "did:aid:techblaze.com.au:admin",
     "verificationMethod": [
       {
         "id": "#key-ed25519",
         "type": "Ed25519VerificationKey2020",
-        "controller": "did:idprova:techblaze.com.au:admin",
+        "controller": "did:aid:techblaze.com.au:admin",
         "publicKeyMultibase": "zE4NAcSA5pWdrTohqSDLD98goCVWvdq52RSpJStXfFRZY"
       }
     ],

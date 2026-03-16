@@ -35,7 +35,7 @@
 //! REGISTRY_URL=http://localhost:3000 MCP_PORT=3001 idprova-mcp-demo
 //!
 //! # 3. Issue a DAT with tool scopes
-//! idprova dat issue --subject did:idprova:demo:agent \
+//! idprova dat issue --subject did:aid:demo:agent \
 //!   --scope "mcp:tool:echo:call,mcp:tool:calculate:call" --expires-in 1h
 //!
 //! # 4. Call a tool
@@ -632,7 +632,7 @@ mod tests {
             id: "01".into(),
             timestamp: "2026-01-01T00:00:00Z".into(),
             tool: "echo".into(),
-            subject_did: "did:idprova:test:agent".into(),
+            subject_did: "did:aid:test:agent".into(),
             scope: "mcp:tool:echo:call".into(),
             request_hash: "abc".into(),
             prev_receipt_hash: "genesis".into(),
@@ -647,7 +647,7 @@ mod tests {
             id: "02".into(),
             timestamp: "2026-01-01T00:00:01Z".into(),
             tool: "echo".into(),
-            subject_did: "did:idprova:test:agent".into(),
+            subject_did: "did:aid:test:agent".into(),
             scope: "mcp:tool:echo:call".into(),
             request_hash: "def".into(),
             prev_receipt_hash: expected.clone(),

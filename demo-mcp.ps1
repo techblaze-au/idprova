@@ -141,7 +141,7 @@ if ($LASTEXITCODE -ne 0) { Write-Fail "keygen failed" }
 $pubKey = Get-Content $pubFile -Raw | ForEach-Object { $_.Trim() }
 Write-Info "Public key: $pubKey"
 
-$agentDid = "did:idprova:demo.local:mcp-agent"
+$agentDid = "did:aid:demo.local:mcp-agent"
 
 # Create AID via CLI
 Push-Location $tmpDir
