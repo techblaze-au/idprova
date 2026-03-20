@@ -72,3 +72,6 @@ macos-*.txt
 
 # Worktrees
 worktrees/
+
+# Demo keys and session data (contain private keys — NEVER commit)
+demo-keys/
