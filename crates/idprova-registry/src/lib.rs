@@ -182,10 +182,12 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
         HeaderValue::from_static("nosniff"),
     );
     headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
-    headers.insert(
-        "Strict-Transport-Security",
-        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-    );
+    if std::env::var("IDPROVA_TLS").unwrap_or_default() == "true" {
+        headers.insert(
+            "Strict-Transport-Security",
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
+    }
     headers.insert(
         "X-XSS-Protection",
         HeaderValue::from_static("1; mode=block"),
@@ -225,7 +227,7 @@ fn require_write_auth(
     }
 
     let ctx = idprova_core::dat::constraints::EvaluationContext::default();
-    idprova_verify::verify_dat(token, &pubkey, "", &ctx).map_err(|e| {
+    idprova_verify::verify_dat(token, &pubkey, "registry:admin:write", &ctx).map_err(|e| {
         (
             StatusCode::UNAUTHORIZED,
             Json(json!({ "error": format!("invalid admin token: {e}") })),
