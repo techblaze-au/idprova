@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IDProva Registry Dashboard</title>
+<title>IDProva Control Panel</title>
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
 <style>
   :root {
     --bg: #0d1117;
@@ -37,8 +38,9 @@
     padding: 0 24px;
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
     height: 56px;
+    flex-wrap: wrap;
   }
 
   .logo {
@@ -49,6 +51,7 @@
   }
 
   .logo span { color: var(--heading); }
+  .logo-sub { color: var(--muted); font-size: 12px; font-weight: 400; }
 
   .topbar-right {
     margin-left: auto;
@@ -57,31 +60,30 @@
     gap: 12px;
   }
 
-  .registry-url-form {
+  .url-field {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
   }
 
-  .registry-url-form label {
+  .url-field label {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
-  .registry-url-form input {
+  .url-field input {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--text);
     padding: 5px 10px;
     font-size: 13px;
-    width: 240px;
+    width: 200px;
     outline: none;
   }
 
-  .registry-url-form input:focus {
-    border-color: var(--accent);
-  }
+  .url-field input:focus { border-color: var(--accent); }
 
   .btn {
     background: var(--accent);
@@ -96,11 +98,9 @@
   }
 
   .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .btn-sm {
-    padding: 4px 10px;
-    font-size: 12px;
-  }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
 
   .btn-outline {
     background: transparent;
@@ -110,22 +110,75 @@
 
   .btn-outline:hover { background: rgba(88,166,255,0.1); }
 
+  .btn-danger {
+    background: var(--danger);
+    color: #fff;
+  }
+
+  .btn-green {
+    background: var(--accent2);
+    color: #0d1117;
+  }
+
   .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--muted);
     display: inline-block;
+    flex-shrink: 0;
   }
 
   .status-dot.ok { background: var(--accent2); }
   .status-dot.err { background: var(--danger); }
 
+  /* ── Session Banner ─────────────────────────────────────────────────────── */
+  .session-banner {
+    background: rgba(63,185,80,0.08);
+    border-bottom: 1px solid rgba(63,185,80,0.25);
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--accent2);
+  }
+
+  /* ── Tab navigation ──────────────────────────────────────────────────────── */
+  .tab-nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 0;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    padding: 12px 18px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
   /* ── Layout ────────────────────────────────────────────────────────────── */
   .layout {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto auto;
     gap: 16px;
     padding: 20px 24px;
     max-width: 1400px;
@@ -168,20 +221,10 @@
     font-weight: 600;
   }
 
-  .badge-green {
-    background: rgba(63,185,80,0.15);
-    color: var(--accent2);
-  }
-
-  .badge-warn {
-    background: rgba(240,136,62,0.15);
-    color: var(--warn);
-  }
-
-  .badge-red {
-    background: rgba(248,81,73,0.15);
-    color: var(--danger);
-  }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--accent2); }
+  .badge-warn  { background: rgba(240,136,62,0.15); color: var(--warn); }
+  .badge-red   { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .badge-gray  { background: rgba(139,148,158,0.15); color: var(--muted); }
 
   .card-body { padding: 16px 18px; }
 
@@ -192,38 +235,15 @@
     gap: 16px;
   }
 
-  .metric {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
+  .metric { display: flex; flex-direction: column; gap: 4px; }
+  .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-value { font-size: 22px; font-weight: 700; color: var(--heading); font-variant-numeric: tabular-nums; }
+  .metric-sub { font-size: 12px; color: var(--muted); }
 
-  .metric-label {
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .metric-value {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--heading);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .metric-sub {
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  /* ── AID table ──────────────────────────────────────────────────────────── */
+  /* ── Table ──────────────────────────────────────────────────────────────── */
   .table-wrap { overflow-x: auto; }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
+  table { width: 100%; border-collapse: collapse; }
 
   th, td {
     text-align: left;
@@ -242,34 +262,16 @@
   }
 
   tr:last-child td { border-bottom: none; }
-
   tr:hover td { background: rgba(255,255,255,0.02); }
 
-  .did-cell {
-    font-family: 'Cascadia Code', 'Consolas', monospace;
-    font-size: 12px;
-    color: var(--accent);
-    word-break: break-all;
-  }
+  .did-cell  { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px; color: var(--accent); word-break: break-all; }
+  .jti-cell  { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 11px; color: var(--warn); word-break: break-all; }
+  .time-cell { color: var(--muted); font-size: 12px; white-space: nowrap; }
 
-  .time-cell {
-    color: var(--muted);
-    font-size: 12px;
-    white-space: nowrap;
-  }
+  /* ── Forms ──────────────────────────────────────────────────────────────── */
+  .verify-form { display: flex; flex-direction: column; gap: 12px; }
 
-  /* ── Verify panel ───────────────────────────────────────────────────────── */
-  .verify-form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .form-row {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
+  .form-row { display: flex; flex-direction: column; gap: 5px; }
 
   .form-row label {
     font-size: 11px;
@@ -278,7 +280,7 @@
     letter-spacing: 0.5px;
   }
 
-  textarea, input[type="text"] {
+  textarea, input[type="text"], select {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -291,9 +293,9 @@
     transition: border-color 0.15s;
   }
 
-  textarea:focus, input[type="text"]:focus {
-    border-color: var(--accent);
-  }
+  select { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+  textarea:focus, input[type="text"]:focus, select:focus { border-color: var(--accent); }
 
   .verify-result {
     border-radius: 8px;
@@ -305,46 +307,16 @@
     word-break: break-all;
   }
 
-  .verify-result.success {
-    background: rgba(63,185,80,0.08);
-    border: 1px solid rgba(63,185,80,0.3);
-    color: var(--accent2);
-  }
-
-  .verify-result.failure {
-    background: rgba(248,81,73,0.08);
-    border: 1px solid rgba(248,81,73,0.3);
-    color: var(--danger);
-  }
-
-  .verify-result.idle {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    color: var(--muted);
-  }
-
-  /* ── Revocations ────────────────────────────────────────────────────────── */
-  .jti-cell {
-    font-family: 'Cascadia Code', 'Consolas', monospace;
-    font-size: 11px;
-    color: var(--warn);
-    word-break: break-all;
-  }
+  .verify-result.success { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.3); color: var(--accent2); }
+  .verify-result.failure { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.3); color: var(--danger); }
+  .verify-result.idle    { background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: var(--muted); }
 
   /* ── Refresh bar ────────────────────────────────────────────────────────── */
-  .refresh-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-left: auto;
-    color: var(--muted);
-    font-size: 12px;
-  }
+  .refresh-bar { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
 
   .spinner {
     display: none;
-    width: 14px;
-    height: 14px;
+    width: 14px; height: 14px;
     border: 2px solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
@@ -353,72 +325,183 @@
 
   .spinner.active { display: inline-block; }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── Empty state ────────────────────────────────────────────────────────── */
-  .empty {
-    text-align: center;
-    padding: 32px;
-    color: var(--muted);
-  }
-
+  .empty { text-align: center; padding: 32px; color: var(--muted); }
   .empty-icon { font-size: 28px; margin-bottom: 8px; }
 
-  /* ── Protocol flow diagram ──────────────────────────────────────────────── */
+  /* ── Protocol flow ──────────────────────────────────────────────────────── */
   .flow-diagram {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-    padding: 20px;
-    flex-wrap: wrap;
-    row-gap: 8px;
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; padding: 20px; flex-wrap: wrap; row-gap: 8px;
   }
 
   .flow-node {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 16px; text-align: center; min-width: 100px;
+  }
+
+  .flow-node-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .flow-node-name  { font-size: 13px; font-weight: 600; color: var(--heading); margin-top: 3px; }
+
+  .flow-arrow { display: flex; flex-direction: column; align-items: center; padding: 0 8px; gap: 2px; }
+  .flow-arrow-line { width: 50px; height: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .flow-arrow-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+  /* ── Agent cards ────────────────────────────────────────────────────────── */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    padding: 16px 18px;
+  }
+
+  .agent-card {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 10px 16px;
-    text-align: center;
-    min-width: 100px;
-  }
-
-  .flow-node-label {
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  .flow-node-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--heading);
-    margin-top: 3px;
-  }
-
-  .flow-arrow {
+    padding: 14px;
     display: flex;
     flex-direction: column;
+    gap: 8px;
+  }
+
+  .agent-card-header { display: flex; align-items: center; gap: 8px; }
+
+  .agent-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #0d1117;
+    flex-shrink: 0;
+  }
+
+  .agent-name { font-weight: 600; color: var(--heading); font-size: 14px; }
+  .agent-did  { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 11px; color: var(--muted); word-break: break-all; }
+
+  .agent-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+  /* ── Scenario cards ─────────────────────────────────────────────────────── */
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .scenario-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .scenario-header {
+    display: flex;
     align-items: center;
-    padding: 0 8px;
-    gap: 2px;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
   }
 
-  .flow-arrow-line {
-    width: 50px;
-    height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    position: relative;
+  .scenario-title { font-size: 14px; font-weight: 600; color: var(--heading); flex: 1; }
+  .scenario-desc  { padding: 12px 18px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border); }
+
+  .scenario-steps { padding: 12px 18px; min-height: 60px; max-height: 320px; overflow-y: auto; }
+
+  .sc-step {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 4px;
   }
 
-  .flow-arrow-label {
-    font-size: 10px;
+  .sc-step:last-child { border-bottom: none; }
+
+  .sc-step-row { display: flex; align-items: flex-start; gap: 8px; }
+  .sc-step-icon { font-size: 14px; flex-shrink: 0; width: 18px; }
+  .sc-step-label { font-size: 13px; color: var(--text); }
+
+  .sc-step.done .sc-step-label  { color: var(--accent2); }
+  .sc-step.error .sc-step-label { color: var(--danger); }
+  .sc-step.pending .sc-step-label { color: var(--muted); }
+
+  .sc-step-detail {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11px;
     color: var(--muted);
-    white-space: nowrap;
+    margin-left: 26px;
+    padding: 4px 8px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 80px;
+    overflow-y: auto;
+    cursor: pointer;
   }
+
+  .sc-step-detail.expanded { max-height: none; }
+  .sc-step.done .sc-step-detail   { color: rgba(63,185,80,0.7); }
+  .sc-step.error .sc-step-detail  { color: rgba(248,81,73,0.7); }
+
+  /* ── Event feed ──────────────────────────────────────────────────────────── */
+  .feed-controls {
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .feed-stream {
+    padding: 8px 0;
+    max-height: 480px;
+    overflow-y: auto;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+  }
+
+  .feed-entry {
+    display: grid;
+    grid-template-columns: 140px 220px 90px 200px 28px;
+    gap: 8px;
+    padding: 6px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    align-items: center;
+  }
+
+  .feed-entry:hover { background: rgba(255,255,255,0.02); }
+  .feed-ts   { color: var(--muted); font-size: 11px; }
+  .feed-did  { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-tool { color: var(--warn); }
+  .feed-scope{ color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-ok   { text-align: center; }
+
+  .feed-header {
+    display: grid;
+    grid-template-columns: 140px 220px 90px 200px 28px;
+    gap: 8px;
+    padding: 6px 18px;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+
+  .feed-empty { padding: 32px; text-align: center; color: var(--muted); }
+
+  /* ── Connection presets ──────────────────────────────────────────────────── */
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
   /* ── Footer ─────────────────────────────────────────────────────────────── */
   .footer {
@@ -430,11 +513,12 @@
     margin-top: 8px;
   }
 
-  /* ── Responsive ─────────────────────────────────────────────────────────── */
   @media (max-width: 900px) {
-    .layout { grid-template-columns: 1fr; }
+    .layout, .scenario-grid { grid-template-columns: 1fr; }
     .health-grid { grid-template-columns: 1fr 1fr; }
-    .full-width { grid-column: 1; }
+    .full-width  { grid-column: 1; }
+    .feed-entry, .feed-header { grid-template-columns: 110px 1fr 70px 28px; }
+    .feed-scope  { display: none; }
   }
 </style>
 </head>
@@ -442,28 +526,49 @@
 
 <!-- ── Top Bar ───────────────────────────────────────────────────────────── -->
 <div class="topbar">
-  <div class="logo">ID<span>Prova</span></div>
+  <div class="logo">ID<span>Prova</span> <span class="logo-sub">Control Panel</span></div>
   <span class="status-dot" id="statusDot"></span>
   <span id="statusText" style="font-size:12px;color:var(--muted)">Connecting...</span>
-
   <div class="topbar-right">
-    <div class="registry-url-form">
-      <label>Registry URL</label>
-      <input type="text" id="registryUrl" value="http://localhost:4242" placeholder="http://localhost:4242">
+    <div class="url-field">
+      <label>Registry</label>
+      <input type="text" id="registryUrl" value="http://localhost:4242" placeholder="http://localhost:4242" style="width:200px">
+    </div>
+    <div class="url-field">
+      <label>MCP</label>
+      <input type="text" id="mcpUrl" value="http://localhost:3001" placeholder="http://localhost:3001" style="width:180px">
     </div>
     <button class="btn btn-sm" onclick="connect()">Connect</button>
     <div class="refresh-bar">
       <div class="spinner" id="spinner"></div>
       <span id="lastRefresh">—</span>
-      <button class="btn btn-sm btn-outline" onclick="refresh()">Refresh</button>
+      <button class="btn btn-sm btn-outline" onclick="refresh()">↻</button>
     </div>
   </div>
 </div>
 
-<!-- ── Main Layout ───────────────────────────────────────────────────────── -->
+<!-- ── Session Banner ─────────────────────────────────────────────────────── -->
+<div id="sessionBanner" class="session-banner" style="display:none">
+  <span>Session loaded:</span>
+  <span id="sessionInfo" style="font-weight:600"></span>
+  <button class="btn btn-sm btn-outline" onclick="clearSession()" style="margin-left:auto">Clear Session</button>
+</div>
+
+<!-- ── Tab Nav ────────────────────────────────────────────────────────────── -->
+<div class="tab-nav">
+  <button class="tab-btn active" id="tab-btn-registry"  onclick="switchTab('registry')">Registry</button>
+  <button class="tab-btn"        id="tab-btn-agents"    onclick="switchTab('agents')">Agent Manager</button>
+  <button class="tab-btn"        id="tab-btn-scenarios" onclick="switchTab('scenarios')">Scenario Runner</button>
+  <button class="tab-btn"        id="tab-btn-events"    onclick="switchTab('events')">Live Event Feed</button>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<!-- TAB: Registry                                                              -->
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<div id="tab-registry" class="tab-panel active">
 <div class="layout">
 
-  <!-- Health Metrics (full width) -->
+  <!-- Health Metrics -->
   <div class="card full-width">
     <div class="card-header">
       <span class="card-title">Registry Health</span>
@@ -502,42 +607,15 @@
     </div>
     <div class="card-body">
       <div class="flow-diagram">
-        <div class="flow-node">
-          <div class="flow-node-label">Human / Org</div>
-          <div class="flow-node-name">Issuer</div>
-        </div>
-        <div class="flow-arrow">
-          <div class="flow-arrow-line"></div>
-          <div class="flow-arrow-label">Issue DAT</div>
-        </div>
-        <div class="flow-node">
-          <div class="flow-node-label">AI Agent</div>
-          <div class="flow-node-name">Delegate</div>
-        </div>
-        <div class="flow-arrow">
-          <div class="flow-arrow-line"></div>
-          <div class="flow-arrow-label">Sub-delegate</div>
-        </div>
-        <div class="flow-node">
-          <div class="flow-node-label">Tool Agent</div>
-          <div class="flow-node-name">Executor</div>
-        </div>
-        <div class="flow-arrow">
-          <div class="flow-arrow-line"></div>
-          <div class="flow-arrow-label">Verify via Registry</div>
-        </div>
-        <div class="flow-node">
-          <div class="flow-node-label">MCP Server</div>
-          <div class="flow-node-name">Protected API</div>
-        </div>
-        <div class="flow-arrow">
-          <div class="flow-arrow-line"></div>
-          <div class="flow-arrow-label">Audit log</div>
-        </div>
-        <div class="flow-node">
-          <div class="flow-node-label">BLAKE3 Chain</div>
-          <div class="flow-node-name">Receipts</div>
-        </div>
+        <div class="flow-node"><div class="flow-node-label">Human / Org</div><div class="flow-node-name">Issuer</div></div>
+        <div class="flow-arrow"><div class="flow-arrow-line"></div><div class="flow-arrow-label">Issue DAT</div></div>
+        <div class="flow-node"><div class="flow-node-label">AI Agent</div><div class="flow-node-name">Delegate</div></div>
+        <div class="flow-arrow"><div class="flow-arrow-line"></div><div class="flow-arrow-label">Sub-delegate</div></div>
+        <div class="flow-node"><div class="flow-node-label">Tool Agent</div><div class="flow-node-name">Executor</div></div>
+        <div class="flow-arrow"><div class="flow-arrow-line"></div><div class="flow-arrow-label">Verify via Registry</div></div>
+        <div class="flow-node"><div class="flow-node-label">MCP Server</div><div class="flow-node-name">Protected API</div></div>
+        <div class="flow-arrow"><div class="flow-arrow-line"></div><div class="flow-arrow-label">Audit log</div></div>
+        <div class="flow-node"><div class="flow-node-label">BLAKE3 Chain</div><div class="flow-node-name">Receipts</div></div>
       </div>
     </div>
   </div>
@@ -547,19 +625,12 @@
     <div class="card-header">
       <span class="card-title">Registered Agents</span>
       <span class="badge" id="aidCount">0</span>
-      <div style="margin-left:auto">
-        <span style="font-size:11px;color:var(--muted)">GET /v1/aids</span>
-      </div>
+      <div style="margin-left:auto"><span style="font-size:11px;color:var(--muted)">GET /v1/aids</span></div>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr>
-            <th>DID</th>
-            <th>Registered</th>
-            <th>Updated</th>
-            <th></th>
-          </tr>
+          <tr><th>DID</th><th>Registered</th><th>Updated</th><th></th></tr>
         </thead>
         <tbody id="aidTableBody">
           <tr><td colspan="4"><div class="empty"><div class="empty-icon">🤖</div>No agents registered yet</div></td></tr>
@@ -568,7 +639,7 @@
     </div>
   </div>
 
-  <!-- DAT Verification Panel -->
+  <!-- DAT Verification -->
   <div class="card">
     <div class="card-header">
       <span class="card-title">Verify a DAT</span>
@@ -583,7 +654,7 @@
         <div style="display:flex;gap:10px">
           <div class="form-row" style="flex:1">
             <label>Required Scope (optional)</label>
-            <input type="text" id="verifyScope" placeholder="e.g. mcp:tool:read">
+            <input type="text" id="verifyScope" placeholder="e.g. mcp:tool:echo:call">
           </div>
           <div class="form-row" style="flex:1">
             <label>Trust Level (0-100)</label>
@@ -596,7 +667,7 @@
     </div>
   </div>
 
-  <!-- AID Document Inspector -->
+  <!-- Resolve AID -->
   <div class="card">
     <div class="card-header">
       <span class="card-title">Resolve AID</span>
@@ -614,7 +685,7 @@
     </div>
   </div>
 
-  <!-- Revocation Log -->
+  <!-- Revocation Check -->
   <div class="card full-width">
     <div class="card-header">
       <span class="card-title">Check Revocation Status</span>
@@ -634,7 +705,207 @@
     </div>
   </div>
 
-</div><!-- /layout -->
+</div>
+</div><!-- /tab-registry -->
+
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<!-- TAB: Agent Manager                                                          -->
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<div id="tab-agents" class="tab-panel">
+<div class="layout">
+
+  <!-- Connection Settings -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-title">Connection Settings</span>
+      <span class="badge">Profile Presets</span>
+    </div>
+    <div class="card-body">
+      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-row">
+          <label>Registry URL</label>
+          <input type="text" id="am-registryUrl" value="http://localhost:4242" style="width:240px" oninput="syncUrls()">
+        </div>
+        <div class="form-row">
+          <label>MCP Server URL</label>
+          <input type="text" id="am-mcpUrl" value="http://localhost:3001" style="width:240px" oninput="syncUrls()">
+        </div>
+        <div class="form-row">
+          <label>Load Session JSON</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="sessionPath" placeholder="demo-keys/session.json" style="width:240px">
+            <button class="btn btn-sm" onclick="loadSessionFromInput()">Load</button>
+          </div>
+        </div>
+      </div>
+      <div class="preset-row" style="margin-top:12px">
+        <button class="btn btn-sm btn-outline" onclick="applyPreset('localhost')">Localhost</button>
+        <button class="btn btn-sm btn-outline" onclick="applyPreset('r17')">R17 Tailscale</button>
+        <button class="btn btn-sm btn-outline" onclick="connect()">Reconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Roster -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-title">Agent Roster</span>
+      <span class="badge" id="am-agentCount">0</span>
+      <button class="btn btn-sm btn-outline" onclick="refreshAgentCards()" style="margin-left:auto">↻ Refresh</button>
+    </div>
+    <div id="agentGrid" class="agent-grid">
+      <div class="empty" style="grid-column:1/-1"><div class="empty-icon">🤖</div>No agents — registry may be offline</div>
+    </div>
+  </div>
+
+  <!-- Register New Agent -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-title">Register New Agent</span>
+      <span class="badge badge-warn">PUT /v1/aid/:id</span>
+      <span style="margin-left:8px;font-size:11px;color:var(--muted)">Requires admin session</span>
+    </div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-row">
+          <label>DID (e.g. r17.local:my-agent)</label>
+          <input type="text" id="reg-did" placeholder="r17.local:my-agent">
+        </div>
+        <div class="form-row">
+          <label>Controller DID</label>
+          <input type="text" id="reg-controller" placeholder="did:aid:techblaze.com.au:kai">
+        </div>
+        <div class="form-row">
+          <label>Trust Level</label>
+          <select id="reg-trust">
+            <option value="L0">L0 — Untrusted</option>
+            <option value="L1" selected>L1 — Basic</option>
+            <option value="L2">L2 — Standard</option>
+            <option value="L3">L3 — Elevated</option>
+            <option value="L4">L4 — Full</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Public Key (hex or multibase)</label>
+          <input type="text" id="reg-pubkey" placeholder="hex or z... multibase">
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:flex-start">
+        <button class="btn" onclick="registerNewAgent()">Register Agent</button>
+        <div class="verify-result idle" id="registerResult" style="flex:1;margin-top:0">Result will appear here.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /tab-agents -->
+
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<!-- TAB: Scenario Runner                                                        -->
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<div id="tab-scenarios" class="tab-panel">
+
+<div style="padding:16px 24px 4px;color:var(--muted);font-size:13px">
+  Run end-to-end scenarios against the live registry and MCP server.
+  Load a session (Agent Manager tab) to enable signed DAT issuance.
+  <strong style="color:var(--warn)">Note:</strong> MCP tool calls require the browser to be started with
+  <code style="font-size:11px;background:rgba(255,255,255,0.05);padding:1px 5px;border-radius:3px">--disable-web-security</code>
+  (see <code style="font-size:11px;background:rgba(255,255,255,0.05);padding:1px 5px;border-radius:3px">demo-multiagent.ps1</code>).
+</div>
+
+<div class="scenario-grid">
+
+  <!-- Scenario 1: Happy Path -->
+  <div class="scenario-card">
+    <div class="scenario-header">
+      <span class="scenario-title">1 · Happy Path</span>
+      <span class="badge badge-green">kai → reader</span>
+      <button class="btn btn-sm btn-green" id="sc1-run-btn" onclick="runScenario(1)">▶ Run</button>
+    </div>
+    <div class="scenario-desc">
+      reader-agent receives a valid DAT scoped to echo, calls the echo tool, gets a receipt.
+    </div>
+    <div id="sc1-steps" class="scenario-steps">
+      <div class="empty" style="padding:16px">Press ▶ Run to execute</div>
+    </div>
+  </div>
+
+  <!-- Scenario 2: Scope Exceeded -->
+  <div class="scenario-card">
+    <div class="scenario-header">
+      <span class="scenario-title">2 · Scope Exceeded</span>
+      <span class="badge badge-red">403 Expected</span>
+      <button class="btn btn-sm btn-outline" id="sc2-run-btn" onclick="runScenario(2)">▶ Run</button>
+    </div>
+    <div class="scenario-desc">
+      reader-agent holds an echo-only DAT but tries to call calculate → 403 Forbidden.
+    </div>
+    <div id="sc2-steps" class="scenario-steps">
+      <div class="empty" style="padding:16px">Press ▶ Run to execute</div>
+    </div>
+  </div>
+
+  <!-- Scenario 3: Token Revocation -->
+  <div class="scenario-card">
+    <div class="scenario-header">
+      <span class="scenario-title">3 · Token Revocation</span>
+      <span class="badge badge-warn">200 → 401</span>
+      <button class="btn btn-sm btn-outline" id="sc3-run-btn" onclick="runScenario(3)">▶ Run</button>
+    </div>
+    <div class="scenario-desc">
+      writer-agent calls echo (200 OK), token is revoked, same token re-used → 401 Unauthorized.
+    </div>
+    <div id="sc3-steps" class="scenario-steps">
+      <div class="empty" style="padding:16px">Press ▶ Run to execute</div>
+    </div>
+  </div>
+
+  <!-- Scenario 4: Delegation Chain -->
+  <div class="scenario-card">
+    <div class="scenario-header">
+      <span class="scenario-title">4 · Delegation Chain</span>
+      <span class="badge">kai → writer → reader</span>
+      <button class="btn btn-sm btn-outline" id="sc4-run-btn" onclick="runScenario(4)">▶ Run</button>
+    </div>
+    <div class="scenario-desc">
+      kai grants writer echo+calculate; writer sub-delegates echo-only to reader. Calculate is blocked for reader.
+    </div>
+    <div id="sc4-steps" class="scenario-steps">
+      <div class="empty" style="padding:16px">Press ▶ Run to execute</div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /tab-scenarios -->
+
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<!-- TAB: Live Event Feed                                                        -->
+<!-- ────────────────────────────────────────────────────────────────────────── -->
+<div id="tab-events" class="tab-panel">
+<div style="max-width:1400px;margin:0 auto;padding:20px 24px">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Live Event Feed</span>
+      <span class="badge" id="feed-count">0</span>
+      <div class="feed-controls" style="padding:0;border:none;margin-left:auto">
+        <span id="feed-status" style="font-size:12px;color:var(--muted)">Stopped</span>
+        <button class="btn btn-sm btn-green" id="feed-start-btn" onclick="startFeed()">▶ Start</button>
+        <button class="btn btn-sm btn-outline" id="feed-stop-btn" onclick="stopFeed()" disabled>■ Stop</button>
+        <button class="btn btn-sm btn-outline" onclick="clearFeed()">Clear</button>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--muted)">
+          <input type="checkbox" id="feed-autoscroll" checked onchange="feedAutoScroll=this.checked"> Auto-scroll
+        </label>
+      </div>
+    </div>
+    <div class="feed-header">
+      <span>Timestamp</span><span>Agent DID</span><span>Tool</span><span>Scope</span><span>OK</span>
+    </div>
+    <div id="feedStream" class="feed-stream">
+      <div class="feed-empty">Start the feed to see live events from the MCP server.</div>
+    </div>
+  </div>
+</div>
+</div><!-- /tab-events -->
 
 <div class="footer">
   IDProva Protocol v0.1 · Ed25519 · BLAKE3 · did:aid ·
@@ -643,217 +914,812 @@
 </div>
 
 <script>
-  // ── State ──────────────────────────────────────────────────────────────────
-  let registryUrl = 'http://localhost:4242';
-  let refreshTimer = null;
+// ── State ──────────────────────────────────────────────────────────────────
+let registryUrl = 'http://localhost:4242';
+let mcpUrl      = 'http://localhost:3001';
+let session     = null;
+let refreshTimer = null;
+let feedTimer    = null;
+let feedAutoScroll = true;
+let feedLastCount  = 0;
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-  window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('idprova_registry_url');
-    if (saved) {
-      document.getElementById('registryUrl').value = saved;
-      registryUrl = saved;
+// ── Base58 / Base64url / Hex helpers ───────────────────────────────────────
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+function base58Encode(bytes) {
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) | BigInt(b);
+  let out = '';
+  while (n > 0n) { out = B58[Number(n % 58n)] + out; n /= 58n; }
+  for (const b of bytes) { if (b !== 0) break; out = '1' + out; }
+  return out;
+}
+
+function hexToBytes(hex) {
+  const arr = new Uint8Array(hex.length >> 1);
+  for (let i = 0; i < hex.length; i += 2) arr[i >> 1] = parseInt(hex.slice(i, i + 2), 16);
+  return arr;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function b64urlEncode(input) {
+  const bytes = (typeof input === 'string') ? new TextEncoder().encode(input) : input;
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function pubkeyToMultibase(hex) {
+  return 'z' + base58Encode(hexToBytes(hex));
+}
+
+function multibaseToHex(mb) {
+  if (mb.startsWith('z')) {
+    // base58btc decode
+    let n = 0n;
+    for (const c of mb.slice(1)) {
+      const idx = B58.indexOf(c);
+      if (idx < 0) throw new Error('invalid base58 char: ' + c);
+      n = n * 58n + BigInt(idx);
     }
-    connect();
+    const hex = n.toString(16).padStart(64, '0');
+    return hex;
+  }
+  throw new Error('unsupported multibase prefix: ' + mb[0]);
+}
+
+function makeJti() {
+  const rand = crypto.getRandomValues(new Uint8Array(16));
+  return 'dat_' + bytesToHex(rand);
+}
+
+// ── DAT signing ────────────────────────────────────────────────────────────
+function signDat(issuerDid, subjectDid, scopes, expiresSecs, privKeyHex, opts) {
+  if (typeof nacl === 'undefined') throw new Error('TweetNaCl not loaded — check internet connection');
+  const { delegationChain = [], constraints = null } = (opts || {});
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'EdDSA', typ: 'idprova-dat+jwt', kid: `${issuerDid}#key-ed25519` };
+  const claims = {
+    iss: issuerDid, sub: subjectDid,
+    iat: now, exp: now + expiresSecs, nbf: now,
+    jti: makeJti(),
+    scope: Array.isArray(scopes) ? scopes : [scopes],
+    delegationChain,
+  };
+  if (constraints) claims.constraints = constraints;
+
+  const hB64 = b64urlEncode(JSON.stringify(header));
+  const cB64 = b64urlEncode(JSON.stringify(claims));
+  const input = `${hB64}.${cB64}`;
+
+  const seed = hexToBytes(privKeyHex);
+  const kp   = nacl.sign.keyPair.fromSeed(seed);
+  const sig  = nacl.sign.detached(new TextEncoder().encode(input), kp.secretKey);
+
+  return { token: `${input}.${b64urlEncode(sig)}`, jti: claims.jti, claims };
+}
+
+function signAdminDat() {
+  if (!session || !session.admin) throw new Error('No admin keypair in session — load a session first');
+  const { did, privkey } = session.admin;
+  return signDat(did, did, ['*:*:*:*'], 3600, privkey);
+}
+
+function getAgentByName(name) {
+  if (!session) return null;
+  return (session.agents || []).find(a => a.name === name) || null;
+}
+
+// ── Fetch helpers ──────────────────────────────────────────────────────────
+async function fetchJson(path) {
+  const resp = await fetch(registryUrl + path);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+async function registryFetch(method, path, body, withAdminAuth) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (withAdminAuth) {
+    const { token } = signAdminDat();
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const opts = { method, headers };
+  if (body !== null && body !== undefined) opts.body = JSON.stringify(body);
+  try {
+    const resp = await fetch(registryUrl + path, opts);
+    const data = await resp.json().catch(() => ({}));
+    return { ok: resp.ok, status: resp.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: { error: e.message } };
+  }
+}
+
+async function mcpCall(toolMethod, params, bearerToken) {
+  try {
+    const resp = await fetch(mcpUrl + '/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${bearerToken}`,
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: toolMethod, params }),
+    });
+    const data = await resp.json().catch(() => ({ error: 'non-JSON response' }));
+    return { ok: resp.ok, status: resp.status, data };
+  } catch (e) {
+    if (e.message.toLowerCase().includes('fetch') || e.name === 'TypeError') {
+      return { ok: false, status: 0, data: { error: `CORS/network error: ${e.message}. Start browser with --disable-web-security for local MCP calls.` } };
+    }
+    return { ok: false, status: 0, data: { error: e.message } };
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  // Restore URLs from storage
+  const savedReg = localStorage.getItem('idprova_registry_url');
+  const savedMcp = localStorage.getItem('idprova_mcp_url');
+  if (savedReg) { registryUrl = savedReg; document.getElementById('registryUrl').value = savedReg; document.getElementById('am-registryUrl').value = savedReg; }
+  if (savedMcp) { mcpUrl = savedMcp; document.getElementById('mcpUrl').value = savedMcp; document.getElementById('am-mcpUrl').value = savedMcp; }
+
+  // Load session from ?session= query param
+  const params = new URLSearchParams(location.search);
+  const sessionParam = params.get('session');
+  if (sessionParam) loadSessionFromUrl(sessionParam);
+
+  connect();
+});
+
+// ── Tab management ─────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['registry','agents','scenarios','events'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+    document.getElementById(`tab-btn-${t}`).classList.toggle('active', t === name);
   });
+  if (name === 'agents') refreshAgentCards();
+  if (name === 'events' && document.getElementById('feed-start-btn').disabled) {/* already running */}
+}
 
-  // ── Connect / refresh ──────────────────────────────────────────────────────
-  function connect() {
-    registryUrl = document.getElementById('registryUrl').value.trim().replace(/\/$/, '');
-    localStorage.setItem('idprova_registry_url', registryUrl);
-    refresh();
-    clearInterval(refreshTimer);
-    refreshTimer = setInterval(refresh, 8000);
+// ── URL sync ───────────────────────────────────────────────────────────────
+function syncUrls() {
+  const r = document.getElementById('am-registryUrl').value.trim();
+  const m = document.getElementById('am-mcpUrl').value.trim();
+  document.getElementById('registryUrl').value = r;
+  document.getElementById('mcpUrl').value = m;
+}
+
+function applyPreset(name) {
+  let reg, mcp;
+  if (name === 'localhost') {
+    reg = 'http://localhost:4242';
+    mcp = 'http://localhost:3001';
+  } else if (name === 'r17') {
+    const ip = prompt('Enter R17 Tailscale IP (e.g. 100.x.x.x):', '100.64.0.1');
+    if (!ip) return;
+    reg = `http://${ip}:4242`;
+    mcp = `http://${ip}:3001`;
   }
+  document.getElementById('registryUrl').value    = reg;
+  document.getElementById('mcpUrl').value         = mcp;
+  document.getElementById('am-registryUrl').value = reg;
+  document.getElementById('am-mcpUrl').value      = mcp;
+  connect();
+}
 
-  async function refresh() {
-    const spinner = document.getElementById('spinner');
-    spinner.classList.add('active');
-    try {
-      await Promise.all([loadHealth(), loadAids()]);
-      document.getElementById('lastRefresh').textContent =
-        'Updated ' + new Date().toLocaleTimeString();
-    } catch (e) {
-      setStatus(false, e.message);
-    } finally {
-      spinner.classList.remove('active');
-    }
-  }
-
-  // ── Health ─────────────────────────────────────────────────────────────────
-  async function loadHealth() {
-    try {
-      const [health, meta] = await Promise.all([
-        fetchJson('/health'),
-        fetchJson('/v1/meta'),
-      ]);
-      setStatus(true, health.version);
-      document.getElementById('mStatus').textContent = health.status === 'ok' ? 'Healthy' : health.status;
-      document.getElementById('mVersion').textContent = 'v' + health.version;
-      document.getElementById('mProtocol').textContent = health.protocol || '—';
-      document.getElementById('mAlgo').textContent = (meta.supportedAlgorithms || []).join(', ') || 'EdDSA';
-    } catch {
-      setStatus(false, 'Registry unreachable');
-    }
-  }
-
-  function setStatus(ok, msg) {
-    const dot = document.getElementById('statusDot');
-    const txt = document.getElementById('statusText');
-    dot.className = 'status-dot ' + (ok ? 'ok' : 'err');
-    txt.textContent = ok ? ('Connected — ' + msg) : ('Offline — ' + msg);
-  }
-
-  // ── AIDs ───────────────────────────────────────────────────────────────────
-  async function loadAids() {
-    try {
-      const data = await fetchJson('/v1/aids');
-      document.getElementById('aidCount').textContent = data.total ?? 0;
-      document.getElementById('mAgents').textContent = data.total ?? 0;
-      renderAids(data.aids || []);
-    } catch {
-      document.getElementById('aidTableBody').innerHTML =
-        '<tr><td colspan="4"><div class="empty">Unable to load agents — is the registry running?</div></td></tr>';
-    }
-  }
-
-  function renderAids(aids) {
-    const body = document.getElementById('aidTableBody');
-    if (!aids.length) {
-      body.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="empty-icon">🤖</div>No agents registered yet. Run demo.ps1 to populate.</div></td></tr>';
-      return;
-    }
-    body.innerHTML = aids.map(a => {
-      const id = a.did.replace('did:aid:', '');
-      return `
-        <tr>
-          <td class="did-cell">${escHtml(a.did)}</td>
-          <td class="time-cell">${fmtTime(a.created_at)}</td>
-          <td class="time-cell">${fmtTime(a.updated_at)}</td>
-          <td>
-            <button class="btn btn-sm btn-outline" onclick="quickResolve('${escJs(a.did)}')">Inspect</button>
-          </td>
-        </tr>`;
-    }).join('');
-  }
-
-  function quickResolve(did) {
-    const id = did.replace('did:aid:', '');
-    document.getElementById('resolveId').value = id;
-    resolveAid();
-    document.getElementById('resolveResult').scrollIntoView({ behavior: 'smooth' });
-  }
-
-  // ── Verify DAT ─────────────────────────────────────────────────────────────
-  async function verifyDat() {
-    const token = document.getElementById('verifyToken').value.trim();
-    const scope = document.getElementById('verifyScope').value.trim();
-    const trust = parseInt(document.getElementById('verifyTrust').value.trim()) || undefined;
-    const el = document.getElementById('verifyResult');
-
-    if (!token) {
-      showResult(el, 'error', 'Please paste a compact JWS token.');
-      return;
-    }
-
-    el.className = 'verify-result idle';
-    el.textContent = 'Verifying...';
-
-    try {
-      const body = { token, scope };
-      if (trust !== undefined) body.trust_level = trust;
-
-      const resp = await fetch(registryUrl + '/v1/dat/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await resp.json();
-
-      if (data.valid) {
-        showResult(el, 'success',
-          '✓ VALID\n\n' +
-          `  Issuer:  ${data.issuer || '—'}\n` +
-          `  Subject: ${data.subject || '—'}\n` +
-          `  JTI:     ${data.jti || '—'}\n` +
-          `  Scopes:  ${(data.scopes || []).join(', ')}`
-        );
-      } else {
-        showResult(el, 'failure', '✗ INVALID\n\n  ' + (data.error || 'Verification failed'));
-      }
-    } catch (e) {
-      showResult(el, 'failure', '✗ Request failed: ' + e.message);
-    }
-  }
-
-  // ── Resolve AID ────────────────────────────────────────────────────────────
-  async function resolveAid() {
-    let id = document.getElementById('resolveId').value.trim();
-    if (!id) return;
-    id = id.replace(/^did:aid:/, '');
-    const el = document.getElementById('resolveResult');
-    el.className = 'verify-result idle';
-    el.textContent = 'Resolving...';
-
-    try {
-      const data = await fetchJson('/v1/aid/' + encodeURIComponent(id));
-      showResult(el, 'success', JSON.stringify(data, null, 2));
-    } catch (e) {
-      showResult(el, 'failure', '✗ Not found or error: ' + e.message);
-    }
-  }
-
-  // ── Revocation check ───────────────────────────────────────────────────────
-  async function checkRevocation() {
-    const jti = document.getElementById('revokeCheckJti').value.trim();
-    const el = document.getElementById('revokeResult');
-    if (!jti) {
-      showResult(el, 'error', 'Please enter a JTI.');
-      return;
-    }
-    el.className = 'verify-result idle';
-    el.textContent = 'Checking...';
-    try {
-      const data = await fetchJson('/v1/dat/revoked/' + encodeURIComponent(jti));
-      if (data.revoked) {
-        showResult(el, 'failure',
-          `✗ REVOKED\n\n  JTI:         ${data.jti}\n  Reason:      ${data.reason || '—'}\n  Revoked by:  ${data.revoked_by || '—'}\n  Revoked at:  ${data.revoked_at}`
-        );
-      } else {
-        showResult(el, 'success', '✓ NOT REVOKED — this JTI has not been revoked');
-      }
-    } catch (e) {
-      showResult(el, 'failure', '✗ Check failed: ' + e.message);
-    }
-  }
-
-  // ── Utilities ──────────────────────────────────────────────────────────────
-  async function fetchJson(path) {
-    const resp = await fetch(registryUrl + path);
+// ── Session management ─────────────────────────────────────────────────────
+async function loadSessionFromUrl(url) {
+  try {
+    const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json();
+    const data = await resp.json();
+    applySession(data);
+  } catch (e) {
+    console.warn('Failed to auto-load session:', e);
+  }
+}
+
+function loadSessionFromInput() {
+  const path = document.getElementById('sessionPath').value.trim();
+  if (!path) return alert('Enter a path or URL to session.json');
+  loadSessionFromUrl(path);
+}
+
+function applySession(data) {
+  session = data;
+  if (data.registry) {
+    registryUrl = data.registry;
+    document.getElementById('registryUrl').value    = registryUrl;
+    document.getElementById('am-registryUrl').value = registryUrl;
+    localStorage.setItem('idprova_registry_url', registryUrl);
+  }
+  if (data.mcp) {
+    mcpUrl = data.mcp;
+    document.getElementById('mcpUrl').value    = mcpUrl;
+    document.getElementById('am-mcpUrl').value = mcpUrl;
+    localStorage.setItem('idprova_mcp_url', mcpUrl);
+  }
+  const names = (data.agents || []).map(a => a.name || a.did.split(':').pop()).join(', ');
+  document.getElementById('sessionInfo').textContent = `${(data.agents||[]).length} agents: ${names}`;
+  document.getElementById('sessionBanner').style.display = 'flex';
+  connect();
+}
+
+function clearSession() {
+  session = null;
+  document.getElementById('sessionBanner').style.display = 'none';
+}
+
+// ── Connect / refresh ──────────────────────────────────────────────────────
+function connect() {
+  registryUrl = document.getElementById('registryUrl').value.trim().replace(/\/$/, '');
+  mcpUrl      = document.getElementById('mcpUrl').value.trim().replace(/\/$/, '');
+  localStorage.setItem('idprova_registry_url', registryUrl);
+  localStorage.setItem('idprova_mcp_url', mcpUrl);
+  refresh();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(refresh, 8000);
+}
+
+async function refresh() {
+  const spinner = document.getElementById('spinner');
+  spinner.classList.add('active');
+  try {
+    await Promise.all([loadHealth(), loadAids()]);
+    document.getElementById('lastRefresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    setStatus(false, e.message);
+  } finally {
+    spinner.classList.remove('active');
+  }
+}
+
+// ── Health ─────────────────────────────────────────────────────────────────
+async function loadHealth() {
+  try {
+    const [health, meta] = await Promise.all([fetchJson('/health'), fetchJson('/v1/meta')]);
+    setStatus(true, health.version);
+    document.getElementById('mStatus').textContent  = health.status === 'ok' ? 'Healthy' : health.status;
+    document.getElementById('mVersion').textContent = 'v' + health.version;
+    document.getElementById('mProtocol').textContent = health.protocol || '—';
+    document.getElementById('mAlgo').textContent    = (meta.supportedAlgorithms || []).join(', ') || 'EdDSA';
+  } catch {
+    setStatus(false, 'Registry unreachable');
+  }
+}
+
+function setStatus(ok, msg) {
+  document.getElementById('statusDot').className  = 'status-dot ' + (ok ? 'ok' : 'err');
+  document.getElementById('statusText').textContent = ok ? ('Connected — ' + msg) : ('Offline — ' + msg);
+}
+
+// ── AIDs ───────────────────────────────────────────────────────────────────
+async function loadAids() {
+  try {
+    const data = await fetchJson('/v1/aids');
+    document.getElementById('aidCount').textContent  = data.total ?? 0;
+    document.getElementById('mAgents').textContent   = data.total ?? 0;
+    renderAids(data.aids || []);
+  } catch {
+    document.getElementById('aidTableBody').innerHTML =
+      '<tr><td colspan="4"><div class="empty">Unable to load agents — is the registry running?</div></td></tr>';
+  }
+}
+
+function renderAids(aids) {
+  const body = document.getElementById('aidTableBody');
+  if (!aids.length) {
+    body.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="empty-icon">🤖</div>No agents registered yet. Run demo-multiagent.ps1 to populate.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = aids.map(a => `
+    <tr>
+      <td class="did-cell">${escHtml(a.did)}</td>
+      <td class="time-cell">${fmtTime(a.created_at)}</td>
+      <td class="time-cell">${fmtTime(a.updated_at)}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="quickResolve('${escJs(a.did)}')">Inspect</button></td>
+    </tr>`).join('');
+}
+
+function quickResolve(did) {
+  const id = did.replace('did:aid:', '');
+  document.getElementById('resolveId').value = id;
+  switchTab('registry');
+  setTimeout(() => { resolveAid(); document.getElementById('resolveResult').scrollIntoView({ behavior: 'smooth' }); }, 100);
+}
+
+// ── Verify DAT ─────────────────────────────────────────────────────────────
+async function verifyDat() {
+  const token = document.getElementById('verifyToken').value.trim();
+  const scope = document.getElementById('verifyScope').value.trim();
+  const trust = parseInt(document.getElementById('verifyTrust').value.trim()) || undefined;
+  const el    = document.getElementById('verifyResult');
+  if (!token) { showResult(el, 'failure', 'Please paste a compact JWS token.'); return; }
+  el.className = 'verify-result idle'; el.textContent = 'Verifying...';
+  try {
+    const body = { token, scope };
+    if (trust !== undefined) body.trust_level = trust;
+    const resp = await fetch(registryUrl + '/v1/dat/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await resp.json();
+    if (data.valid) {
+      showResult(el, 'success', `✓ VALID\n\n  Issuer:  ${data.issuer||'—'}\n  Subject: ${data.subject||'—'}\n  JTI:     ${data.jti||'—'}\n  Scopes:  ${(data.scopes||[]).join(', ')}`);
+    } else {
+      showResult(el, 'failure', '✗ INVALID\n\n  ' + (data.error || 'Verification failed'));
+    }
+  } catch (e) { showResult(el, 'failure', '✗ Request failed: ' + e.message); }
+}
+
+// ── Resolve AID ────────────────────────────────────────────────────────────
+async function resolveAid() {
+  let id = document.getElementById('resolveId').value.trim();
+  if (!id) return;
+  id = id.replace(/^did:aid:/, '');
+  const el = document.getElementById('resolveResult');
+  el.className = 'verify-result idle'; el.textContent = 'Resolving...';
+  try {
+    const data = await fetchJson('/v1/aid/' + encodeURIComponent(id));
+    showResult(el, 'success', JSON.stringify(data, null, 2));
+  } catch (e) { showResult(el, 'failure', '✗ Not found or error: ' + e.message); }
+}
+
+// ── Revocation check ───────────────────────────────────────────────────────
+async function checkRevocation() {
+  const jti = document.getElementById('revokeCheckJti').value.trim();
+  const el  = document.getElementById('revokeResult');
+  if (!jti) { showResult(el, 'failure', 'Please enter a JTI.'); return; }
+  el.className = 'verify-result idle'; el.textContent = 'Checking...';
+  try {
+    const data = await fetchJson('/v1/dat/revoked/' + encodeURIComponent(jti));
+    if (data.revoked) {
+      showResult(el, 'failure', `✗ REVOKED\n\n  JTI:         ${data.jti}\n  Reason:      ${data.reason||'—'}\n  Revoked by:  ${data.revoked_by||'—'}\n  Revoked at:  ${data.revoked_at}`);
+    } else {
+      showResult(el, 'success', '✓ NOT REVOKED — this JTI has not been revoked');
+    }
+  } catch (e) { showResult(el, 'failure', '✗ Check failed: ' + e.message); }
+}
+
+// ── Agent Manager ──────────────────────────────────────────────────────────
+async function refreshAgentCards() {
+  const grid = document.getElementById('agentGrid');
+  grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="spinner active" style="margin:0 auto"></div></div>';
+  try {
+    const data = await fetchJson('/v1/aids');
+    const aids = data.aids || [];
+    document.getElementById('am-agentCount').textContent = aids.length;
+    if (!aids.length) {
+      grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🤖</div>No agents registered</div>';
+      return;
+    }
+    // Merge with session info
+    grid.innerHTML = aids.map(a => {
+      const sessAgent = session ? (session.agents || []).find(s => s.did === a.did) : null;
+      const name = sessAgent ? sessAgent.name : a.did.split(':').pop();
+      const trust = sessAgent ? (sessAgent.trustLevel || 'L?') : '?';
+      const letter = name.charAt(0).toUpperCase();
+      return `
+        <div class="agent-card">
+          <div class="agent-card-header">
+            <div class="agent-avatar">${escHtml(letter)}</div>
+            <div>
+              <div class="agent-name">${escHtml(name)}</div>
+              <span class="badge badge-green" style="font-size:10px">Active</span>
+              <span class="badge badge-gray"  style="font-size:10px">${escHtml(trust)}</span>
+            </div>
+          </div>
+          <div class="agent-did">${escHtml(a.did)}</div>
+          <div class="agent-card-actions">
+            <button class="btn btn-sm btn-outline" onclick="quickResolve('${escJs(a.did)}')">Inspect AID</button>
+            ${sessAgent ? `<button class="btn btn-sm btn-outline" onclick="issueDatModal('${escJs(a.did)}','${escJs(name)}')">Issue DAT</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Registry unreachable: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function issueDatModal(did, name) {
+  const scope = prompt(`Issue DAT to ${name}\nEnter scope (comma-separated):`, 'mcp:tool:echo:call');
+  if (!scope) return;
+  if (!session) return alert('No session loaded');
+  const kai = getAgentByName('kai') || session.admin;
+  if (!kai) return alert('No issuer keypair in session');
+  try {
+    const scopes = scope.split(',').map(s => s.trim());
+    const { token, jti } = signDat(kai.did, did, scopes, 3600, kai.privkey || kai.privKey);
+    document.getElementById('verifyToken').value = token;
+    switchTab('registry');
+    alert(`DAT issued!\nJTI: ${jti}\n\nToken copied to Verify panel.`);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function registerNewAgent() {
+  const did     = document.getElementById('reg-did').value.trim();
+  const ctrl    = document.getElementById('reg-controller').value.trim();
+  const trust   = document.getElementById('reg-trust').value;
+  const pubkey  = document.getElementById('reg-pubkey').value.trim();
+  const el      = document.getElementById('registerResult');
+
+  if (!did || !pubkey) { showResult(el, 'failure', 'DID and public key are required'); return; }
+
+  let multibase;
+  try {
+    multibase = pubkey.startsWith('z') ? pubkey : pubkeyToMultibase(pubkey);
+  } catch (e) { showResult(el, 'failure', 'Invalid public key: ' + e.message); return; }
+
+  const fullDid = did.startsWith('did:aid:') ? did : `did:aid:${did}`;
+  const id = fullDid.replace('did:aid:', '');
+  const controller = ctrl || fullDid;
+
+  const doc = {
+    '@context': ['https://www.w3.org/ns/did/v1', 'https://idprova.dev/ns/v1'],
+    id: fullDid,
+    controller,
+    verificationMethod: [{
+      id: '#key-ed25519',
+      type: 'Ed25519VerificationKey2020',
+      controller: fullDid,
+      publicKeyMultibase: multibase,
+    }],
+    authentication: ['#key-ed25519'],
+    trustLevel: trust,
+  };
+
+  showResult(el, 'idle', 'Registering...');
+  const { ok, status, data } = await registryFetch('PUT', `/v1/aid/${encodeURIComponent(id)}`, doc, true);
+  if (ok) {
+    showResult(el, 'success', `✓ Registered ${fullDid}\n\n${JSON.stringify(data, null, 2)}`);
+    refreshAgentCards();
+    loadAids();
+  } else {
+    showResult(el, 'failure', `✗ HTTP ${status}: ${data.error || JSON.stringify(data)}`);
+  }
+}
+
+// ── Scenario helpers ───────────────────────────────────────────────────────
+function scClear(n) {
+  document.getElementById(`sc${n}-steps`).innerHTML = '';
+}
+
+function scStep(n, label) {
+  const container = document.getElementById(`sc${n}-steps`);
+  const idx = container.children.length;
+  const div = document.createElement('div');
+  div.className = 'sc-step pending';
+  div.id = `sc${n}-step-${idx}`;
+  div.innerHTML = `<div class="sc-step-row"><span class="sc-step-icon">⏳</span><span class="sc-step-label">${escHtml(label)}</span></div>`;
+  container.appendChild(div);
+  return { n, idx };
+}
+
+function scResolve({ n, idx }, ok, httpStatus, detail) {
+  const div = document.getElementById(`sc${n}-step-${idx}`);
+  if (!div) return;
+  div.className = `sc-step ${ok ? 'done' : 'error'}`;
+  const row = div.querySelector('.sc-step-row');
+  row.querySelector('.sc-step-icon').textContent = ok ? '✅' : '❌';
+  if (httpStatus) row.querySelector('.sc-step-label').textContent += ` — HTTP ${httpStatus}`;
+  if (detail) {
+    const pre = document.createElement('pre');
+    pre.className = 'sc-step-detail';
+    const text = typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2);
+    pre.textContent = text.length > 300 ? text.slice(0, 300) + '…' : text;
+    pre.onclick = () => pre.classList.toggle('expanded');
+    pre.title = 'Click to expand/collapse';
+    div.appendChild(pre);
+  }
+  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function runScenario(n) {
+  const btn = document.getElementById(`sc${n}-run-btn`);
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Running…';
+  scClear(n);
+  try {
+    if      (n === 1) await scenario1();
+    else if (n === 2) await scenario2();
+    else if (n === 3) await scenario3();
+    else if (n === 4) await scenario4();
+  } catch (e) {
+    const container = document.getElementById(`sc${n}-steps`);
+    const err = document.createElement('div');
+    err.className = 'sc-step error';
+    err.innerHTML = `<div class="sc-step-row"><span class="sc-step-icon">💥</span><span class="sc-step-label">Scenario aborted: ${escHtml(e.message)}</span></div>`;
+    container.appendChild(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+// ── Scenario 1: Happy Path ─────────────────────────────────────────────────
+async function scenario1() {
+  const kai    = getAgentByName('kai');
+  const reader = getAgentByName('reader-agent');
+  if (!kai || !reader) {
+    const s = scStep(1, 'Checking session…');
+    scResolve(s, false, null, 'Session must contain agents named "kai" and "reader-agent". Load demo-keys/session.json first.');
+    return;
   }
 
-  function showResult(el, type, text) {
-    el.textContent = text;
-    el.className = 'verify-result ' + (type === 'success' ? 'success' : type === 'failure' ? 'failure' : 'idle');
-  }
+  // Step 1: Resolve reader AID
+  let s = scStep(1, `Resolving ${reader.did} from registry…`);
+  await delay(150);
+  const r1 = await registryFetch('GET', `/v1/aid/${encodeURIComponent(reader.did.replace('did:aid:',''))}`);
+  scResolve(s, r1.ok, r1.status, r1.ok ? `id: ${r1.data.id}` : r1.data.error);
+  if (!r1.ok) return;
 
-  function fmtTime(iso) {
-    if (!iso) return '—';
+  // Step 2: Sign DAT
+  s = scStep(1, 'Issuing DAT: kai → reader-agent (scope: mcp:tool:echo:call, exp: 1h)…');
+  await delay(150);
+  let tok;
+  try { tok = signDat(kai.did, reader.did, ['mcp:tool:echo:call'], 3600, kai.privkey || kai.privKey); }
+  catch (e) { scResolve(s, false, null, e.message); return; }
+  scResolve(s, true, null, `JTI: ${tok.jti}`);
+
+  // Step 3: MCP echo call
+  s = scStep(1, 'Calling echo tool on MCP server (POST /)…');
+  await delay(150);
+  const r3 = await mcpCall('echo', { message: 'Hello from reader-agent!' }, tok.token);
+  scResolve(s, r3.ok, r3.status || null, r3.data);
+
+  // Step 4: Check receipts
+  if (r3.ok) {
+    s = scStep(1, 'Checking MCP receipt log (/receipts)…');
+    await delay(600);
     try {
-      const d = new Date(iso.replace(' ', 'T') + 'Z');
-      return d.toLocaleString();
-    } catch { return iso; }
+      const rr = await fetch(mcpUrl + '/receipts');
+      const rd = await rr.json();
+      const latest = (rd.receipts || []).slice(-1)[0];
+      scResolve(s, !!latest, rr.status, latest ? `Receipt: ${latest.id} | tool: ${latest.tool} | agent: ${latest.subject_did}` : 'No receipts found');
+    } catch (e) {
+      scResolve(s, false, null, 'Could not reach /receipts: ' + e.message);
+    }
+  }
+}
+
+// ── Scenario 2: Scope Exceeded ─────────────────────────────────────────────
+async function scenario2() {
+  const kai    = getAgentByName('kai');
+  const reader = getAgentByName('reader-agent');
+  if (!kai || !reader) {
+    const s = scStep(2, 'Checking session…');
+    scResolve(s, false, null, 'Session must contain "kai" and "reader-agent".');
+    return;
   }
 
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Step 1: Issue echo-only DAT
+  let s = scStep(2, 'Issuing DAT: kai → reader-agent (scope: mcp:tool:echo:call ONLY)…');
+  await delay(150);
+  let tok;
+  try { tok = signDat(kai.did, reader.did, ['mcp:tool:echo:call'], 3600, kai.privkey || kai.privKey); }
+  catch (e) { scResolve(s, false, null, e.message); return; }
+  scResolve(s, true, null, `JTI: ${tok.jti} | scope: mcp:tool:echo:call`);
+
+  // Step 2: Attempt calculate (wrong scope)
+  s = scStep(2, 'Calling calculate tool with echo-only DAT (expecting 403)…');
+  await delay(150);
+  const r2 = await mcpCall('calculate', { expression: '2+2' }, tok.token);
+  const expected403 = r2.status === 403;
+  scResolve(s, expected403, r2.status || null,
+    expected403
+      ? `403 Forbidden — scope "mcp:tool:calculate:call" not granted (correct!)`
+      : (r2.data.error || JSON.stringify(r2.data))
+  );
+
+  // Verify via registry
+  s = scStep(2, 'Verifying DAT via registry to confirm scope restriction…');
+  await delay(150);
+  const rv = await registryFetch('POST', '/v1/dat/verify', { token: tok.token, scope: 'mcp:tool:calculate:call' });
+  const scopeDenied = rv.data && !rv.data.valid;
+  scResolve(s, scopeDenied, rv.status,
+    scopeDenied
+      ? `Registry confirms: ${rv.data.error || 'scope not permitted'}`
+      : JSON.stringify(rv.data)
+  );
+}
+
+// ── Scenario 3: Token Revocation ───────────────────────────────────────────
+async function scenario3() {
+  const kai    = getAgentByName('kai');
+  const writer = getAgentByName('writer-agent');
+  if (!kai || !writer) {
+    const s = scStep(3, 'Checking session…');
+    scResolve(s, false, null, 'Session must contain "kai" and "writer-agent".');
+    return;
   }
 
-  function escJs(s) {
-    return s.replace(/'/g, "\\'");
+  // Step 1: Issue DAT
+  let s = scStep(3, 'Issuing DAT: kai → writer-agent (scope: echo + calculate, exp: 1h)…');
+  await delay(150);
+  let tok;
+  try { tok = signDat(kai.did, writer.did, ['mcp:tool:echo:call', 'mcp:tool:calculate:call'], 3600, kai.privkey || kai.privKey); }
+  catch (e) { scResolve(s, false, null, e.message); return; }
+  scResolve(s, true, null, `JTI: ${tok.jti}`);
+
+  // Step 2: First call (should succeed)
+  s = scStep(3, 'First call — echo tool (expecting 200 OK)…');
+  await delay(150);
+  const r2 = await mcpCall('echo', { message: 'Pre-revocation call' }, tok.token);
+  scResolve(s, r2.ok, r2.status || null, r2.data);
+
+  // Step 3: Revoke DAT
+  s = scStep(3, `Revoking DAT (JTI: ${tok.jti.slice(0, 24)}…)…`);
+  await delay(150);
+  const r3 = await registryFetch('POST', '/v1/dat/revoke', { jti: tok.jti, reason: 'demo-revocation', revoked_by: kai.did }, true);
+  scResolve(s, r3.ok, r3.status, r3.ok ? `Revoked. Status: ${r3.data.status}` : (r3.data.error || JSON.stringify(r3.data)));
+  if (!r3.ok) return;
+
+  // Step 4: Retry same call (should fail 401)
+  s = scStep(3, 'Second call with same DAT (expecting 401 Unauthorized)…');
+  await delay(300);
+  const r4 = await mcpCall('echo', { message: 'Post-revocation call' }, tok.token);
+  const expected401 = r4.status === 401;
+  scResolve(s, expected401, r4.status || null,
+    expected401 ? '401 Unauthorized — token revoked (correct!)' : (r4.data.error || JSON.stringify(r4.data))
+  );
+
+  // Step 5: Confirm revocation status
+  s = scStep(3, `Confirming revocation status via registry…`);
+  await delay(150);
+  const r5 = await registryFetch('GET', `/v1/dat/revoked/${encodeURIComponent(tok.jti)}`);
+  scResolve(s, r5.ok && r5.data.revoked, r5.status,
+    r5.data.revoked
+      ? `revoked=true | reason: ${r5.data.reason} | at: ${r5.data.revoked_at}`
+      : JSON.stringify(r5.data)
+  );
+}
+
+// ── Scenario 4: Delegation Chain ───────────────────────────────────────────
+async function scenario4() {
+  const kai    = getAgentByName('kai');
+  const writer = getAgentByName('writer-agent');
+  const reader = getAgentByName('reader-agent');
+  if (!kai || !writer || !reader) {
+    const s = scStep(4, 'Checking session…');
+    scResolve(s, false, null, 'Session must contain "kai", "writer-agent", and "reader-agent".');
+    return;
   }
+
+  // Step 1: Kai → writer-agent DAT (echo+calculate, depth=1)
+  let s = scStep(4, 'kai issues DAT to writer-agent (echo+calculate, max_delegation_depth=1)…');
+  await delay(150);
+  let writerTok;
+  try {
+    writerTok = signDat(kai.did, writer.did, ['mcp:tool:echo:call', 'mcp:tool:calculate:call'], 3600,
+      kai.privkey || kai.privKey, { constraints: { max_delegation_depth: 1 } });
+  } catch (e) { scResolve(s, false, null, e.message); return; }
+  scResolve(s, true, null, `JTI: ${writerTok.jti}`);
+
+  // Step 2: writer-agent → reader sub-DAT (echo only, depth=0)
+  s = scStep(4, 'writer-agent sub-delegates to reader-agent (echo only, depth=0)…');
+  await delay(150);
+  let readerTok;
+  try {
+    readerTok = signDat(writer.did, reader.did, ['mcp:tool:echo:call'], 3600,
+      writer.privkey || writer.privKey, { delegationChain: [writerTok.jti] });
+  } catch (e) { scResolve(s, false, null, e.message); return; }
+  scResolve(s, true, null, `JTI: ${readerTok.jti} | chain: [${writerTok.jti.slice(0,20)}…]`);
+
+  // Step 3: reader calls echo → 200
+  s = scStep(4, 'reader-agent calls echo (should succeed 200)…');
+  await delay(150);
+  const r3 = await mcpCall('echo', { message: 'Sub-delegated echo call' }, readerTok.token);
+  scResolve(s, r3.ok, r3.status || null, r3.ok ? 'Echo succeeded!' : (r3.data.error || JSON.stringify(r3.data)));
+
+  // Step 4: reader tries calculate → 403
+  s = scStep(4, 'reader-agent tries calculate (should be blocked 403)…');
+  await delay(150);
+  const r4 = await mcpCall('calculate', { expression: '6*7' }, readerTok.token);
+  const expected403 = r4.status === 403;
+  scResolve(s, expected403, r4.status || null,
+    expected403 ? '403 Forbidden — calculate not in sub-delegated scope (correct!)' : (r4.data.error || JSON.stringify(r4.data))
+  );
+
+  // Step 5: writer calls calculate → 200
+  s = scStep(4, 'writer-agent calls calculate with own DAT (should succeed 200)…');
+  await delay(150);
+  const r5 = await mcpCall('calculate', { expression: '6*7' }, writerTok.token);
+  scResolve(s, r5.ok, r5.status || null, r5.ok ? `Result: ${JSON.stringify(r5.data)}` : (r5.data.error || JSON.stringify(r5.data)));
+}
+
+// ── Live Event Feed ────────────────────────────────────────────────────────
+function startFeed() {
+  document.getElementById('feed-start-btn').disabled = true;
+  document.getElementById('feed-stop-btn').disabled  = false;
+  document.getElementById('feed-status').textContent = 'Live — polling every 2s';
+  document.getElementById('feed-status').style.color = 'var(--accent2)';
+  feedLastCount = 0;
+  feedTimer = setInterval(pollFeed, 2000);
+  pollFeed();
+}
+
+function stopFeed() {
+  clearInterval(feedTimer);
+  document.getElementById('feed-start-btn').disabled = false;
+  document.getElementById('feed-stop-btn').disabled  = true;
+  document.getElementById('feed-status').textContent = 'Stopped';
+  document.getElementById('feed-status').style.color = 'var(--muted)';
+}
+
+async function pollFeed() {
+  try {
+    const resp = await fetch(mcpUrl + '/receipts');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const entries = data.receipts || [];
+    document.getElementById('feed-count').textContent = entries.length;
+
+    if (entries.length > feedLastCount) {
+      const stream = document.getElementById('feedStream');
+      if (feedLastCount === 0) stream.innerHTML = '';
+      for (let i = feedLastCount; i < entries.length; i++) {
+        stream.appendChild(buildFeedEntry(entries[i]));
+      }
+      feedLastCount = entries.length;
+      if (feedAutoScroll) stream.scrollTop = stream.scrollHeight;
+    }
+  } catch (e) {
+    document.getElementById('feed-status').textContent = 'MCP unreachable — ' + e.message;
+    document.getElementById('feed-status').style.color = 'var(--danger)';
+  }
+}
+
+const FEED_COLORS = ['#58a6ff','#3fb950','#f0883e','#d2a8ff','#ffa657','#79c0ff'];
+const agentColorMap = {};
+let agentColorIdx = 0;
+
+function agentColor(did) {
+  if (!agentColorMap[did]) agentColorMap[did] = FEED_COLORS[agentColorIdx++ % FEED_COLORS.length];
+  return agentColorMap[did];
+}
+
+function buildFeedEntry(e) {
+  const div = document.createElement('div');
+  div.className = 'feed-entry';
+  const ts   = new Date(e.timestamp).toLocaleTimeString();
+  const did  = e.subject_did || '—';
+  const short = did.length > 32 ? '…' + did.slice(-28) : did;
+  const color = agentColor(did);
+  div.innerHTML = `
+    <span class="feed-ts">${escHtml(ts)}</span>
+    <span class="feed-did" style="color:${color}" title="${escHtml(did)}">${escHtml(short)}</span>
+    <span class="feed-tool">${escHtml(e.tool || '—')}</span>
+    <span class="feed-scope">${escHtml(e.scope || '—')}</span>
+    <span class="feed-ok">✅</span>`;
+  return div;
+}
+
+function clearFeed() {
+  feedLastCount = 0;
+  document.getElementById('feedStream').innerHTML = '<div class="feed-empty">Feed cleared. Press ▶ Start to resume.</div>';
+  document.getElementById('feed-count').textContent = '0';
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function showResult(el, type, text) {
+  el.textContent = text;
+  el.className   = 'verify-result ' + (type === 'success' ? 'success' : type === 'failure' ? 'failure' : 'idle');
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso.replace(' ', 'T') + 'Z').toLocaleString(); } catch { return iso; }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escJs(s) { return String(s).replace(/'/g, "\\'"); }
 </script>
 </body>
 </html>
