@@ -307,6 +307,7 @@ async fn test_concurrent_put_get() {
 
 #[tokio::test]
 async fn test_security_headers_present() {
+    std::env::set_var("IDPROVA_TLS", "true");
     let app = make_app();
     let resp = app
         .oneshot(
