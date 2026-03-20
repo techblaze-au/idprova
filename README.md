@@ -142,6 +142,42 @@ dat.verify(&pub_bytes, "mcp:tool:filesystem:read", &Default::default())?;
     └─────────────────────────────────────────────────┘
 ```
 
+<details>
+<summary>Mermaid diagram (click to expand)</summary>
+
+```mermaid
+flowchart TD
+    subgraph Trust Chain
+        OP[Operator / Human] -->|issues AID + keypair| A1[Agent A]
+        OP -->|issues scoped DAT| A1
+        A1 -->|re-delegates DAT<br/>scope ⊆ parent| A2[Agent B]
+        A2 -->|re-delegates DAT<br/>scope ⊆ parent| A3[Agent C]
+    end
+
+    subgraph Verification
+        A1 -->|presents AID + DAT| SVC[Service / API]
+        SVC -->|resolves AID| REG[(Registry)]
+        SVC -->|checks revocation| REG
+        REG -->|AID + trust level| SVC
+    end
+
+    subgraph Audit Trail
+        A1 -->|logs action| R1[Receipt 1]
+        A2 -->|logs action| R2[Receipt 2]
+        A3 -->|logs action| R3[Receipt 3]
+        R1 -->|BLAKE3 hash link| R2
+        R2 -->|BLAKE3 hash link| R3
+    end
+
+    style OP fill:#6366f1,stroke:#4f46e5,color:#fff
+    style REG fill:#6366f1,stroke:#4f46e5,color:#fff
+    style R1 fill:#059669,stroke:#047857,color:#fff
+    style R2 fill:#059669,stroke:#047857,color:#fff
+    style R3 fill:#059669,stroke:#047857,color:#fff
+```
+
+</details>
+
 ```
 Workspace Layout
 ─────────────────
