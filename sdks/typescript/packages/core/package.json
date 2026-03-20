@@ -28,8 +28,5 @@
     "index.js",
     "index.d.ts",
     "*.node"
-  ],
-  "dependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.59.0"
-  }
+  ]
 }

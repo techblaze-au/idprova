@@ -75,3 +75,29 @@ worktrees/
 
 # Demo keys and session data (contain private keys — NEVER commit)
 demo-keys/
+
+# Internal planning/process files
+CLAUDE.md
+.planning/
+HANDOVERS/
+IDPROVA-PLAN.md
+IDPROVA-MASTER.md
+WALKTHROUGH.md
+START-SESSION.md
+SESSION-LOG*.md
+LAUNCH/
+
+# Binary documents
+~$*.docx
+docs/*.docx
+docs/*.pdf
+
+# Demo artifacts
+DEMO-CHEATSHEET.md
+DEMO-GUIDE.md
+demo-*.pub
+pre-demo.ps1
+reg-test*.log
+
+# Production scripts
+scripts/production/
