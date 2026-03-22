@@ -18,7 +18,8 @@ FROM chef AS planner
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
-# sdks/ intentionally excluded — registry build does not need them
+# sdks/ needed for workspace manifest resolution (not compiled for registry)
+COPY sdks/ sdks/
 
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -33,6 +34,7 @@ RUN cargo chef cook --release --recipe-path recipe.json \
 # Now copy full source and build the binary
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
+COPY sdks/ sdks/
 
 RUN cargo build --release --package idprova-registry
 
