@@ -35,7 +35,7 @@ dist/
 *.swo
 *~
 
-# Claude Code
+# AI coding tools
 .claude/
 
 # OS
@@ -78,6 +78,7 @@ demo-keys/
 
 # Internal planning/process files
 CLAUDE.md
+.cursorrules
 .planning/
 HANDOVERS/
 IDPROVA-PLAN.md
