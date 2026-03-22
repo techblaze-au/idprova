@@ -83,6 +83,14 @@ CLAUDE.md
 HANDOVERS/
 IDPROVA-PLAN.md
 IDPROVA-MASTER.md
+docs/ENTERPRISE-LAUNCH-PLAN.md
+docs/GAP-ANALYSIS.md
+docs/NIST-RFI-Response-Draft.md
+docs/generate-nccoe-pdf.py
+docs/generate-rfi-pdf.py
+docs/nccoe-feedback.mdx
+docs/nccoe-submission-email.md
+demo-multiagent.ps1
 WALKTHROUGH.md
 START-SESSION.md
 SESSION-LOG*.md

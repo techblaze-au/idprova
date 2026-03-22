@@ -103,15 +103,10 @@ fn extract_bearer_token(headers: &HeaderMap) -> Result<&str, DatMiddlewareError>
         .to_str()
         .map_err(|_| DatMiddlewareError::unauthorized("invalid Authorization header encoding"))?;
 
-    let token = auth_str
-        .strip_prefix("Bearer ")
-        .unwrap_or("")
-        .trim();
+    let token = auth_str.strip_prefix("Bearer ").unwrap_or("").trim();
 
     if token.is_empty() {
-        return Err(DatMiddlewareError::unauthorized(
-            "Bearer token required",
-        ));
+        return Err(DatMiddlewareError::unauthorized("Bearer token required"));
     }
 
     Ok(token)

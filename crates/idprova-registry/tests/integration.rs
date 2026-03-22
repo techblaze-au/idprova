@@ -333,10 +333,7 @@ async fn test_security_headers_present() {
         "nosniff"
     );
     assert_eq!(resp.headers().get("X-Frame-Options").unwrap(), "DENY");
-    assert!(resp
-        .headers()
-        .get("Strict-Transport-Security")
-        .is_some());
+    assert!(resp.headers().get("Strict-Transport-Security").is_some());
     assert!(resp.headers().get("X-XSS-Protection").is_some());
 }
 
