@@ -106,14 +106,29 @@ jobs:
           retention-days: 1
 
   # ── Build and push Docker image to GHCR ────────────────────────────────────
+  # Uses pre-built binaries from build-binaries (no Rust compilation in Docker)
   docker:
     name: Docker image
     runs-on: ubuntu-latest
+    needs: [build-binaries]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (for multi-platform builds)
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries/
+          pattern: idprova-registry-linux-*
+          merge-multiple: true
+
+      - name: Extract binaries for Docker context
+        run: |
+          mkdir -p docker-ctx/linux-amd64 docker-ctx/linux-arm64
+          tar -xzf binaries/idprova-registry-linux-x86_64.tar.gz -C docker-ctx/linux-amd64
+          tar -xzf binaries/idprova-registry-linux-aarch64.tar.gz -C docker-ctx/linux-arm64
+
+      - name: Set up QEMU (for multi-platform manifest)
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
@@ -141,6 +156,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.release
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
