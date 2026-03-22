@@ -1,0 +1,446 @@
+---
+title: "Response to NCCoE Concept Paper: Software and AI Agent Identity and Authorization"
+description: "Tech Blaze Consulting's response to the NIST NCCoE concept paper on AI agent identity, presenting IDProva as an open protocol addressing agent identification, authorization, auditing, and credential lifecycle."
+lastUpdated: 2026-03-08
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="note">
+This document was submitted as feedback to NIST NCCoE on the concept paper *"Accelerating the Adoption of Software and AI Agent Identity and Authorization"* (published February 5, 2026). Feedback was submitted to AI-Identity@nist.gov ahead of the April 2, 2026 deadline.
+
+**Prior engagement:** Tech Blaze Consulting filed a response to the NIST Collaborative AI Security Initiative Request for Information (NIST-2025-0035).
+</Aside>
+
+<Aside type="tip">
+CAISI Listening Sessions are scheduled for April 2026. To request attendance, email caisi-events@nist.gov by **March 20, 2026**.
+</Aside>
+
+---
+
+## 1. Executive Summary
+
+**Tech Blaze Consulting Pty Ltd** is an Australian cybersecurity consultancy based in Canberra, ACT. The principal consultant holds CISM (ISACA), CISA (ISACA), IRAP (Australian Cyber Security Centre), TOGAF Enterprise Architecture Practitioner (The Open Group), and Microsoft Azure Solutions Architect Expert certifications, with over 12 years of experience in IT security assessment, compliance, and enterprise architecture.
+
+**IDProva** is an open protocol for verifiable AI agent identity, licensed under Apache 2.0 and launching April 7, 2026. IDProva provides three protocol primitives — Agent Identity Documents (AIDs), Delegation Attestation Tokens (DATs), and Action Receipts — that collectively address the agent identity, authorization, auditing, and credential lifecycle challenges described in the NCCoE concept paper.
+
+This response demonstrates how IDProva addresses all six NCCoE focus areas:
+
+| NCCoE Focus Area | IDProva Coverage | Primary Primitive |
+|---|---|---|
+| Agent Identification | Full | W3C DIDs (AIDs), metadata, configAttestation |
+| Authorization & Scoping | Full | DATs, scope narrowing, constraints, revocation |
+| Auditing & Non-Repudiation | Full | Hash-chained Action Receipts, delegation correlation |
+| Prompt Injection Mitigation | Partial — active development toward deeper integration | Config attestation / drift detection |
+| Credential Management | Full | Short-lived DATs, cascading revocation, key rotation |
+| Multi-System Authorization | Full | Protocol bindings (MCP, A2A, HTTP) outside LLM |
+
+Tech Blaze Consulting offers IDProva for independent NCCoE evaluation and expresses interest in participating in the demonstration project as a technology contributor and subject matter expert.
+
+---
+
+## 2. Use Cases
+
+The following use cases align with the enterprise scenarios described in the concept paper and are directly addressed by IDProva's protocol primitives:
+
+**Enterprise agent delegation chains** — A human principal authorises an orchestrator agent, which delegates subsets of authority to worker agents. Each delegation is cryptographically scoped and auditable. The scope narrowing rule prevents privilege escalation at every link in the chain.
+
+**MCP tool call authorization for sensitive resources** — An MCP server validates a DAT before executing any tool call (filesystem read/write, database query, API invocation). Authorization is enforced at the protocol binding layer, outside the LLM reasoning boundary.
+
+**Multi-agent compliance audit for regulated environments** — Hash-chained Action Receipts provide a tamper-evident audit trail that maps directly to NIST 800-53 (AU-2 through AU-12), Australian ISM, and SOC 2 Trust Services Criteria. Assessors verify the chain and confirm control coverage without relying on application-layer logs.
+
+**Agent identity lifecycle in CI/CD pipelines** — Agents deployed in CI/CD workflows receive time-bounded DATs (24 hours maximum for L0–L1 agents). DATs expire automatically, eliminating stale credentials. Key rotation and AID deactivation are first-class operations.
+
+**Cross-organisational agent delegation** — When agents from different organisations interact, both resolve each other's DID Documents, verify trust levels, and apply independent trust policies. The interaction proceeds at the lower of the two trust levels, ensuring neither party over-trusts the other.
+
+---
+
+## 3. Agent Identification
+
+### DID-Based Agent Identity
+
+IDProva agents are identified by W3C Decentralized Identifiers using the `did:aid:` method:
+
+```
+did:aid:<authority>:<agent-name>
+```
+
+Examples:
+```
+did:aid:example.com:kai-lead-agent
+did:aid:techblaze.com.au:registry-agent
+```
+
+The **authority** is the namespace owner — for domain-verified agents (L1+), the controller proves domain ownership via DNS TXT records. The **agent-name** is locally unique within the authority.
+
+### Agent Metadata
+
+Each AID Document carries an `IDProvaAgentMetadata` service extension:
+
+| Field | Description |
+|---|---|
+| `name` | Human-readable agent name |
+| `model` | AI model identifier (e.g., `anthropic/claude-opus-4`) |
+| `runtime` | Runtime platform (e.g., `openclaw/v2.1`) |
+| `configAttestation` | BLAKE3 hash of agent configuration |
+| `trustLevel` | Current trust level: L0 (Unverified) through L4 (Continuously Monitored) |
+| `capabilities` | Declared capability strings (e.g., `mcp:tool-call`, `idprova:delegate`) |
+| `maxDelegationDepth` | Maximum delegation chain depth |
+
+### Configuration Drift Detection
+
+The `configAttestation` field contains a BLAKE3 hash of the agent's active configuration — system prompt, tool definitions, model identifier, and runtime parameters. If any component changes, the hash changes, and verifiers can detect drift and make trust decisions accordingly.
+
+### Resolution
+
+DID Document resolution follows a layered strategy:
+1. Local cache (respecting TTL)
+2. Well-known endpoint: `https://{authority}/.well-known/did/idprova/{agent-name}/did.json`
+3. Registry lookup: `GET /v1/identities/{did}`
+4. Universal resolver (fallback)
+
+### Distinct from Human Users
+
+Agent DIDs are structurally distinct from human user identifiers. The `did:aid:` method is agent-specific — it carries agent metadata (model, runtime, config attestation, trust level) that has no analogue in human identity systems. This distinction is by design: agents are not users with API keys, they are autonomous entities requiring purpose-built identity semantics.
+
+---
+
+## 4. Authorization & Scoped Delegation
+
+### Delegation Attestation Tokens (DATs)
+
+DATs are JWS-encoded tokens (RFC 7515) that grant scoped authority from one DID to another. They answer: *"What is this agent authorised to do, and who authorised it?"*
+
+### Scope Grammar
+
+```
+scope = namespace ":" resource ":" action
+```
+
+Examples:
+```
+mcp:tool:filesystem:read       — Read via filesystem MCP tool
+mcp:tool:database:write        — Write via database MCP tool
+mcp:resource:docs:*            — All actions on docs resources
+a2a:agent:*:communicate        — Communicate with any A2A agent
+http:api:users:read            — Read users API
+idprova:delegate               — Issue sub-delegations
+```
+
+### Scope Narrowing Rule
+
+Each child delegation MUST be a subset of its parent scope. This is enforced structurally:
+
+```
+Principal (Alice)
+  └─ DAT → Agent A  [scope: mcp:tool:*:*]
+              └─ DAT → Agent B  [scope: mcp:tool:filesystem:*]
+                          └─ DAT → Agent C  [scope: mcp:tool:filesystem:read]
+```
+
+Agent B cannot grant Agent C `mcp:tool:database:write` — it exceeds Agent B's own authority. This prevents privilege escalation at every delegation step.
+
+### Constraints
+
+DATs carry enforceable constraints beyond scope:
+
+| Constraint | Description |
+|---|---|
+| `maxActions` | Maximum actions per token lifetime |
+| `rateLimit` | Actions per time window |
+| `ipRange` | Restrict to specific IP/CIDR ranges |
+| `geoRestriction` | Limit to specific jurisdictions |
+| `maxRedelegationDepth` | Maximum further delegation depth |
+| `requiredConfigAttestation` | Reject if agent config hash drifts |
+
+Constraints **inherit and narrow** through delegation chains — a child cannot weaken a parent's constraint.
+
+### Revocation
+
+DATs can be revoked before expiry via `POST /v1/delegations/{jti}/revoke`. Revocation **cascades**: when a parent DAT is revoked, all child DATs in the delegation chain become invalid. Verifiers check revocation status for every DAT in the chain.
+
+Real-time status checks: `GET /v1/delegations/{jti}/status`
+
+---
+
+## 5. Auditing & Non-Repudiation
+
+### Hash-Chained Action Receipts
+
+Every agent action produces a signed Action Receipt — a tamper-evident audit record. Receipts form a hash chain using BLAKE3:
+
+```
+Receipt[n].chain.previousHash = BLAKE3(CanonicalJSON(Receipt[n-1]))
+Receipt[n].chain.sequenceNumber = n
+```
+
+Each receipt is signed by the agent's private Ed25519 key (with optional ML-DSA-65 co-signature). The corresponding public key is published in the agent's AID Document.
+
+### Receipt Content
+
+Each receipt answers:
+- **Who** — `agent` (DID), `delegation` (DAT jti → issuer → human principal)
+- **What** — `action.type` (structured taxonomy: `mcp:tool:filesystem:read`), `action.target`, `action.parameters`
+- **When** — `timestamp` (ISO 8601, millisecond precision, UTC, included in signed payload)
+- **Where** — `context.environment`, `context.sessionId`
+- **Outcome** — `action.result.status` (`success`, `failure`, `error`)
+
+### Delegation Correlation
+
+The `delegation` field in each receipt references the DAT `jti` that authorised the action. Walking the delegation chain traces authority from any action back to the authorising human principal — complete attribution from action to identity to authority.
+
+### Tamper Evidence
+
+- `chain.previousHash` — cryptographic link to prior receipt (BLAKE3)
+- `chain.sequenceNumber` — detects insertions and deletions
+- `signature` — Ed25519 (+ optional ML-DSA-65) over the entire receipt payload
+
+Tampering with any receipt breaks the hash chain, detectable via `idprova receipt verify`.
+
+### Compliance Control Mapping
+
+Action Receipts map directly to existing compliance framework controls:
+
+**NIST 800-53 Rev. 5:**
+
+| Control | Description | Receipt Evidence |
+|---|---|---|
+| AU-2 | Auditable Events | `action.type` taxonomy — every action produces a receipt |
+| AU-3 | Content of Audit Records | Who, what, when, where, outcome in every receipt |
+| AU-8 | Time Stamps | ISO 8601 UTC with milliseconds in signed payload |
+| AU-9 | Protection of Audit Information | Hash chain + Ed25519 signatures |
+| AU-10 | Non-repudiation | Per-receipt Ed25519 signature + delegation chain |
+| AU-12 | Audit Record Generation | Protocol-native, `requireReceipt` constraint in DATs |
+| IA-2 | Identification & Authentication | DID-based identity in every receipt |
+| AC-6 | Least Privilege | Delegation scope + constraints |
+
+**Australian ISM:** ISM-0585 (process identification), ISM-0988 (privileged action logging), ISM-0580 (audit log integrity), ISM-1405 (centralised event logging)
+
+**SOC 2:** CC6.1 (logical access security), CC6.2 (authorised access scope), CC6.3 (audit trail integrity), CC7.2 (system operation monitoring)
+
+Full mappings: [NIST 800-53](/docs/compliance/nist-800-53/) · [Australian ISM](/docs/compliance/ism/) · [SOC 2](/docs/compliance/soc2/)
+
+---
+
+## 6. Prompt Injection Mitigation
+
+IDProva addresses prompt injection from the **identity and attestation** layer — specifically, detecting when an agent's configuration has been tampered with.
+
+### Configuration Attestation
+
+The `configAttestation` field in AID Documents stores a BLAKE3 hash of the agent's configuration at deployment time:
+
+```
+configAttestation = BLAKE3(systemPrompt + toolDefinitions + modelId + runtimeParams)
+```
+
+### DAT-Level Enforcement
+
+The `requiredConfigAttestation` constraint in DATs allows issuers to bind authorization to a specific configuration:
+
+- If the agent's current config hash does not match the attestation in the DAT, the DAT validation **fails**.
+- The MCP server (or other binding endpoint) rejects the request with `idprova:config-mismatch`.
+- This detects prompt injection attacks that modify the agent's system prompt or tool definitions.
+
+### Trust Level Demotion
+
+Agents operating at L4 (Continuously Monitored) can be **automatically demoted** to a lower trust level if monitoring detects policy violations — including configuration drift that may indicate injection.
+
+### Honest Acknowledgement
+
+IDProva provides **detection**, not **prevention**, of prompt injection. Specifically:
+
+- **What IDProva does:** Detects when an agent's configuration has drifted from its attested baseline. Rejects DATs when config attestation mismatches. Provides trust demotion on policy violations.
+- **What IDProva does not do:** Runtime input filtering, output sanitization, or LLM-layer defenses against adversarial prompts injected via user input or tool results.
+
+Runtime prompt injection mitigation requires complementary LLM-layer defenses (input classifiers, output filtering, structured generation). IDProva provides the identity and attestation layer that establishes *whether the agent is still the agent it claims to be* — a necessary but not sufficient component of a complete prompt injection defense.
+
+The team is actively working to extend prompt injection coverage, including tighter integration between config attestation and runtime monitoring, and exploring partnerships with LLM-layer defense providers to deliver a more comprehensive solution.
+
+---
+
+## 7. Credential Lifecycle Management
+
+### Short-Lived Delegation Tokens
+
+DATs are designed to be short-lived, reducing the window of exposure from compromised credentials:
+
+| Trust Level | Maximum DAT Lifetime |
+|---|---|
+| L0 (Unverified) | 24 hours |
+| L1 (Domain-Verified) | 24 hours |
+| L2 (Org-Verified) | 7 days |
+| L3 (Third-Party Attested) | 7 days |
+| L4 (Continuously Monitored) | 7 days |
+
+DATs expire automatically — no manual revocation needed for time-bounded tokens.
+
+### Revocation
+
+- **Per-token revocation:** `POST /v1/delegations/{jti}/revoke`
+- **Cascading revocation:** Parent DAT revoked → all child DATs in the chain become invalid
+- **AID deactivation:** Deactivating an agent's AID invalidates all DATs where that agent is the subject
+
+### Key Rotation
+
+| Algorithm | Rotation Period | Mechanism |
+|---|---|---|
+| Ed25519 | Every 90 days | DID Document update — add new key, transition, remove old key |
+| ML-DSA-65 | Every 180 days | Same mechanism — old and new keys coexist during transition |
+| Emergency | Immediate | Upon suspected compromise — immediate key revocation |
+
+### Key Storage Hierarchy
+
+Private keys are stored according to security requirements (in order of preference):
+
+1. **HSM** — FIPS 140-2 Level 2+ certified hardware security modules
+2. **TPM** — Trusted Platform Module for device-bound agents
+3. **OS Keychain** — macOS Keychain, Windows DPAPI, Linux Secret Service
+4. **Encrypted File** — AES-256-GCM with Argon2id key derivation
+
+### Key Generation
+
+All keys are generated using cryptographically secure random number generators (CSPRNG):
+- Ed25519 per RFC 8032, Section 5.1.5
+- ML-DSA-65 per FIPS 204, Section 6
+
+---
+
+## 8. Multi-System Authorization Enforcement
+
+### Authorization Outside the LLM
+
+IDProva's protocol bindings enforce authorization **outside the LLM reasoning boundary**. The LLM never decides whether an action is authorized — cryptographic verification at the binding layer makes that determination before the action executes.
+
+### MCP Binding
+
+The MCP server validates the DAT before executing any tool call:
+
+1. Agent presents DAT in the `initialize` request (`capabilities.idprova.dat`)
+2. Server decodes the JWS, verifies signature(s), resolves the issuer's DID Document
+3. Server verifies the delegation chain (signature + scope narrowing at each step)
+4. Server extracts effective scopes and constraints
+5. On each `tools/call`, server checks the required scope (e.g., `mcp:tool:filesystem:read`) against the DAT
+6. If `receiptRequested: true`, server generates an Action Receipt
+
+The LLM cannot bypass this — scope validation is cryptographic (JWS signature verification), not prompt-based.
+
+### A2A Binding
+
+For agent-to-agent communication, the sending agent includes its DAT in the task metadata:
+
+1. Sender includes `senderDID` and `dat` in `metadata.idprova`
+2. Receiving agent validates the DAT and checks `a2a:task:execute` scope (or more specific scope)
+3. If `receiptRequested: true`, receiver generates an Action Receipt
+
+### HTTP Binding
+
+For direct HTTP interactions:
+
+```
+Authorization: IDProva <DAT-JWS>
+X-IDProva-DID: did:aid:example.com:agent-name
+```
+
+The HTTP endpoint validates the DAT before processing the request. IDProva-specific error codes (`idprova:invalid-dat`, `idprova:insufficient-scope`, `idprova:constraint-violation`, `idprova:delegation-revoked`) provide clear rejection reasons.
+
+### Why This Matters
+
+In all three bindings, authorization enforcement is:
+- **Cryptographic** — JWS signature verification, not LLM reasoning
+- **External** — Validated at the transport/binding layer, not inside the agent
+- **Auditable** — Every authorized action can produce a signed receipt
+- **Non-bypassable** — The agent's LLM cannot override a failed DAT validation
+
+---
+
+## 9. Standards & Interoperability
+
+IDProva is built on established standards:
+
+| Standard | Usage in IDProva |
+|---|---|
+| W3C DIDs | Agent identity (AID Documents) |
+| JWS (RFC 7515) | DAT encoding and signature |
+| FIPS 186-5 | Ed25519 signatures (classical) |
+| FIPS 204 | ML-DSA-65 signatures (post-quantum) |
+| BLAKE3 | Receipt hash chains, config attestation |
+| RFC 8785 (JCS) | Canonical serialization for hash input |
+
+### Relationship to Existing Systems
+
+**Complementary to OAuth 2.0/OIDC** — IDProva is not a replacement for OAuth. OAuth handles human-to-service authorization. IDProva adds agent-specific semantics: delegation chains, scope narrowing, config attestation, trust levels, and hash-chained audit. An OAuth token can bootstrap an IDProva DAT — the human authenticates via OIDC, then issues a scoped DAT to their agent.
+
+**Complementary to SPIFFE/SPIRE** — SPIFFE provides workload identity in infrastructure. IDProva adds delegation chains (authority flows from principal to agent to sub-agent), scoped permissions (not just identity, but what the agent may do), and tamper-evident audit trails. SPIFFE SVIDs can coexist with IDProva AIDs.
+
+**MCP-native** — IDProva includes a full MCP protocol binding specification. DATs are validated at the MCP server before tool execution. Receipts are returned in MCP responses.
+
+### Post-Quantum Ready
+
+IDProva uses a hybrid Ed25519 + ML-DSA-65 signature scheme from day one. An attacker must break *both* algorithms to forge a signature. The post-quantum migration roadmap runs through 2029:
+
+| Phase | Timeline | Action |
+|---|---|---|
+| Phase 0 (Current) | 2026 | Hybrid Ed25519 + ML-DSA-65; classical-only fallback permitted |
+| Phase 1 | 2027 | Classical-only mode deprecated (advisory) |
+| Phase 2 | 2028 | Classical-only mode deprecated (warning) |
+| Phase 3 | 2029+ | Evaluate ML-DSA-87 as default PQC algorithm |
+
+---
+
+## 10. Technology Collaboration Interest
+
+Tech Blaze Consulting offers IDProva for independent NCCoE evaluation and expresses interest in contributing to the demonstration project through the following engagement mechanisms.
+
+### Open Source Technology Contribution
+
+IDProva is licensed under **Apache 2.0** — NCCoE can freely evaluate, integrate, and demonstrate the protocol without licensing agreements. The following components are available:
+
+| Component | Description | Status |
+|---|---|---|
+| **Rust SDK** | Reference implementation (5 crates: core, verify, registry, middleware, cli) | 205 tests passing |
+| **Python SDK** | PyO3 bindings (`pip install idprova`) | Built from Rust core |
+| **TypeScript SDK** | napi-rs bindings (`@idprova/core`) | Built from Rust core |
+| **CLI Tool** | 9 commands covering full agent lifecycle | Ready for integration |
+| **Self-Hosted Registry** | Docker image for AID registration and DAT management | Production-ready |
+
+### Community of Interest Participation
+
+Tech Blaze Consulting requests membership in the NCCoE Community of Interest (CoI) for this project. As an international technology contributor, we can provide:
+
+- **Protocol author perspective** — Deep understanding of design decisions, trade-offs, and edge cases
+- **Multi-framework compliance mapping** — Existing mappings to NIST 800-53, Australian ISM, and SOC 2 as a starting point for NCCoE compliance evaluation
+- **Cross-jurisdictional insight** — Experience with both US (NIST) and Australian (ISM/ACSC) compliance frameworks for AI systems
+
+### Subject Matter Expert Availability
+
+The principal consultant is available for paid consulting engagements, presentations, or technical workshops with the NCCoE team. Areas of expertise:
+
+- AI agent identity protocol design and cryptographic architecture
+- Compliance assessment methodology for autonomous AI systems (CISM, CISA, IRAP, TOGAF certified)
+- Enterprise architecture for agent delegation and authorization (Azure Solutions Architect Expert)
+- Multi-framework security control mapping (NIST 800-53, ISM, SOC 2)
+
+### CAISI Listening Sessions
+
+Tech Blaze Consulting will request attendance at the April 2026 CAISI Listening Sessions (via caisi-events@nist.gov by March 20) and is available to present IDProva's approach to the six NCCoE focus areas.
+
+### Contact
+
+**Pratyush Sood**
+Principal Consultant — CISM, CISA, IRAP, TOGAF, Azure Solutions Architect
+Tech Blaze Consulting Pty Ltd
+[techblaze.com.au](https://techblaze.com.au)
+
+---
+
+## Related
+
+- [NIST 800-53 Mapping](/docs/compliance/nist-800-53/) — Full control mapping
+- [Australian ISM Mapping](/docs/compliance/ism/) — ISM control alignment
+- [SOC 2 Mapping](/docs/compliance/soc2/) — Trust Services Criteria mapping
+- [Agent Identity (AIDs)](/docs/concepts/identity/) — AID Document structure
+- [Delegation (DATs)](/docs/concepts/delegation/) — Scoped delegation mechanics
+- [Action Receipts](/docs/protocol/receipts/) — Receipt specification
+- [Protocol Bindings](/docs/protocol/bindings/) — MCP, A2A, HTTP enforcement
+- [Cryptography](/docs/protocol/crypto/) — Hybrid signature scheme

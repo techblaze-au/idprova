@@ -22,7 +22,7 @@ description = "IDProva — The open protocol for AI agent identity"
 authors = ["Pratyush Sood <hello@techblaze.com.au>"]
 keywords = ["identity", "ai-agent", "cryptography", "delegation", "audit"]
 categories = ["authentication", "cryptography"]
-rust-version = "1.82"
+rust-version = "1.85"
 
 [workspace.dependencies]
 # Crypto — pinned exact versions (S6: supply chain attack prevention)

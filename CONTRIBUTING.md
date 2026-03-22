@@ -18,7 +18,7 @@ Thank you for your interest in contributing to IDProva! This document provides g
 
 ### Prerequisites
 
-- Rust stable (1.82+)
+- Rust stable (1.85+)
 - Cargo
 - Git
 
