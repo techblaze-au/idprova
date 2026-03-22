@@ -21,7 +21,7 @@ What you expected to happen.
 - OS: [e.g. Ubuntu 22.04, macOS 14, Windows 11]
 - IDProva version: [e.g. 0.1.0]
 - Install method: [cargo, pip, npm, docker]
-- Rust version (if applicable): [e.g. 1.82]
+- Rust version (if applicable): [e.g. 1.85]
 
 **Logs / error output**
 ```
