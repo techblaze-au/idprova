@@ -805,18 +805,23 @@ mod tests {
         let tools = catalogue["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 3, "expected 3 tools in catalogue");
 
-        let names: Vec<&str> = tools
-            .iter()
-            .map(|t| t["name"].as_str().unwrap())
-            .collect();
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"echo"));
         assert!(names.contains(&"calculate"));
         assert!(names.contains(&"read_file"));
 
         // Every tool must have inputSchema
         for tool in tools {
-            assert!(tool.get("inputSchema").is_some(), "tool {} missing inputSchema", tool["name"]);
-            assert!(tool.get("description").is_some(), "tool {} missing description", tool["name"]);
+            assert!(
+                tool.get("inputSchema").is_some(),
+                "tool {} missing inputSchema",
+                tool["name"]
+            );
+            assert!(
+                tool.get("description").is_some(),
+                "tool {} missing description",
+                tool["name"]
+            );
         }
     }
 }
