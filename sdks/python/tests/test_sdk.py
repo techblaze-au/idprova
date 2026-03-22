@@ -56,18 +56,18 @@ class TestAgentIdentity:
     def test_create_basic(self):
         from idprova import AgentIdentity
         identity = AgentIdentity.create("test-agent")
-        assert identity.did == "did:aid:local.dev:test-agent"
+        assert identity.did == "did:idprova:local.dev:test-agent"
 
     def test_create_with_domain(self):
         from idprova import AgentIdentity
         identity = AgentIdentity.create("kai", domain="techblaze.com.au")
-        assert identity.did == "did:aid:techblaze.com.au:kai"
+        assert identity.did == "did:idprova:techblaze.com.au:kai"
 
     def test_aid_document(self):
         from idprova import AgentIdentity
         identity = AgentIdentity.create("test-agent", domain="example.com")
         aid = identity.aid()
-        assert aid.did == "did:aid:example.com:test-agent"
+        assert aid.did == "did:idprova:example.com:test-agent"
         assert aid.trust_level == "L0"
 
     def test_aid_json_roundtrip(self):
@@ -76,7 +76,7 @@ class TestAgentIdentity:
         aid = identity.aid()
         json_str = aid.to_json()
         parsed = json.loads(json_str)
-        assert parsed["id"] == "did:aid:example.com:test-agent"
+        assert parsed["id"] == "did:idprova:example.com:test-agent"
         # Parse back
         aid2 = AID.from_json(json_str)
         assert aid2.did == aid.did
@@ -85,18 +85,18 @@ class TestAgentIdentity:
         from idprova import AgentIdentity
         issuer = AgentIdentity.create("alice", domain="example.com")
         dat = issuer.issue_dat(
-            "did:aid:example.com:agent",
+            "did:idprova:example.com:agent",
             ["mcp:tool:read"],
             expires_in_seconds=3600,
         )
-        assert dat.issuer == "did:aid:example.com:alice"
-        assert dat.subject == "did:aid:example.com:agent"
+        assert dat.issuer == "did:idprova:example.com:alice"
+        assert dat.subject == "did:idprova:example.com:agent"
         assert not dat.is_expired
 
     def test_repr(self):
         from idprova import AgentIdentity
         identity = AgentIdentity.create("test")
-        assert "did:aid:local.dev:test" in repr(identity)
+        assert "did:idprova:local.dev:test" in repr(identity)
 
 
 class TestDAT:
@@ -104,8 +104,8 @@ class TestDAT:
         from idprova import KeyPair, DAT
         kp = KeyPair.generate()
         dat = DAT.issue(
-            "did:aid:example.com:alice",
-            "did:aid:example.com:agent",
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
             ["mcp:tool:read"],
             3600,
             kp,
@@ -116,8 +116,8 @@ class TestDAT:
         from idprova import KeyPair, DAT
         kp = KeyPair.generate()
         dat = DAT.issue(
-            "did:aid:example.com:alice",
-            "did:aid:example.com:agent",
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
             ["mcp:tool:read", "mcp:tool:write"],
             3600,
             kp,
@@ -132,8 +132,8 @@ class TestDAT:
         from idprova import KeyPair, DAT
         kp = KeyPair.generate()
         dat = DAT.issue(
-            "did:aid:example.com:alice",
-            "did:aid:example.com:agent",
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
             ["mcp:tool:read"],
             -1,  # Already expired
             kp,
@@ -147,8 +147,8 @@ class TestDAT:
         kp1 = KeyPair.generate()
         kp2 = KeyPair.generate()
         dat = DAT.issue(
-            "did:aid:example.com:alice",
-            "did:aid:example.com:agent",
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
             ["mcp:tool:read"],
             3600,
             kp1,
@@ -159,8 +159,8 @@ class TestDAT:
         from idprova import KeyPair, DAT
         kp = KeyPair.generate()
         dat = DAT.issue(
-            "did:aid:example.com:alice",
-            "did:aid:example.com:agent",
+            "did:idprova:example.com:alice",
+            "did:idprova:example.com:agent",
             ["mcp:tool:read"],
             3600,
             kp,
