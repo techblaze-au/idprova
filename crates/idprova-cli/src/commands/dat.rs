@@ -111,9 +111,7 @@ pub fn verify(token: &str, registry: &str, key_path: Option<&str>, scope: &str) 
             let base = registry.trim_end_matches('/');
             let issuer_did = &dat.claims.iss;
             // Strip "did:aid:" prefix for registry path (registry adds it back)
-            let aid_path = issuer_did
-                .strip_prefix("did:aid:")
-                .unwrap_or(issuer_did);
+            let aid_path = issuer_did.strip_prefix("did:aid:").unwrap_or(issuer_did);
             let key_url = format!("{base}/v1/aid/{aid_path}/key");
 
             eprintln!("No key supplied — resolving issuer public key from registry...");

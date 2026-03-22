@@ -97,10 +97,9 @@ impl AidStore {
         let conn = self.pool.get()?;
         let json = serde_json::to_string(doc)?;
 
-        let existing =
-            conn.query_row("SELECT COUNT(*) FROM aids WHERE did = ?", [did], |row| {
-                row.get::<_, i64>(0)
-            })?;
+        let existing = conn.query_row("SELECT COUNT(*) FROM aids WHERE did = ?", [did], |row| {
+            row.get::<_, i64>(0)
+        })?;
 
         if existing > 0 {
             conn.execute(

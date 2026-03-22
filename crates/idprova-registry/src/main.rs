@@ -13,8 +13,8 @@ async fn main() -> Result<()> {
     tracing::info!("Starting IDProva Registry v{}", env!("CARGO_PKG_VERSION"));
 
     // Initialize the store and app state
-    let db_path = std::env::var("IDPROVA_DB_PATH")
-        .unwrap_or_else(|_| "idprova_registry.db".to_string());
+    let db_path =
+        std::env::var("IDPROVA_DB_PATH").unwrap_or_else(|_| "idprova_registry.db".to_string());
     let store = AidStore::new(&db_path)?;
     let admin_pubkey = load_admin_pubkey();
     if admin_pubkey.is_none() {

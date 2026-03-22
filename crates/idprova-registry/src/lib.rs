@@ -142,8 +142,14 @@ pub fn build_app(state: AppState) -> Router {
     // GET/HEAD/OPTIONS remain permissive for public reads.
     let cors = match load_cors_origins() {
         Some(origins) => CorsLayer::new()
-            .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS,
-                           Method::POST, Method::PUT, Method::DELETE])
+            .allow_methods([
+                Method::GET,
+                Method::HEAD,
+                Method::OPTIONS,
+                Method::POST,
+                Method::PUT,
+                Method::DELETE,
+            ])
             .allow_headers(Any)
             .allow_origin(AllowOrigin::list(origins)),
         None => CorsLayer::new()
@@ -262,10 +268,7 @@ async fn rate_limit_middleware(
         .unwrap_or_else(|| "unknown".to_string());
 
     let allowed = {
-        let mut limiter = state
-            .rate_limiter
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut limiter = state.rate_limiter.lock().unwrap_or_else(|e| e.into_inner());
         limiter.check_and_record(&ip, 120)
     };
 
