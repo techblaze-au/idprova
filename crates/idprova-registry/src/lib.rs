@@ -227,7 +227,7 @@ fn require_write_auth(
     }
 
     let ctx = idprova_core::dat::constraints::EvaluationContext::default();
-    idprova_verify::verify_dat(token, &pubkey, "registry:admin:write", &ctx).map_err(|e| {
+    idprova_verify::verify_dat(token, &pubkey, "registry:admin:*:write", &ctx).map_err(|e| {
         (
             StatusCode::UNAUTHORIZED,
             Json(json!({ "error": format!("invalid admin token: {e}") })),
