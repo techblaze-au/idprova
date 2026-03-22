@@ -4,7 +4,7 @@ Steps to publish each IDProva package to its respective registry.
 
 ## Prerequisites
 
-- Rust toolchain >= 1.78
+- Rust toolchain >= 1.82
 - `cargo login` with a crates.io API token
 - Python >= 3.9 with `maturin` installed (for Python SDK)
 - npm account (for TypeScript SDK)

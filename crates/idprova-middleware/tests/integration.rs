@@ -1,10 +1,5 @@
 use axum::{
-    extract::Extension,
-    http::StatusCode,
-    middleware,
-    response::Json,
-    routing::get,
-    Router,
+    extract::Extension, http::StatusCode, middleware, response::Json, routing::get, Router,
 };
 use chrono::{Duration, Utc};
 use idprova_core::crypto::KeyPair;
