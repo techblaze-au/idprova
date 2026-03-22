@@ -2,7 +2,7 @@
 # Multi-stage build with cargo-chef for optimal layer caching
 
 # ── Stage 1: Chef — prepare dependency recipe ────────────────────────────────
-FROM rust:1.85-slim-bookworm AS chef
+FROM rust:slim-bookworm AS chef
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
