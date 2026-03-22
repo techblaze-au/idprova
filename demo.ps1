@@ -30,7 +30,8 @@
 param(
     [int]$RegistryPort = 4242,
     [switch]$SkipBuild,
-    [switch]$Pause
+    [switch]$Pause,
+    [switch]$NonInteractive
 )
 
 Set-StrictMode -Version Latest
@@ -209,7 +210,7 @@ Push-Location $DemoDir
     --id "did:aid:demo.local:alice" `
     --name "Alice (Orchestrator Agent)" `
     --controller "did:aid:demo.local:alice" `
-    --model "claude-sonnet-4-6" `
+    --model "gpt-4o" `
     --runtime "idprova-demo/1.0" `
     --key $AliceKey 2>&1 | Out-Null
 
@@ -217,7 +218,7 @@ Push-Location $DemoDir
     --id "did:aid:demo.local:bob" `
     --name "Bob (Executor Agent)" `
     --controller "did:aid:demo.local:alice" `
-    --model "claude-haiku-4-5" `
+    --model "llama-3.1-70b" `
     --runtime "idprova-demo/1.0" `
     --key $BobKey 2>&1 | Out-Null
 
@@ -225,15 +226,15 @@ Push-Location $DemoDir
     --id "did:aid:demo.local:charlie" `
     --name "Charlie (Tool Agent)" `
     --controller "did:aid:demo.local:bob" `
-    --model "claude-haiku-4-5" `
+    --model "mistral-7b" `
     --runtime "idprova-demo/1.0" `
     --key $CharlieKey 2>&1 | Out-Null
 
 Pop-Location
 
-$AliceAid   = Join-Path $DemoDir "did_idprova_demo.local_alice.json"
-$BobAid     = Join-Path $DemoDir "did_idprova_demo.local_bob.json"
-$CharlieAid = Join-Path $DemoDir "did_idprova_demo.local_charlie.json"
+$AliceAid   = Join-Path $DemoDir "did_aid_demo.local_alice.json"
+$BobAid     = Join-Path $DemoDir "did_aid_demo.local_bob.json"
+$CharlieAid = Join-Path $DemoDir "did_aid_demo.local_charlie.json"
 
 Write-Ok "Alice AID: $(((Get-Content -Raw $AliceAid | ConvertFrom-Json).id))"
 Write-Ok "Bob   AID: $(((Get-Content -Raw $BobAid   | ConvertFrom-Json).id))"
@@ -267,13 +268,13 @@ Pause-Demo
 # ── Step 5: Issue DAT (Alice -> Bob) ──────────────────────────────────────────
 
 Write-Step "5" "Issuing Delegation Attestation Token: Alice -> Bob"
-Write-Info "Scope: mcp:tool:read,mcp:tool:write"
+Write-Info "Scope: mcp:tool:*:read,mcp:tool:*:write"
 Write-Info "Expiry: 1 hour"
 
 $Dat1 = & $CliExe dat issue `
     --issuer "did:aid:demo.local:alice" `
     --subject "did:aid:demo.local:bob" `
-    --scope "mcp:tool:read,mcp:tool:write" `
+    --scope "mcp:tool:*:read,mcp:tool:*:write" `
     --expires-in "1h" `
     --key $AliceKey
 
@@ -295,7 +296,7 @@ Write-Info "Using Alice's public key file for signature verification"
 
 $verify = & $CliExe dat verify $Dat1 `
     --key $AlicePub `
-    --scope "mcp:tool:read" 2>&1
+    --scope "mcp:tool:*:read" 2>&1
 $verify | ForEach-Object { Write-Info $_ }
 Write-Ok "Signature verified offline — no registry call needed"
 Pause-Demo
@@ -303,26 +304,26 @@ Pause-Demo
 # ── Step 8: Verify Wrong Scope (should fail) ─────────────────────────────────
 
 Write-Step "8" "Testing scope enforcement — wrong scope should FAIL"
-Write-Info "Requesting scope 'mcp:admin:delete' not granted in this DAT..."
+Write-Info "Requesting scope 'mcp:admin:*:delete' not granted in this DAT..."
 
 $ErrorActionPreference = "Continue"
 $wrongScope = & $CliExe dat verify $Dat1 `
     --key $AlicePub `
-    --scope "mcp:admin:delete" 2>&1
+    --scope "mcp:admin:*:delete" 2>&1
 $ErrorActionPreference = "Stop"
 $wrongScope | ForEach-Object { Write-Info $_ }
-Write-Ok "Correctly rejected: scope 'mcp:admin:delete' not granted"
+Write-Ok "Correctly rejected: scope 'mcp:admin:*:delete' not granted"
 Pause-Demo
 
 # ── Step 9: Sub-Delegation (Bob -> Charlie) ───────────────────────────────────
 
 Write-Step "9" "Sub-delegation: Bob issues narrowed DAT to Charlie"
-Write-Info "Bob can only grant scopes he holds (mcp:tool:read)"
+Write-Info "Bob can only grant scopes he holds (mcp:tool:*:read)"
 
 $Dat2 = & $CliExe dat issue `
     --issuer "did:aid:demo.local:bob" `
     --subject "did:aid:demo.local:charlie" `
-    --scope "mcp:tool:read" `
+    --scope "mcp:tool:*:read" `
     --expires-in "30m" `
     --key $BobKey
 
@@ -331,7 +332,7 @@ Write-Info "Token: $($Dat2.Substring(0, [Math]::Min(60, $Dat2.Length)))..."
 
 $verifyChain = & $CliExe dat verify $Dat2 `
     --key $BobPub `
-    --scope "mcp:tool:read" 2>&1
+    --scope "mcp:tool:*:read" 2>&1
 $verifyChain | ForEach-Object { Write-Info $_ }
 Pause-Demo
 
@@ -372,7 +373,7 @@ Write-Info "POST /v1/dat/verify — used by MCP servers, middlewares, SDK integr
 
 $verifyBody = @{
     token      = $Dat2
-    scope      = "mcp:tool:read"
+    scope      = "mcp:tool:*:read"
     request_ip = "203.0.113.42"
     trust_level = 80
 } | ConvertTo-Json
@@ -411,7 +412,9 @@ Write-Host ""
 Write-Host "  Demo files in: $DemoDir" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  Press ENTER to stop the registry and exit..." -ForegroundColor Yellow
-Read-Host | Out-Null
+if (-not $NonInteractive) {
+    Read-Host | Out-Null
+}
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 

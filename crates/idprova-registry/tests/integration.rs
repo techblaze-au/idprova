@@ -3,6 +3,7 @@ use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use idprova_core::aid::AidBuilder;
 use idprova_core::crypto::KeyPair;
+use idprova_core::dat::token::Dat;
 use idprova_registry::{build_app, store::AidStore, AppState};
 use serde_json::{json, Value};
 use tower::ServiceExt;
@@ -10,6 +11,13 @@ use tower::ServiceExt;
 fn make_app() -> axum::Router {
     let store = AidStore::new_in_memory().unwrap();
     let state = AppState::new(store, None); // dev mode (no admin auth)
+    build_app(state)
+}
+
+fn make_app_with_auth(admin_kp: &KeyPair) -> axum::Router {
+    let store = AidStore::new_in_memory().unwrap();
+    let pubkey = admin_kp.public_key_bytes();
+    let state = AppState::new(store, Some(pubkey));
     build_app(state)
 }
 
@@ -350,4 +358,99 @@ async fn test_oversized_body_rejected() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+// ── 11. Admin auth: PUT without auth returns 401 ────────────────────────────
+
+#[tokio::test]
+async fn test_admin_auth_no_token_returns_401() {
+    let admin_kp = KeyPair::generate();
+    let app = make_app_with_auth(&admin_kp);
+    let agent_kp = KeyPair::generate();
+    let aid_json = make_aid_json(&agent_kp);
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/aid/example.com:test-agent")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&aid_json).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── 12. Admin auth: PUT with valid admin DAT returns 201 ────────────────────
+
+#[tokio::test]
+async fn test_admin_auth_valid_token_returns_201() {
+    let admin_kp = KeyPair::generate();
+    let app = make_app_with_auth(&admin_kp);
+    let agent_kp = KeyPair::generate();
+    let aid_json = make_aid_json(&agent_kp);
+
+    let dat = Dat::issue(
+        "did:aid:example.com:admin",
+        "did:aid:example.com:admin",
+        vec!["registry:admin:*:write".to_string()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+        None,
+        None,
+        &admin_kp,
+    )
+    .unwrap();
+    let token = dat.to_compact().unwrap();
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/aid/example.com:test-agent")
+                .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_string(&aid_json).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+// ── 13. Admin auth: PUT with wrong scope returns 401 ────────────────────────
+
+#[tokio::test]
+async fn test_admin_auth_wrong_scope_returns_401() {
+    let admin_kp = KeyPair::generate();
+    let app = make_app_with_auth(&admin_kp);
+    let agent_kp = KeyPair::generate();
+    let aid_json = make_aid_json(&agent_kp);
+
+    let dat = Dat::issue(
+        "did:aid:example.com:admin",
+        "did:aid:example.com:admin",
+        vec!["mcp:tool:*:read".to_string()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+        None,
+        None,
+        &admin_kp,
+    )
+    .unwrap();
+    let token = dat.to_compact().unwrap();
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/aid/example.com:test-agent")
+                .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_string(&aid_json).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }

@@ -145,7 +145,7 @@ idprova aid create \
   --id "did:aid:yourorg.com:agent-alpha" \
   --name "Agent Alpha (Code Review)" \
   --controller "did:aid:yourorg.com:operator" \
-  --model "claude-sonnet-4-6" \
+  --model "gpt-4o" \
   --runtime "langchain/0.3" \
   --key agent-alpha.key \
   > agent-alpha-aid.json
