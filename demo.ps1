@@ -210,7 +210,7 @@ Push-Location $DemoDir
     --id "did:aid:demo.local:alice" `
     --name "Alice (Orchestrator Agent)" `
     --controller "did:aid:demo.local:alice" `
-    --model "claude-sonnet-4-6" `
+    --model "gpt-4o" `
     --runtime "idprova-demo/1.0" `
     --key $AliceKey 2>&1 | Out-Null
 
@@ -218,7 +218,7 @@ Push-Location $DemoDir
     --id "did:aid:demo.local:bob" `
     --name "Bob (Executor Agent)" `
     --controller "did:aid:demo.local:alice" `
-    --model "claude-haiku-4-5" `
+    --model "llama-3.1-70b" `
     --runtime "idprova-demo/1.0" `
     --key $BobKey 2>&1 | Out-Null
 
@@ -226,7 +226,7 @@ Push-Location $DemoDir
     --id "did:aid:demo.local:charlie" `
     --name "Charlie (Tool Agent)" `
     --controller "did:aid:demo.local:bob" `
-    --model "claude-haiku-4-5" `
+    --model "mistral-7b" `
     --runtime "idprova-demo/1.0" `
     --key $CharlieKey 2>&1 | Out-Null
 
