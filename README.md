@@ -116,6 +116,8 @@ let pub_bytes = keypair.public_key_bytes();
 dat.verify(&pub_bytes, "mcp:tool:filesystem:read", &Default::default())?;
 ```
 
+> **Managed cloud registry coming Q2 2026.** Self-host today, or [join early access](https://idprova.dev/early-access) for the managed service.
+
 ## Architecture
 
 ```
