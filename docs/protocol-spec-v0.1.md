@@ -128,27 +128,7 @@ IDProva builds upon and integrates with several existing standards:
 
 IDProva is built on three pillars:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    IDProva Protocol                      │
-├───────────────────┬──────────────────┬──────────────────┤
-│    IDENTITY       │   DELEGATION     │     AUDIT        │
-│                   │                  │                  │
-│  DID Documents    │  Attestation     │  Action          │
-│  (did:aid:)     │  Tokens (DAT)    │  Receipts        │
-│                   │                  │                  │
-│  - Key pairs      │  - Scoped perms  │  - Hash chains   │
-│  - Agent metadata │  - Constraints   │  - Signatures    │
-│  - Trust levels   │  - Chains        │  - Compliance    │
-│  - Capabilities   │  - Revocation    │    mapping       │
-├───────────────────┴──────────────────┴──────────────────┤
-│               Cryptographic Foundation                   │
-│         Ed25519 + ML-DSA-65 | BLAKE3 / SHA-256          │
-├─────────────────────────────────────────────────────────┤
-│                  Protocol Bindings                       │
-│              MCP  |  A2A  |  HTTP                        │
-└─────────────────────────────────────────────────────────┘
-```
+![IDProva Three Pillars](idprova-three-pillars.png)
 
 **Identity (Pillar 1):** Every agent is identified by a `did:aid:` DID with an associated DID Document containing public keys, agent metadata, and capability declarations. The DID Document is the root of trust for an agent.
 
@@ -160,12 +140,7 @@ IDProva is built on three pillars:
 
 IDProva employs a **progressive trust** model. Agents are not trusted by default; they earn trust through verifiable mechanisms:
 
-```
-L0 (Unverified)  ──→  L1 (Domain-verified)  ──→  L2 (Org-verified)
-                                                        │
-                                                        ▼
-                       L4 (Continuously monitored)  ←──  L3 (Third-party attested)
-```
+![IDProva Trust Levels](idprova-trust-levels.png)
 
 **Trust is directional.** Agent A may trust Agent B at L2 while Agent B trusts Agent A at only L1. Trust levels inform policy decisions but do not mandate them — a verifier MAY accept interactions from L0 agents if its policy permits.
 
@@ -1254,31 +1229,7 @@ A single DNS TXT record covers all agents under that domain's authority. The `di
 
 Agents can elevate their trust level over time:
 
-```
-        ┌──────────┐
-        │    L0    │  Self-declare identity
-        └─────┬────┘
-              │ Publish DNS TXT record
-              ▼
-        ┌──────────┐
-        │    L1    │  Domain verified
-        └─────┬────┘
-              │ IdP vouches for agent
-              ▼
-        ┌──────────┐
-        │    L2    │  Organisation verified
-        └─────┬────┘
-              │ External audit / attestation
-              ▼
-        ┌──────────┐
-        │    L3    │  Third-party attested
-        └─────┬────┘
-              │ Enable continuous monitoring
-              ▼
-        ┌──────────┐
-        │    L4    │  Continuously monitored
-        └──────────┘
-```
+![IDProva Trust Level Progression](idprova-trust-levels.png)
 
 **Trust Demotion:** Trust levels can also decrease:
 
