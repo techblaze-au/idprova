@@ -24,33 +24,7 @@ IDProva sits at the foundation of your AI agent infrastructure — every agent g
 
 ### Where IDProva Sits in Your Stack
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Your AI Application                       │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ Agent A  │  │ Agent B  │  │ Agent C  │  │ Agent D  │    │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘    │
-│       │              │              │              │          │
-│  ╔════╧══════════════╧══════════════╧══════════════╧════╗    │
-│  ║              IDProva Identity Layer                   ║    │
-│  ║  ┌─────────┐  ┌──────────┐  ┌──────────┐            ║    │
-│  ║  │  AIDs   │  │   DATs   │  │ Receipts │            ║    │
-│  ║  │(identity)│  │(delegation)│ │ (audit)  │            ║    │
-│  ║  └────┬────┘  └────┬─────┘  └────┬─────┘            ║    │
-│  ║       └─────────────┼─────────────┘                   ║    │
-│  ║                     │                                 ║    │
-│  ║              ┌──────┴──────┐                          ║    │
-│  ║              │  Registry   │                          ║    │
-│  ║              │ (resolution)│                          ║    │
-│  ║              └─────────────┘                          ║    │
-│  ╚═══════════════════════════════════════════════════════╝    │
-│       │              │              │              │          │
-│  ┌────┴────┐  ┌──────┴─────┐  ┌────┴────┐  ┌─────┴────┐    │
-│  │  MCP    │  │  LangChain │  │  A2A    │  │ REST API │    │
-│  │ Servers │  │  / CrewAI  │  │ Agents  │  │ Services │    │
-│  └─────────┘  └────────────┘  └─────────┘  └──────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
+![IDProva Integration Architecture](idprova-integration-architecture.png)
 
 **Key insight:** IDProva is not another framework — it's the identity *layer* that sits between your agents and whatever they interact with. Just as AD doesn't replace your applications, IDProva doesn't replace LangChain/CrewAI/MCP — it secures them.
 

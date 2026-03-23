@@ -120,29 +120,7 @@ dat.verify(&pub_bytes, "mcp:tool:filesystem:read", &Default::default())?;
 
 ## Architecture
 
-```
-                        IDProva Protocol
-    ┌─────────────────────────────────────────────────┐
-    │                                                 │
-    │   Operator                                      │
-    │     │                                           │
-    │     │ issues DAT (scoped, time-bounded)         │
-    │     ▼                                           │
-    │   Agent A ──── presents AID + DAT ────► Service │
-    │     │                                    │      │
-    │     │ re-delegates                       │      │
-    │     │ (scope ⊆ parent)                   │      │
-    │     ▼                                    ▼      │
-    │   Agent B                             Registry  │
-    │     │                              (resolves    │
-    │     │ every action                  AIDs,       │
-    │     ▼                              checks       │
-    │   Receipt Chain                    revocations) │
-    │   (hash-linked,                                 │
-    │    tamper-evident)                               │
-    │                                                 │
-    └─────────────────────────────────────────────────┘
-```
+![IDProva Protocol Architecture](docs/idprova-protocol-architecture.png)
 
 <details>
 <summary>Mermaid diagram (click to expand)</summary>
