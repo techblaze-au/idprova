@@ -42,6 +42,8 @@ OAuth tokens don't chain. API keys can't scope. SPIFFE wasn't designed for deleg
 
 ## Quick Install
 
+### From package registries
+
 ```bash
 # Rust (CLI + core library)
 cargo install idprova-cli
@@ -51,6 +53,15 @@ pip install idprova
 
 # TypeScript SDK (napi-rs bindings)
 npm install @idprova/core
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/techblaze-au/idprova.git
+cd idprova
+cargo build --release
+# Binaries at: target/release/idprova and target/release/idprova-registry
 ```
 
 ## 60-Second Quickstart
