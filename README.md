@@ -8,6 +8,8 @@
 
 [![CI](https://github.com/techblaze-au/idprova/actions/workflows/ci.yml/badge.svg)](https://github.com/techblaze-au/idprova/actions)
 [![Crates.io](https://img.shields.io/crates/v/idprova-core.svg)](https://crates.io/crates/idprova-core)
+[![PyPI](https://img.shields.io/pypi/v/idprova.svg)](https://pypi.org/project/idprova/)
+[![npm](https://img.shields.io/npm/v/@idprova/core.svg)](https://www.npmjs.com/package/@idprova/core)
 [![Docs.rs](https://img.shields.io/docsrs/idprova-core)](https://docs.rs/idprova-core)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Spec](https://img.shields.io/badge/spec-v0.1--draft-orange.svg)](docs/protocol-spec-v0.1.md)
