@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IDProva Mermaid Diagram</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  body {
+    margin: 0;
+    padding: 40px;
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #f1f5f9;
+    font-size: 28px;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  #diagram-container {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 48px 60px;
+    border: 1px solid #334155;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    min-width: 1000px;
+  }
+  #diagram-container svg {
+    min-width: 900px !important;
+    min-height: 600px !important;
+  }
+  .watermark {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    text-align: center;
+    font-size: 11px;
+    color: #334155;
+    margin-top: 24px;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+  <h1>IDProva Trust Chain, Verification &amp; Audit</h1>
+  <div class="subtitle">Complete protocol flow from operator delegation to receipt chain</div>
+  <div id="diagram-container">
+    <pre class="mermaid">
+flowchart TD
+    subgraph Trust Chain
+        OP[Operator / Human] -->|issues AID + keypair| A1[Agent A]
+        OP -->|issues scoped DAT| A1
+        A1 -->|re-delegates DAT\nscope ⊆ parent| A2[Agent B]
+        A2 -->|re-delegates DAT\nscope ⊆ parent| A3[Agent C]
+    end
+
+    subgraph Verification
+        A1 -->|presents AID + DAT| SVC[Service / API]
+        SVC -->|resolves AID| REG[(Registry)]
+        SVC -->|checks revocation| REG
+        REG -->|AID + trust level| SVC
+    end
+
+    subgraph Audit Trail
+        A1 -->|logs action| R1[Receipt 1]
+        A2 -->|logs action| R2[Receipt 2]
+        A3 -->|logs action| R3[Receipt 3]
+        R1 -->|BLAKE3 hash link| R2
+        R2 -->|BLAKE3 hash link| R3
+    end
+
+    style OP fill:#6366f1,stroke:#4f46e5,color:#fff
+    style REG fill:#6366f1,stroke:#4f46e5,color:#fff
+    style R1 fill:#059669,stroke:#047857,color:#fff
+    style R2 fill:#059669,stroke:#047857,color:#fff
+    style R3 fill:#059669,stroke:#047857,color:#fff
+    </pre>
+  </div>
+  <div class="watermark">IDPROVA &middot; TRUST CHAIN &amp; VERIFICATION FLOW</div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#2563eb',
+        primaryTextColor: '#f1f5f9',
+        primaryBorderColor: '#3b82f6',
+        lineColor: '#64748b',
+        secondaryColor: '#1e293b',
+        tertiaryColor: '#334155',
+        background: '#1e293b',
+        mainBkg: '#1e293b',
+        nodeBorder: '#475569',
+        clusterBkg: 'rgba(30,41,59,0.6)',
+        clusterBorder: '#475569',
+        titleColor: '#f1f5f9',
+        edgeLabelBackground: '#1e293b',
+        nodeTextColor: '#f1f5f9'
+      },
+      flowchart: {
+        curve: 'basis',
+        padding: 20
+      }
+    });
+  </script>
+</body>
+</html>
