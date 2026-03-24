@@ -3,11 +3,11 @@
 # IDProva v0.1 — Remote Demo (Windows → Linux)
 #
 # Runs the demo on a remote server via SSH.
-# Usage: .\scripts\demo-remote.ps1 [-Host "root@192.168.8.92"] [-ProjectDir "/root/idprova"]
+# Usage: .\scripts\demo-remote.ps1 [-Host "root@198.51.100.12"] [-ProjectDir "/root/idprova"]
 #
 
 param(
-    [string]$RemoteHost = "root@192.168.8.92",
+    [string]$RemoteHost = "root@198.51.100.12",
     [string]$ProjectDir = "/root/idprova",
     [int]$RegistryPort = 4242,
     [int]$McpPort = 3001

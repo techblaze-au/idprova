@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # 04-admin-setup.sh
-# Run ON CT 402 (idp-admin) at 192.168.8.142.
+# Run ON CT 402 (idp-admin) at 198.51.100.42.
 # Generates admin keypair, writes admin.env, pushes to CT 401, starts registry.
 # Bash equivalent of production/02-admin-setup.ps1.
 #
 # Usage: pct exec 402 -- bash /root/04-admin-setup.sh
-#    or: ssh root@192.168.8.142 'bash -s' < scripts/testlab/04-admin-setup.sh
+#    or: ssh root@198.51.100.42 'bash -s' < scripts/testlab/04-admin-setup.sh
 # Prerequisites: 03-setup-registry.sh completed.
 
 set -euo pipefail
 
-REGISTRY_HOST="192.168.8.141"
+REGISTRY_HOST="198.51.100.41"
 REGISTRY_URL="http://${REGISTRY_HOST}:4242"
 KEYS_DIR="/root/.idprova/keys"
 KEY_PATH="$KEYS_DIR/admin-root.key"

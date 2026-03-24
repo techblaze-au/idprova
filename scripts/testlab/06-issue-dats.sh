@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # 06-issue-dats.sh
-# Run ON CT 402 (idp-admin) at 192.168.8.142.
+# Run ON CT 402 (idp-admin) at 198.51.100.42.
 # Issues DATs in a delegation chain: admin -> orchestrator -> worker-a -> worker-b.
 # Each level narrows scope. DATs are deployed to their respective containers.
 #
 # Usage: pct exec 402 -- bash /root/06-issue-dats.sh
-#    or: ssh root@192.168.8.142 'bash -s' < scripts/testlab/06-issue-dats.sh
+#    or: ssh root@198.51.100.42 'bash -s' < scripts/testlab/06-issue-dats.sh
 # Prerequisites: 05-register-agents.sh completed.
 
 set -euo pipefail
 
-REGISTRY_HOST="192.168.8.141"
+REGISTRY_HOST="198.51.100.41"
 REGISTRY_URL="http://${REGISTRY_HOST}:4242"
 MCP_URL="http://${REGISTRY_HOST}:3001"
 KEYS_DIR="/root/.idprova/keys"
 ADMIN_KEY="$KEYS_DIR/admin-root.key"
 
-ORCH_HOST="192.168.8.143"
-WORKER_A_HOST="192.168.8.144"
-WORKER_B_HOST="192.168.8.145"
+ORCH_HOST="198.51.100.43"
+WORKER_A_HOST="198.51.100.44"
+WORKER_B_HOST="198.51.100.45"
 
 echo "=== IDProva Test Lab: DAT Issuance ==="
 echo "Host: $(hostname) / $(hostname -I | awk '{print $1}')"

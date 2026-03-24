@@ -19,11 +19,11 @@ Each step pauses with an explanation before executing.
 Run from Windows, executing commands on a remote Linux server via SSH:
 
 ```powershell
-.\scripts\demo-remote.ps1 -RemoteHost "root@192.168.8.92" -ProjectDir "/root/idprova"
+.\scripts\demo-remote.ps1 -RemoteHost "root@198.51.100.12" -ProjectDir "/root/idprova"
 ```
 
 Parameters:
-- `-RemoteHost` — SSH target (default: `root@192.168.8.92`)
+- `-RemoteHost` — SSH target (default: `root@198.51.100.12`)
 - `-ProjectDir` — IDProva source directory on remote (default: `/root/idprova`)
 - `-RegistryPort` — Registry port (default: `4242`)
 - `-McpPort` — MCP demo server port (default: `3001`)

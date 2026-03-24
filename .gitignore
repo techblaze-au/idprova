@@ -19,6 +19,7 @@ venv/
 # TypeScript/Node
 node_modules/
 *.js.map
+*.tsbuildinfo
 dist/
 
 # Native binaries (platform-specific, built by CI/locally)
@@ -37,6 +38,7 @@ dist/
 
 # AI coding tools
 .claude/
+.agent-signals/
 
 # OS
 .DS_Store

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 09-teardown.sh
-# Run ON Proxmox host (192.168.8.90).
+# Run ON Proxmox host (198.51.100.10).
 # Stops and destroys all test lab containers (400-405) and cleans up binaries.
 #
 # Usage: bash scripts/testlab/09-teardown.sh

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 02-push-binaries.sh
-# Run ON Proxmox host (192.168.8.90).
+# Run ON Proxmox host (198.51.100.10).
 # Pushes IDProva binaries from /tmp/idprova-bins/ to all test lab containers.
 #
 # Usage: bash scripts/testlab/02-push-binaries.sh
@@ -11,11 +11,11 @@ set -euo pipefail
 BINS_DIR="/tmp/idprova-bins"
 
 # Container IPs
-CT_REGISTRY=401    # 192.168.8.141
-CT_ADMIN=402       # 192.168.8.142
-CT_ORCHESTRATOR=403 # 192.168.8.143
-CT_WORKER_A=404    # 192.168.8.144
-CT_WORKER_B=405    # 192.168.8.145
+CT_REGISTRY=401    # 198.51.100.41
+CT_ADMIN=402       # 198.51.100.42
+CT_ORCHESTRATOR=403 # 198.51.100.43
+CT_WORKER_A=404    # 198.51.100.44
+CT_WORKER_B=405    # 198.51.100.45
 
 ALL_CTS=($CT_REGISTRY $CT_ADMIN $CT_ORCHESTRATOR $CT_WORKER_A $CT_WORKER_B)
 

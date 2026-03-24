@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # 05-register-agents.sh
-# Run ON CT 402 (idp-admin) at 192.168.8.142.
+# Run ON CT 402 (idp-admin) at 198.51.100.42.
 # Generates keypairs for all agents, creates AID documents, registers them with
 # the registry, and deploys key files to their respective containers.
 # Bash equivalent of production/03-register-agents.ps1.
 #
 # Usage: pct exec 402 -- bash /root/05-register-agents.sh
-#    or: ssh root@192.168.8.142 'bash -s' < scripts/testlab/05-register-agents.sh
+#    or: ssh root@198.51.100.42 'bash -s' < scripts/testlab/05-register-agents.sh
 # Prerequisites: 04-admin-setup.sh completed, registry is running.
 
 set -euo pipefail
 
-REGISTRY_HOST="192.168.8.141"
+REGISTRY_HOST="198.51.100.41"
 REGISTRY_URL="http://${REGISTRY_HOST}:4242"
 KEYS_DIR="/root/.idprova/keys"
 ADMIN_KEY="$KEYS_DIR/admin-root.key"
@@ -19,9 +19,9 @@ WORK_DIR=$(mktemp -d)
 
 # Agent definitions: name, DID suffix, controller DID suffix, target host
 declare -A AGENT_HOSTS=(
-    ["orchestrator"]="192.168.8.143"
-    ["worker-a"]="192.168.8.144"
-    ["worker-b"]="192.168.8.145"
+    ["orchestrator"]="198.51.100.43"
+    ["worker-a"]="198.51.100.44"
+    ["worker-b"]="198.51.100.45"
 )
 declare -A AGENT_NAMES=(
     ["orchestrator"]="Test Lab Orchestrator"

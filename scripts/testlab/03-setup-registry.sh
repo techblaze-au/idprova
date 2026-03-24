@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 03-setup-registry.sh
-# Run ON Proxmox host (192.168.8.90) — executes inside CT 401 (idp-registry) via pct exec.
+# Run ON Proxmox host (198.51.100.10) — executes inside CT 401 (idp-registry) via pct exec.
 # Creates directory structure, idprova system user, and systemd units.
 # Does NOT start services — needs admin.env first (from 04-admin-setup.sh).
 #
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 CT_REGISTRY=401
-REGISTRY_IP="192.168.8.141"
+REGISTRY_IP="198.51.100.41"
 
 echo "=== IDProva Test Lab: Registry Setup (CT $CT_REGISTRY) ==="
 echo "Host: $(hostname)"

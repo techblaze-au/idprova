@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # 08-run-scenarios.sh
-# Run ON CT 402 (idp-admin) at 192.168.8.142.
+# Run ON CT 402 (idp-admin) at 198.51.100.42.
 # Executes all 5 test scenarios against the test lab.
 # Each scenario prints PASS/FAIL with clear output.
 #
 # Usage: pct exec 402 -- bash /root/08-run-scenarios.sh
-#    or: ssh root@192.168.8.142 'bash -s' < scripts/testlab/08-run-scenarios.sh
+#    or: ssh root@198.51.100.42 'bash -s' < scripts/testlab/08-run-scenarios.sh
 # Prerequisites: All setup scripts (02-07) completed.
 
 set -euo pipefail
 
-REGISTRY_HOST="192.168.8.141"
+REGISTRY_HOST="198.51.100.41"
 REGISTRY_URL="http://${REGISTRY_HOST}:4242"
 MCP_URL="http://${REGISTRY_HOST}:3001"
 KEYS_DIR="/root/.idprova/keys"
 ADMIN_KEY="$KEYS_DIR/admin-root.key"
 
-ORCH_HOST="192.168.8.143"
-WORKER_A_HOST="192.168.8.144"
-WORKER_B_HOST="192.168.8.145"
+ORCH_HOST="198.51.100.43"
+WORKER_A_HOST="198.51.100.44"
+WORKER_B_HOST="198.51.100.45"
 
 PASSED=0
 FAILED=0

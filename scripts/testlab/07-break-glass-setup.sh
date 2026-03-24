@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # 07-break-glass-setup.sh
-# Run ON CT 402 (idp-admin) at 192.168.8.142.
+# Run ON CT 402 (idp-admin) at 198.51.100.42.
 # Generates BG-A and BG-B break-glass keypairs, uploads public keys to CT 401,
 # and deploys the recovery script.
 #
 # Usage: pct exec 402 -- bash /root/07-break-glass-setup.sh
-#    or: ssh root@192.168.8.142 'bash -s' < scripts/testlab/07-break-glass-setup.sh
+#    or: ssh root@198.51.100.42 'bash -s' < scripts/testlab/07-break-glass-setup.sh
 # Prerequisites: 04-admin-setup.sh completed, registry running on CT 401.
 
 set -euo pipefail
 
-REGISTRY_HOST="192.168.8.141"
+REGISTRY_HOST="198.51.100.41"
 KEYS_DIR="/root/.idprova/keys"
 BG_DIR="$KEYS_DIR/break-glass"
 
@@ -192,7 +192,7 @@ Written: $(date '+%Y-%m-%d %H:%M:%S')
 If locked out (admin key lost or service failing):
 
 OPTION A — Use Break-Glass Key A:
-  1. SSH to CT 401: ssh root@192.168.8.141
+  1. SSH to CT 401: ssh root@198.51.100.41
   2. Run: bash /opt/idprova/keys/recover.sh
      (defaults to bg-a.pub)
   3. From CT 402: issue admin DAT with BG-A private key:
