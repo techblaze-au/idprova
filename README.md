@@ -244,6 +244,7 @@ Full documentation, guides, and the protocol specification are available at **[i
 - [API Reference](docs/api-reference.md)
 - [Security Model](docs/security.md)
 - [Protocol Specification](docs/protocol-spec-v0.1.md)
+- [Video Walkthroughs](https://www.youtube.com/playlist?list=PL4svyyKD4sjwivQsb9EWmkKAFJeS0A-2T)
 
 ## License
 
@@ -253,6 +254,6 @@ Apache 2.0 — see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-Built by [Tech Blaze Consulting](https://techblaze.com.au) | [idprova.dev](https://idprova.dev)
+Built by [Tech Blaze Consulting](https://techblaze.com.au) | [idprova.dev](https://idprova.dev) | [YouTube](https://www.youtube.com/@TechBlazeConsulting)
 
 </div>
