@@ -28,5 +28,10 @@
     "index.js",
     "index.d.ts",
     "*.node"
-  ]
+  ],
+  "optionalDependencies": {
+    "@idprova/core-win32-x64-msvc": "0.1.0",
+    "@idprova/core-darwin-x64": "0.1.0",
+    "@idprova/core-linux-x64-gnu": "0.1.0"
+  }
 }
