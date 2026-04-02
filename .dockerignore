@@ -1,0 +1,52 @@
+# Git history (may contain secrets in history)
+.git
+.gitignore
+
+# Build artifacts
+target/
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
+demo-keys/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Planning and internal docs
+.planning/
+.claude/
+LAUNCH/
+CLAUDE.md
+IDPROVA-PLAN.md
+IDPROVA-MASTER.md
+
+# Test artifacts
+reg-test*.log
+ci-*.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node/Python build artifacts
+node_modules/
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+
+# Worktrees
+worktrees/
+
+# Documentation source (not needed in image)
+docs/*.docx
+docs/*.pdf
