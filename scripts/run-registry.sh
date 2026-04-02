@@ -24,6 +24,8 @@ cd "$REPO_ROOT"
 # ── Resolve config from env (with defaults) ───────────────────────────────────
 export IDPROVA_HOST="${IDPROVA_HOST:-127.0.0.1}"
 export IDPROVA_PORT="${IDPROVA_PORT:-3000}"
+# The registry binary reads REGISTRY_PORT; bridge from IDPROVA_PORT for consistency
+export REGISTRY_PORT="${REGISTRY_PORT:-$IDPROVA_PORT}"
 export IDPROVA_DB_PATH="${IDPROVA_DB_PATH:-$REPO_ROOT/data/registry.db}"
 export RUST_LOG="${RUST_LOG:-info}"
 

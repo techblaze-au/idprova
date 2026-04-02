@@ -2147,6 +2147,7 @@ async function wizardCreate() {
   const aidDoc = {
     '@context': ['https://www.w3.org/ns/did/v1'],
     id: did,
+    controller: did,
     verificationMethod: [{
       id: `${did}#key-ed25519`,
       type: 'Ed25519VerificationKey2020',
@@ -3109,6 +3110,7 @@ function makeMinimalAid(did, pubkeyHex) {
   return {
     '@context': ['https://www.w3.org/ns/did/v1'],
     id: did,
+    controller: did,
     verificationMethod: [{
       id: `${did}#key-ed25519`,
       type: 'Ed25519VerificationKey2020',
