@@ -1,11 +1,7 @@
 //! Usage metering — per-org, per-endpoint, per-month counters with tier limits.
 
 use anyhow::Result;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-};
+use axum::{extract::State, http::StatusCode, response::Json};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde::{Deserialize, Serialize};
@@ -320,9 +316,7 @@ mod tests {
             .unwrap());
 
         // Hit the limit
-        store
-            .increment("org-limit", "resolve", "2026-04")
-            .unwrap();
+        store.increment("org-limit", "resolve", "2026-04").unwrap();
         assert!(!store
             .check_limit("org-limit", "2026-04", Tier::Starter)
             .unwrap());
@@ -334,14 +328,10 @@ mod tests {
         let store = UsageStore::new(pool);
 
         for _ in 0..5 {
-            store
-                .increment("org-brk", "resolve", "2026-04")
-                .unwrap();
+            store.increment("org-brk", "resolve", "2026-04").unwrap();
         }
         for _ in 0..3 {
-            store
-                .increment("org-brk", "register", "2026-04")
-                .unwrap();
+            store.increment("org-brk", "register", "2026-04").unwrap();
         }
 
         let breakdown = store.get_breakdown("org-brk", "2026-04").unwrap();

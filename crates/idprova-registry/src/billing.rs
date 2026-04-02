@@ -191,10 +191,7 @@ impl StripeClient {
     ) -> Result<Value> {
         let client = reqwest::Client::new();
         let resp = client
-            .post(format!(
-                "{}/billing_portal/sessions",
-                self.base_url
-            ))
+            .post(format!("{}/billing_portal/sessions", self.base_url))
             .basic_auth(&self.secret_key, None::<&str>)
             .form(&[("customer", customer_id), ("return_url", return_url)])
             .send()
@@ -255,7 +252,12 @@ pub async fn create_checkout(
     }
 
     let session = stripe
-        .create_checkout_session(&req.price_id, &req.success_url, &req.cancel_url, &req.org_id)
+        .create_checkout_session(
+            &req.price_id,
+            &req.success_url,
+            &req.cancel_url,
+            &req.org_id,
+        )
         .await
         .map_err(|e| {
             tracing::error!("Stripe checkout error: {e}");
@@ -396,22 +398,29 @@ pub async fn handle_webhook(
                     )
                 })?;
 
-            org_store.set_stripe_customer(org_id, customer_id).map_err(internal_err)?;
+            org_store
+                .set_stripe_customer(org_id, customer_id)
+                .map_err(internal_err)?;
 
-            if let Some(sub_id) = session.get("subscription").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
-                org_store.set_stripe_subscription(org_id, sub_id).map_err(internal_err)?;
+            if let Some(sub_id) = session
+                .get("subscription")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+            {
+                org_store
+                    .set_stripe_subscription(org_id, sub_id)
+                    .map_err(internal_err)?;
             }
 
-            org_store.set_tier(org_id, "developer").map_err(internal_err)?;
+            org_store
+                .set_tier(org_id, "developer")
+                .map_err(internal_err)?;
             tracing::info!("Checkout completed for org={org_id} customer={customer_id}");
         }
         "customer.subscription.updated" => {
             let sub = event.get("data").and_then(|d| d.get("object"));
             if let Some(sub) = sub {
-                let customer_id = sub
-                    .get("customer")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let customer_id = sub.get("customer").and_then(|v| v.as_str()).unwrap_or("");
                 let status = sub.get("status").and_then(|v| v.as_str()).unwrap_or("");
 
                 if !customer_id.is_empty() {
@@ -431,10 +440,7 @@ pub async fn handle_webhook(
         "customer.subscription.deleted" => {
             let sub = event.get("data").and_then(|d| d.get("object"));
             if let Some(sub) = sub {
-                let customer_id = sub
-                    .get("customer")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let customer_id = sub.get("customer").and_then(|v| v.as_str()).unwrap_or("");
                 if !customer_id.is_empty() {
                     if let Ok(Some(org)) = org_store.get_by_stripe_customer(customer_id) {
                         let _ = org_store.set_tier(&org.id, "starter");
@@ -566,11 +572,12 @@ mod tests {
         store
             .create("org-s", "Stripe Org", "s@example.com", "starter")
             .unwrap();
-        store
-            .set_stripe_customer("org-s", "cus_test123")
-            .unwrap();
+        store.set_stripe_customer("org-s", "cus_test123").unwrap();
 
-        let org = store.get_by_stripe_customer("cus_test123").unwrap().unwrap();
+        let org = store
+            .get_by_stripe_customer("cus_test123")
+            .unwrap()
+            .unwrap();
         assert_eq!(org.id, "org-s");
 
         store
@@ -604,10 +611,7 @@ mod tests {
 
         let org = store.get("org-wh").unwrap().unwrap();
         assert_eq!(org.tier, "developer");
-        assert_eq!(
-            org.stripe_customer_id,
-            Some("cus_webhook".to_string())
-        );
+        assert_eq!(org.stripe_customer_id, Some("cus_webhook".to_string()));
     }
 
     #[test]
@@ -651,7 +655,8 @@ mod tests {
         let body = r#"{"type":"test"}"#;
         let secret = "whsec_test123";
         let ts = chrono::Utc::now().timestamp();
-        let header = format!("t={ts},v1=0000000000000000000000000000000000000000000000000000000000000000");
+        let header =
+            format!("t={ts},v1=0000000000000000000000000000000000000000000000000000000000000000");
         assert!(verify_stripe_signature(body, &header, secret).is_err());
     }
 
