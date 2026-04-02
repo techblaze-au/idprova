@@ -1109,6 +1109,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "idprova-mcp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "idprova-core",
+ "idprova-verify",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "ulid",
+]
+
+[[package]]
 name = "idprova-mcp-demo"
 version = "0.1.0"
 dependencies = [
