@@ -36,3 +36,53 @@ impl From<idprova_core::IdprovaError> for McpAuthError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_display_missing_token() {
+        let e = McpAuthError::MissingToken("no token".into());
+        assert!(e.to_string().contains("missing DAT token"));
+    }
+
+    #[test]
+    fn test_error_display_invalid_dat() {
+        let e = McpAuthError::InvalidDat("bad format".into());
+        assert!(e.to_string().contains("invalid DAT"));
+    }
+
+    #[test]
+    fn test_error_display_insufficient_scope() {
+        let e = McpAuthError::InsufficientScope("need write".into());
+        assert!(e.to_string().contains("insufficient scope"));
+    }
+
+    #[test]
+    fn test_error_display_verification_failed() {
+        let e = McpAuthError::VerificationFailed("expired".into());
+        assert!(e.to_string().contains("verification failed"));
+    }
+
+    #[test]
+    fn test_from_idprova_scope_error() {
+        let core_err = idprova_core::IdprovaError::ScopeNotPermitted("write denied".into());
+        let mcp_err: McpAuthError = core_err.into();
+        assert!(matches!(mcp_err, McpAuthError::InsufficientScope(_)));
+    }
+
+    #[test]
+    fn test_from_idprova_invalid_dat() {
+        let core_err = idprova_core::IdprovaError::InvalidDat("malformed".into());
+        let mcp_err: McpAuthError = core_err.into();
+        assert!(matches!(mcp_err, McpAuthError::InvalidDat(_)));
+    }
+
+    #[test]
+    fn test_from_idprova_expired() {
+        let core_err = idprova_core::IdprovaError::DatExpired;
+        let mcp_err: McpAuthError = core_err.into();
+        assert!(matches!(mcp_err, McpAuthError::VerificationFailed(_)));
+    }
+}

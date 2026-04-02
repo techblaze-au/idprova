@@ -115,3 +115,83 @@ impl Default for McpReceiptLog {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_log_is_empty() {
+        let log = McpReceiptLog::new();
+        assert!(log.is_empty());
+        assert_eq!(log.len(), 0);
+    }
+
+    #[test]
+    fn test_log_tool_call() {
+        let mut log = McpReceiptLog::new();
+        let r = log.log_tool_call(
+            "did:aid:test:agent",
+            "dat_123",
+            "read_file",
+            "blake3:abc",
+            Some("blake3:def"),
+        );
+        assert_eq!(r.agent, "did:aid:test:agent");
+        assert_eq!(r.action.tool.as_deref(), Some("read_file"));
+        assert_eq!(r.action.status, "success");
+        assert_eq!(r.chain.sequence_number, 0);
+        assert_eq!(log.len(), 1);
+    }
+
+    #[test]
+    fn test_log_denial() {
+        let mut log = McpReceiptLog::new();
+        let r = log.log_denial(
+            "did:aid:test:agent",
+            "dat_123",
+            "write_file",
+            "insufficient scope",
+        );
+        assert!(r.action.status.contains("denied"));
+        assert!(r.action.status.contains("insufficient scope"));
+        assert_eq!(log.len(), 1);
+    }
+
+    #[test]
+    fn test_chain_sequence_numbers() {
+        let mut log = McpReceiptLog::new();
+        log.log_tool_call("did:aid:test:a", "dat_1", "tool1", "h1", None);
+        log.log_tool_call("did:aid:test:a", "dat_1", "tool2", "h2", None);
+        log.log_denial("did:aid:test:b", "dat_2", "tool3", "denied");
+
+        assert_eq!(log.len(), 3);
+        let entries = log.entries();
+        assert_eq!(entries[0].chain.sequence_number, 0);
+        assert_eq!(entries[1].chain.sequence_number, 1);
+        assert_eq!(entries[2].chain.sequence_number, 2);
+    }
+
+    #[test]
+    fn test_chain_integrity() {
+        let mut log = McpReceiptLog::new();
+        log.log_tool_call("did:aid:test:a", "dat_1", "tool1", "h1", None);
+        log.log_tool_call("did:aid:test:a", "dat_1", "tool2", "h2", None);
+        log.log_tool_call("did:aid:test:a", "dat_1", "tool3", "h3", None);
+
+        assert!(log.verify_integrity().is_ok());
+    }
+
+    #[test]
+    fn test_genesis_hash_link() {
+        let mut log = McpReceiptLog::new();
+        log.log_tool_call("did:aid:test:a", "dat_1", "tool1", "h1", None);
+        assert_eq!(log.entries()[0].chain.previous_hash, "genesis");
+    }
+
+    #[test]
+    fn test_default_creates_empty() {
+        let log = McpReceiptLog::default();
+        assert!(log.is_empty());
+    }
+}

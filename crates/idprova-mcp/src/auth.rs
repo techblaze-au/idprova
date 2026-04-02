@@ -100,3 +100,121 @@ impl McpAuth {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, Utc};
+    use idprova_core::crypto::KeyPair;
+    use idprova_core::dat::Dat;
+
+    fn issue_dat(kp: &KeyPair, scope: &str) -> String {
+        let dat = Dat::issue(
+            "did:aid:test:operator",
+            "did:aid:test:agent",
+            vec![scope.to_string()],
+            Utc::now() + Duration::hours(24),
+            None,
+            None,
+            kp,
+        )
+        .unwrap();
+        dat.to_compact().unwrap()
+    }
+
+    #[test]
+    fn test_verify_request_happy_path() {
+        let kp = KeyPair::generate();
+        let auth = McpAuth::offline();
+        let token = issue_dat(&kp, "mcp:tool:filesystem:read");
+
+        let agent = auth
+            .verify_request(&token, "mcp:tool:filesystem:read", &kp.public_key_bytes())
+            .unwrap();
+        assert_eq!(agent.aid, "did:aid:test:agent");
+        assert_eq!(agent.delegator, "did:aid:test:operator");
+        assert_eq!(agent.trust_level, TrustLevel::L0);
+    }
+
+    #[test]
+    fn test_verify_request_scope_denied() {
+        let kp = KeyPair::generate();
+        let auth = McpAuth::offline();
+        let token = issue_dat(&kp, "mcp:tool:filesystem:read");
+
+        let err = auth
+            .verify_request(&token, "mcp:tool:filesystem:write", &kp.public_key_bytes())
+            .unwrap_err();
+        assert!(matches!(err, McpAuthError::InsufficientScope(_)));
+    }
+
+    #[test]
+    fn test_verify_request_wrong_key() {
+        let kp = KeyPair::generate();
+        let kp2 = KeyPair::generate();
+        let auth = McpAuth::offline();
+        let token = issue_dat(&kp, "mcp:tool:filesystem:read");
+
+        let err = auth
+            .verify_request(&token, "mcp:tool:filesystem:read", &kp2.public_key_bytes())
+            .unwrap_err();
+        assert!(matches!(err, McpAuthError::VerificationFailed(_)));
+    }
+
+    #[test]
+    fn test_verify_request_empty_token() {
+        let kp = KeyPair::generate();
+        let auth = McpAuth::offline();
+
+        let err = auth
+            .verify_request("", "mcp:tool:filesystem:read", &kp.public_key_bytes())
+            .unwrap_err();
+        assert!(matches!(err, McpAuthError::MissingToken(_)));
+    }
+
+    #[test]
+    fn test_verify_request_wildcard_scope() {
+        let kp = KeyPair::generate();
+        let auth = McpAuth::offline();
+        let token = issue_dat(&kp, "mcp:*:*:*");
+
+        let agent = auth
+            .verify_request(&token, "mcp:tool:filesystem:write", &kp.public_key_bytes())
+            .unwrap();
+        assert_eq!(agent.aid, "did:aid:test:agent");
+    }
+
+    #[test]
+    fn test_verify_request_expired_token() {
+        let kp = KeyPair::generate();
+        let auth = McpAuth::offline();
+        let dat = Dat::issue(
+            "did:aid:test:operator",
+            "did:aid:test:agent",
+            vec!["mcp:tool:filesystem:read".to_string()],
+            Utc::now() - Duration::hours(1),
+            None,
+            None,
+            &kp,
+        )
+        .unwrap();
+        let token = dat.to_compact().unwrap();
+
+        let err = auth
+            .verify_request(&token, "mcp:tool:filesystem:read", &kp.public_key_bytes())
+            .unwrap_err();
+        assert!(matches!(err, McpAuthError::VerificationFailed(_)));
+    }
+
+    #[test]
+    fn test_offline_has_no_registry() {
+        let auth = McpAuth::offline();
+        assert!(auth.registry_url().is_none());
+    }
+
+    #[test]
+    fn test_new_has_registry() {
+        let auth = McpAuth::new("https://registry.idprova.dev");
+        assert_eq!(auth.registry_url(), Some("https://registry.idprova.dev"));
+    }
+}
