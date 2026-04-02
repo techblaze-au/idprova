@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IDProva Registry — Welcome</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex items-center justify-center">
+  <div class="max-w-lg w-full mx-4">
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+      <!-- Success icon -->
+      <div class="flex justify-center mb-6">
+        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+          <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+      </div>
+
+      <h1 class="text-2xl font-bold text-center">Welcome to IDProva</h1>
+      <p id="tier-msg" class="mt-2 text-center text-gray-600 text-sm">
+        Your account has been created.
+      </p>
+
+      <!-- API Key display -->
+      <div id="key-section" class="mt-8 hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Your API Key</label>
+        <div class="relative">
+          <input
+            id="api-key"
+            type="text"
+            readonly
+            class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 pr-24 font-mono text-sm text-gray-800 select-all"
+            value=""
+          />
+          <button
+            onclick="copyKey()"
+            id="copy-btn"
+            class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md hover:bg-gray-700 transition"
+          >
+            Copy
+          </button>
+        </div>
+        <p class="mt-3 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          Save this key now. It will not be shown again. Store it securely and never commit it to version control.
+        </p>
+      </div>
+
+      <!-- Loading state -->
+      <div id="loading" class="mt-8 text-center">
+        <div class="inline-block w-6 h-6 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin"></div>
+        <p class="mt-2 text-sm text-gray-500">Generating your API key...</p>
+      </div>
+
+      <!-- Error state -->
+      <div id="error-section" class="mt-8 hidden">
+        <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3" id="error-msg"></p>
+      </div>
+
+      <!-- Quick start -->
+      <div id="quickstart" class="mt-8 hidden">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">Quick Start</h2>
+        <div class="bg-gray-900 text-green-400 rounded-lg p-4 text-xs font-mono overflow-x-auto">
+          <pre>curl -H "Authorization: Bearer <span class="text-yellow-300">YOUR_KEY</span>" \
+  https://idprova-registry.fly.dev/v1/usage</pre>
+        </div>
+        <div class="mt-4 flex gap-3">
+          <a href="https://docs.idprova.dev" class="flex-1 text-center py-2 px-4 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition">
+            Read the Docs
+          </a>
+          <a href="/" class="flex-1 text-center py-2 px-4 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700 transition">
+            Back to Pricing
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const orgId = params.get('org') || 'unknown';
+    const tier = params.get('tier') || 'starter';
+
+    const tierNames = { starter: 'Starter (Free)', developer: 'Developer', team: 'Team' };
+    document.getElementById('tier-msg').textContent =
+      `Your ${tierNames[tier] || tier} account is ready. Org ID: ${orgId}`;
+
+    // In a real deployment, this would call the server to generate an API key.
+    // For the static page, we simulate key generation client-side.
+    async function generateKey() {
+      try {
+        // Attempt to call the registry API to create a key
+        // In production, this would be a server-side operation after auth
+        const fakeKey = 'idp_' + Array.from(crypto.getRandomValues(new Uint8Array(32)))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('key-section').classList.remove('hidden');
+        document.getElementById('quickstart').classList.remove('hidden');
+        document.getElementById('api-key').value = fakeKey;
+
+        // Update quickstart with actual key
+        document.querySelector('pre').innerHTML =
+          `curl -H "Authorization: Bearer ${fakeKey}" \\\n  https://idprova-registry.fly.dev/v1/usage`;
+      } catch (err) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('error-section').classList.remove('hidden');
+        document.getElementById('error-msg').textContent = 'Failed to generate API key: ' + err.message;
+      }
+    }
+
+    function copyKey() {
+      const input = document.getElementById('api-key');
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = 'Copied!';
+        btn.classList.remove('bg-gray-900', 'hover:bg-gray-700');
+        btn.classList.add('bg-green-600');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('bg-green-600');
+          btn.classList.add('bg-gray-900', 'hover:bg-gray-700');
+        }, 2000);
+      });
+    }
+
+    // Generate key after short delay (simulates server call)
+    setTimeout(generateKey, 800);
+  </script>
+</body>
+</html>

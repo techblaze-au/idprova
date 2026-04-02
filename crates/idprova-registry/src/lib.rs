@@ -4,7 +4,10 @@
 //!
 //! Re-exports `build_app()` for integration testing.
 
+pub mod api_keys;
+pub mod billing;
 pub mod store;
+pub mod usage;
 
 use axum::{
     body::Body,
@@ -169,6 +172,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/dat/verify", post(verify_dat))
         .route("/v1/dat/revoke", post(revoke_dat))
         .route("/v1/dat/revoked/:jti", get(check_revocation))
+        .route("/v1/usage", get(usage::get_usage))
+        .route("/v1/billing/checkout", post(billing::create_checkout))
+        .route("/v1/billing/webhook", post(billing::handle_webhook))
+        .route("/v1/billing/portal", get(billing::get_portal))
         .layer(middleware::from_fn_with_state(
             shared.clone(),
             rate_limit_middleware,
