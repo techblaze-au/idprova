@@ -9,6 +9,7 @@ primary_region = "syd"
 
 [env]
   REGISTRY_PORT = "8080"
+  IDPROVA_DB_PATH = "/app/data/registry.db"
   RUST_LOG = "info"
 
 [http_service]
