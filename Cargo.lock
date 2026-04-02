@@ -1161,6 +1161,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "blake3",
  "chrono",
  "hex",
  "http-body-util",
@@ -1168,6 +1169,7 @@ dependencies = [
  "idprova-verify",
  "r2d2",
  "r2d2_sqlite",
+ "rand 0.8.5",
  "reqwest",
  "rusqlite",
  "serde",
@@ -1179,6 +1181,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ulid",
+ "url",
 ]
 
 [[package]]

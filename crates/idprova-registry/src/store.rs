@@ -21,6 +21,15 @@ pub struct AidStore {
     pool: Pool<SqliteConnectionManager>,
 }
 
+impl AidStore {
+    /// Get a reference to the underlying connection pool.
+    ///
+    /// Used by other store modules (api_keys, usage, billing) to share the pool.
+    pub fn pool(&self) -> &Pool<SqliteConnectionManager> {
+        &self.pool
+    }
+}
+
 /// A recorded DAT revocation.
 #[derive(Debug, Clone, Serialize)]
 pub struct RevocationRecord {
@@ -55,6 +64,38 @@ impl AidStore {
                 revoked_by  TEXT NOT NULL DEFAULT '',
                 revoked_at  TEXT NOT NULL DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id     TEXT NOT NULL,
+                key_hash   TEXT NOT NULL UNIQUE,
+                label      TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                revoked    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_api_keys_org ON api_keys(org_id);
+            CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+
+            CREATE TABLE IF NOT EXISTS orgs (
+                id         TEXT PRIMARY KEY,
+                name       TEXT NOT NULL DEFAULT '',
+                email      TEXT NOT NULL DEFAULT '',
+                tier       TEXT NOT NULL DEFAULT 'starter',
+                stripe_customer_id TEXT,
+                stripe_subscription_id TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS usage_records (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id     TEXT NOT NULL,
+                endpoint   TEXT NOT NULL DEFAULT '',
+                month      TEXT NOT NULL,
+                count      INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(org_id, endpoint, month)
+            );
+            CREATE INDEX IF NOT EXISTS idx_usage_org_month ON usage_records(org_id, month);
             ",
         )?;
 
@@ -83,6 +124,35 @@ impl AidStore {
                 reason      TEXT NOT NULL DEFAULT '',
                 revoked_by  TEXT NOT NULL DEFAULT '',
                 revoked_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id     TEXT NOT NULL,
+                key_hash   TEXT NOT NULL UNIQUE,
+                label      TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                revoked    INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS orgs (
+                id         TEXT PRIMARY KEY,
+                name       TEXT NOT NULL DEFAULT '',
+                email      TEXT NOT NULL DEFAULT '',
+                tier       TEXT NOT NULL DEFAULT 'starter',
+                stripe_customer_id TEXT,
+                stripe_subscription_id TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS usage_records (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id     TEXT NOT NULL,
+                endpoint   TEXT NOT NULL DEFAULT '',
+                month      TEXT NOT NULL,
+                count      INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(org_id, endpoint, month)
             );
             ",
         )?;

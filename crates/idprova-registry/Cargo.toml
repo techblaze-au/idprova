@@ -46,6 +46,16 @@ tracing-subscriber.workspace = true
 # Hex encoding
 hex.workspace = true
 
+# API key hashing & generation
+blake3.workspace = true
+rand.workspace = true
+
+# HTTP client (Stripe API)
+reqwest.workspace = true
+
+# URL validation
+url.workspace = true
+
 # Unique request IDs
 ulid.workspace = true
 
