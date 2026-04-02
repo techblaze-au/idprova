@@ -1,0 +1,26 @@
+[package]
+name = "idprova-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-mcp"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "mcp", "delegation", "auth"]
+categories = ["authentication", "cryptography"]
+readme = "README.md"
+description = "IDProva MCP auth middleware — drop-in identity verification for MCP servers"
+
+[dependencies]
+idprova-core = { path = "../idprova-core" }
+idprova-verify = { path = "../idprova-verify" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+ulid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros"] }

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IDProva Registry — Pricing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0f7ff', 100: '#e0effe', 300: '#a3d0fb', 500: '#3b82f6', 700: '#1d4ed8', 900: '#1e3a5f' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+          <span class="text-white font-bold text-sm">ID</span>
+        </div>
+        <span class="text-xl font-semibold">IDProva Registry</span>
+      </div>
+      <nav class="flex items-center gap-6 text-sm">
+        <a href="https://docs.idprova.dev" class="text-gray-600 hover:text-gray-900">Docs</a>
+        <a href="https://github.com/techblaze-au/idprova" class="text-gray-600 hover:text-gray-900">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-6 pt-16 pb-12 text-center">
+    <h1 class="text-4xl font-bold tracking-tight">AI Agent Identity, Verified</h1>
+    <p class="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
+      Register AIDs, issue DATs, and verify agent identity through the IDProva L2 Registry.
+      Start free, scale as you grow.
+    </p>
+  </section>
+
+  <!-- Pricing Cards -->
+  <section class="max-w-5xl mx-auto px-6 pb-20">
+    <div class="grid md:grid-cols-3 gap-8">
+
+      <!-- Starter -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col">
+        <h2 class="text-lg font-semibold">Starter</h2>
+        <div class="mt-4">
+          <span class="text-4xl font-bold">$0</span>
+          <span class="text-gray-500">/mo</span>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">For experimentation and prototyping.</p>
+        <ul class="mt-6 space-y-3 text-sm flex-1">
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>25 AID resolutions/month</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>1 API key</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>Community support</span>
+          </li>
+        </ul>
+        <button
+          onclick="handleSignup('starter')"
+          class="mt-8 w-full py-3 px-4 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
+        >
+          Get Started Free
+        </button>
+      </div>
+
+      <!-- Developer (recommended) -->
+      <div class="bg-white rounded-2xl border-2 border-brand-500 p-8 flex flex-col relative">
+        <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-full">
+          Most Popular
+        </span>
+        <h2 class="text-lg font-semibold">Developer</h2>
+        <div class="mt-4">
+          <span class="text-4xl font-bold">$29</span>
+          <span class="text-gray-500">/mo</span>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">For production agent deployments.</p>
+        <ul class="mt-6 space-y-3 text-sm flex-1">
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>250 AID resolutions/month</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>5 API keys</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>Email support</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>Usage dashboard</span>
+          </li>
+        </ul>
+        <button
+          onclick="handleSignup('developer')"
+          class="mt-8 w-full py-3 px-4 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-700 transition"
+        >
+          Subscribe
+        </button>
+      </div>
+
+      <!-- Team -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col">
+        <h2 class="text-lg font-semibold">Team</h2>
+        <div class="mt-4">
+          <span class="text-4xl font-bold">$99</span>
+          <span class="text-gray-500">/mo</span>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">For teams running multiple agents at scale.</p>
+        <ul class="mt-6 space-y-3 text-sm flex-1">
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>2,500 AID resolutions/month</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>Unlimited API keys</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>Priority support</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>Usage dashboard + alerts</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-green-500 mt-0.5">&#10003;</span>
+            <span>SSO (coming soon)</span>
+          </li>
+        </ul>
+        <button
+          onclick="handleSignup('team')"
+          class="mt-8 w-full py-3 px-4 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
+        >
+          Subscribe
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-200 bg-white">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-center text-sm text-gray-500">
+      IDProva is an open protocol for AI agent identity.
+      <a href="https://idprova.dev" class="text-brand-500 hover:underline ml-1">Learn more</a>
+    </div>
+  </footer>
+
+  <script>
+    const REGISTRY_API = window.location.origin;
+
+    // Stripe Price IDs (set these to your actual Stripe price IDs)
+    const PRICE_IDS = {
+      starter: null, // free tier, no checkout needed
+      developer: 'price_developer_placeholder',
+      team: 'price_team_placeholder'
+    };
+
+    async function handleSignup(tier) {
+      if (tier === 'starter') {
+        // Free tier: generate org + API key directly
+        const orgId = 'org_' + crypto.randomUUID().slice(0, 12);
+        try {
+          const resp = await fetch(`${REGISTRY_API}/v1/billing/checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              org_id: orgId,
+              price_id: 'free',
+              success_url: window.location.origin + '/success.html?org=' + orgId + '&tier=starter',
+              cancel_url: window.location.href
+            })
+          });
+          // For starter, redirect directly to success
+          window.location.href = '/success.html?org=' + orgId + '&tier=starter';
+        } catch (err) {
+          window.location.href = '/success.html?org=' + orgId + '&tier=starter';
+        }
+        return;
+      }
+
+      const priceId = PRICE_IDS[tier];
+      if (!priceId) {
+        alert('Pricing not configured for this tier.');
+        return;
+      }
+
+      const orgId = 'org_' + crypto.randomUUID().slice(0, 12);
+      try {
+        const resp = await fetch(`${REGISTRY_API}/v1/billing/checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            org_id: orgId,
+            price_id: priceId,
+            success_url: window.location.origin + '/success.html?org=' + orgId + '&tier=' + tier,
+            cancel_url: window.location.href
+          })
+        });
+        const data = await resp.json();
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else {
+          alert('Could not create checkout session. Please try again.');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
