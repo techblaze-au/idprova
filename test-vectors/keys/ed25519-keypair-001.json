@@ -1,6 +1,6 @@
 {
-  "description": "Deterministic Ed25519 keypair from known seed",
-  "secret_hex": "696470726f76612d746573742d766563746f722d6b6579706169722d30303121",
+  "description": "Deterministic Ed25519 keypair for testing. Derived from seed: ASCII 'idprova-test-vector-keypair-001!' (32 bytes). NOT a secret — do not use in production.",
+  "seed_description": "ASCII string 'idprova-test-vector-keypair-001!' padded/truncated to 32 bytes",
   "public_key_multibase": "z3AGSV1xoXQPVktQxNYq3QxWFQkDJHYSPsMGXUBNZmss2",
   "public_key_hex": "20170ef86343ad1cac0ea2e0e478c3269313aa297d95907449323d5c9e45815d"
 }
