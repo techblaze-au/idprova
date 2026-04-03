@@ -13,8 +13,8 @@ readme = "README.md"
 description = "IDProva MCP auth middleware — drop-in identity verification for MCP servers"
 
 [dependencies]
-idprova-core = { path = "../idprova-core" }
-idprova-verify = { path = "../idprova-verify" }
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
+idprova-verify = { path = "../idprova-verify", version = "0.1.1" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
