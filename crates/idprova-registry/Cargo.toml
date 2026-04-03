@@ -21,8 +21,8 @@ name = "idprova_registry"
 path = "src/lib.rs"
 
 [dependencies]
-idprova-core = { path = "../idprova-core", version = "0.1.0" }
-idprova-verify = { path = "../idprova-verify", version = "0.1.0" }
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
+idprova-verify = { path = "../idprova-verify", version = "0.1.1" }
 
 # Web framework
 axum.workspace = true

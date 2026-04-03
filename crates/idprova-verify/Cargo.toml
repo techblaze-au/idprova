@@ -13,7 +13,7 @@ readme = "README.md"
 description = "IDProva verification utilities — DAT and receipt log verification"
 
 [dependencies]
-idprova-core = { path = "../idprova-core", version = "0.1.0" }
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
 thiserror.workspace = true
 
 [dev-dependencies]
