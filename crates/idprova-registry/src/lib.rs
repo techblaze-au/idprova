@@ -316,7 +316,7 @@ async fn list_aids(
     State(state): State<SharedState>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let limit = params.limit.unwrap_or(100).min(1000).max(1);
+    let limit = params.limit.unwrap_or(100).clamp(1, 1000);
     let offset = params.offset.unwrap_or(0);
     let entries: Vec<AidListEntry> =
         state
