@@ -318,12 +318,16 @@ async fn list_aids(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let limit = params.limit.unwrap_or(100).min(1000).max(1);
     let offset = params.offset.unwrap_or(0);
-    let entries: Vec<AidListEntry> = state.store.list_active_paginated(limit, offset).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("storage error: {e}") })),
-        )
-    })?;
+    let entries: Vec<AidListEntry> =
+        state
+            .store
+            .list_active_paginated(limit, offset)
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("storage error: {e}") })),
+                )
+            })?;
     Ok(Json(json!({
         "total": entries.len(),
         "limit": limit,
