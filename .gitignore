@@ -112,3 +112,4 @@ reg-test*.log
 
 # Production scripts
 scripts/production/
+.registry-admin-keypair.json
