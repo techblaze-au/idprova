@@ -177,12 +177,17 @@ impl AidStore {
 
     /// Return all active AIDs (did + created_at + updated_at).
     pub fn list_active(&self) -> Result<Vec<AidListEntry>> {
+        self.list_active_paginated(1000, 0)
+    }
+
+    /// Return active AIDs with pagination.
+    pub fn list_active_paginated(&self, limit: usize, offset: usize) -> Result<Vec<AidListEntry>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT did, created_at, updated_at FROM aids WHERE active = 1 ORDER BY created_at DESC",
+            "SELECT did, created_at, updated_at FROM aids WHERE active = 1 ORDER BY created_at DESC LIMIT ? OFFSET ?",
         )?;
         let entries = stmt
-            .query_map([], |row| {
+            .query_map(rusqlite::params![limit as i64, offset as i64], |row| {
                 Ok(AidListEntry {
                     did: row.get(0)?,
                     created_at: row.get(1)?,

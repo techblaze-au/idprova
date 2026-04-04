@@ -8,7 +8,7 @@ pub mod store;
 
 use axum::{
     body::Body,
-    extract::{ConnectInfo, Path, State},
+    extract::{ConnectInfo, Path, Query, State},
     http::{HeaderValue, Method, Request, StatusCode},
     middleware::{self, Next},
     response::{Json, Response},
@@ -306,10 +306,19 @@ async fn meta() -> Json<Value> {
     }))
 }
 
+#[derive(serde::Deserialize)]
+struct PaginationParams {
+    limit: Option<usize>,
+    offset: Option<usize>,
+}
+
 async fn list_aids(
     State(state): State<SharedState>,
+    Query(params): Query<PaginationParams>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let entries: Vec<AidListEntry> = state.store.list_active().map_err(|e| {
+    let limit = params.limit.unwrap_or(100).min(1000).max(1);
+    let offset = params.offset.unwrap_or(0);
+    let entries: Vec<AidListEntry> = state.store.list_active_paginated(limit, offset).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": format!("storage error: {e}") })),
@@ -317,6 +326,8 @@ async fn list_aids(
     })?;
     Ok(Json(json!({
         "total": entries.len(),
+        "limit": limit,
+        "offset": offset,
         "aids": entries
     })))
 }
@@ -374,7 +385,14 @@ async fn resolve_aid(
     let did = format!("did:aid:{id}");
 
     match state.store.get(&did) {
-        Ok(Some(doc)) => Ok(Json(serde_json::to_value(doc).unwrap())),
+        Ok(Some(doc)) => serde_json::to_value(doc)
+            .map(Json)
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("serialization error: {e}"), "code": "SERIALIZE_FAILED" })),
+                )
+            }),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(json!({ "error": format!("AID not found: {did}") })),

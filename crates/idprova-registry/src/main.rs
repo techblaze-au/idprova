@@ -18,9 +18,19 @@ async fn main() -> Result<()> {
     let store = AidStore::new(&db_path)?;
     let admin_pubkey = load_admin_pubkey();
     if admin_pubkey.is_none() {
-        tracing::warn!(
-            "REGISTRY_ADMIN_PUBKEY not set — write endpoints are OPEN (development mode only)"
-        );
+        let dev_mode = std::env::var("IDPROVA_DEV_MODE")
+            .unwrap_or_default()
+            .eq_ignore_ascii_case("true");
+        if dev_mode {
+            tracing::warn!(
+                "REGISTRY_ADMIN_PUBKEY not set — write endpoints are OPEN (development mode)"
+            );
+        } else {
+            panic!(
+                "REGISTRY_ADMIN_PUBKEY must be set in production. \
+                 Set IDPROVA_DEV_MODE=true to allow open writes in development."
+            );
+        }
     }
     let state = AppState::new(store, admin_pubkey);
     let app = build_app(state);
