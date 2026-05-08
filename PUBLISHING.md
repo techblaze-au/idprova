@@ -101,7 +101,11 @@ Requires `~/.pypirc` or `MATURIN_PYPI_TOKEN` environment variable.
 
 Located at `sdks/typescript/packages/core/`. Uses napi-rs for native bindings.
 
-The TS SDK ships native binaries per platform — Windows, macOS (Intel + Apple Silicon), and Linux (glibc x64, glibc arm64, musl x64). To get all of them on npm in one go, **use the automated workflow** rather than publishing manually from a local host (which only produces the host's binary).
+The TS SDK ships native binaries per platform. **v0.1.2 covers 5 platforms:** Windows x64, macOS Apple Silicon (arm64), Linux glibc x64, Linux glibc arm64, Linux musl x64.
+
+> **macOS Intel (x86_64-apple-darwin) is dropped from v0.1.2.** GitHub's `macos-13` runners have been persistently unavailable on this account (queued >1.5h across 4 dry-runs without ever picking up). macOS-13 was deprecated by GitHub in late 2024. Tracked for v0.1.3 follow-up via cross-compile from `macos-latest` (Apple Silicon → Intel).
+
+To get all 5 platforms on npm in one go, **use the automated workflow** rather than publishing manually from a local host (which only produces the host's binary).
 
 ### One-time setup (per-repo)
 
@@ -118,11 +122,11 @@ The TS SDK ships native binaries per platform — Windows, macOS (Intel + Apple 
 2. Commit and push to `main`.
 3. Tag and push: `git tag v0.1.2 && git push origin v0.1.2`.
 4. The `.github/workflows/npm-publish.yml` workflow will:
-   - Build a native `.node` binary on each of: `windows-latest` (x64-msvc), `macos-13` (Intel), `macos-latest` (Apple Silicon), and three Linux variants in official napi-rs Docker images (glibc x64, glibc arm64, musl x64).
-   - Smoke-test each binary on its native host with vitest.
+   - Build a native `.node` binary on each of: `windows-latest` (x64-msvc), `macos-latest` (Apple Silicon), `ubuntu-latest` in two napi-rs Docker images (glibc x64, musl x64), and `ubuntu-22.04-arm` (native arm64).
+   - Smoke-test the binaries on their native hosts with vitest (Win, macOS arm64, Linux gnu x64).
    - Run `napi artifacts` and `napi prepublish` to stage per-platform packages.
-   - Publish 6 platform packages (`@idprova/core-win32-x64-msvc`, `@idprova/core-darwin-x64`, `@idprova/core-darwin-arm64`, `@idprova/core-linux-x64-gnu`, `@idprova/core-linux-arm64-gnu`, `@idprova/core-linux-x64-musl`) plus the metapackage `@idprova/core`.
-5. Verify: `npm view @idprova/core` should show the new version, and `npm install @idprova/core` should now succeed on macOS and Linux (not just Windows).
+   - Publish 5 platform packages (`@idprova/core-win32-x64-msvc`, `@idprova/core-darwin-arm64`, `@idprova/core-linux-x64-gnu`, `@idprova/core-linux-arm64-gnu`, `@idprova/core-linux-x64-musl`) plus the metapackage `@idprova/core`.
+5. Verify: `npm view @idprova/core` should show the new version, and `npm install @idprova/core` should now succeed on Apple Silicon Macs, Linux x64+arm64, and Windows.
 
 ### Dry-run before a real release
 
@@ -131,7 +135,7 @@ To verify a release would succeed *without* actually publishing:
 - GitHub repo → Actions tab → "npm publish (TS SDK)" → "Run workflow"
 - Set `dry_run` to `true`
 - The build + test jobs run; the publish job is skipped
-- If all 6 platforms build and all 4 host tests pass, the next tagged release is safe to ship
+- If all 5 platforms build and all 3 host tests pass, the next tagged release is safe to ship
 
 ### Manual publish (legacy / single-platform, NOT recommended)
 
