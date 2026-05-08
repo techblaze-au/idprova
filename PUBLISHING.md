@@ -97,22 +97,60 @@ maturin publish
 
 Requires `~/.pypirc` or `MATURIN_PYPI_TOKEN` environment variable.
 
-## TypeScript SDK (npm)
+## TypeScript SDK (npm) — automated via GitHub Actions
 
 Located at `sdks/typescript/packages/core/`. Uses napi-rs for native bindings.
+
+The TS SDK ships native binaries per platform — Windows, macOS (Intel + Apple Silicon), and Linux (glibc x64, glibc arm64, musl x64). To get all of them on npm in one go, **use the automated workflow** rather than publishing manually from a local host (which only produces the host's binary).
+
+### One-time setup (per-repo)
+
+1. Create an npm Automation token with publish access to the `@idprova` scope:
+   - https://www.npmjs.com/settings/<your-user>/tokens → "Generate New Token" → "Automation"
+2. Add it as a GitHub Actions secret:
+   - GitHub repo → Settings → Secrets and variables → Actions → "New repository secret"
+   - Name: `NPM_TOKEN`
+   - Value: the token from step 1
+
+### To release a new TS SDK version
+
+1. Bump the version in `sdks/typescript/packages/core/package.json` (and the matching versions inside `optionalDependencies`).
+2. Commit and push to `main`.
+3. Tag and push: `git tag v0.1.2 && git push origin v0.1.2`.
+4. The `.github/workflows/npm-publish.yml` workflow will:
+   - Build a native `.node` binary on each of: `windows-latest` (x64-msvc), `macos-13` (Intel), `macos-latest` (Apple Silicon), and three Linux variants in official napi-rs Docker images (glibc x64, glibc arm64, musl x64).
+   - Smoke-test each binary on its native host with vitest.
+   - Run `napi artifacts` and `napi prepublish` to stage per-platform packages.
+   - Publish 6 platform packages (`@idprova/core-win32-x64-msvc`, `@idprova/core-darwin-x64`, `@idprova/core-darwin-arm64`, `@idprova/core-linux-x64-gnu`, `@idprova/core-linux-arm64-gnu`, `@idprova/core-linux-x64-musl`) plus the metapackage `@idprova/core`.
+5. Verify: `npm view @idprova/core` should show the new version, and `npm install @idprova/core` should now succeed on macOS and Linux (not just Windows).
+
+### Dry-run before a real release
+
+To verify a release would succeed *without* actually publishing:
+
+- GitHub repo → Actions tab → "npm publish (TS SDK)" → "Run workflow"
+- Set `dry_run` to `true`
+- The build + test jobs run; the publish job is skipped
+- If all 6 platforms build and all 4 host tests pass, the next tagged release is safe to ship
+
+### Manual publish (legacy / single-platform, NOT recommended)
+
+Only use this if the GitHub Actions workflow is broken or for emergency patches. It will produce a metapackage with **only your host's binary**, breaking `npm install` for users on other platforms.
 
 ```bash
 cd sdks/typescript/packages/core
 
-# Build native module
-npm run build
+# Build native module for the current host only
+npm run build -- --target $(rustc -vV | sed -n 's/host: //p')
 
 # Test
 npm test
 
-# Publish
+# Publish (single-platform — broken on other OSes)
 npm publish --access public
 ```
+
+This is how `@idprova/core@0.1.1` ended up Windows-only. Do not repeat. Use the workflow.
 
 ## Version Bumping
 
