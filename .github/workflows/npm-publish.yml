@@ -64,11 +64,16 @@ jobs:
           # Uses the official napi-rs Docker image which has the right glibc + Rust setup.
           # The cd into the package directory is done by the outer docker run step
           # (see "Build (Docker — Linux variants)" below); do NOT repeat it here.
+          # The image's bundled Rust trails latest stable; `rustup update stable`
+          # pulls a current toolchain so transitive deps requiring `edition2024`
+          # (stabilized in Rust 1.85) parse correctly.
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: |-
               set -e &&
+              rustup update stable &&
+              rustup default stable &&
               npm run build -- --target x86_64-unknown-linux-gnu &&
               strip *.node
 
@@ -81,6 +86,9 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: |-
               set -e &&
+              rustup update stable &&
+              rustup default stable &&
+              rustup target add aarch64-unknown-linux-gnu &&
               npm run build -- --target aarch64-unknown-linux-gnu &&
               aarch64-unknown-linux-gnu-strip *.node
 
@@ -90,6 +98,9 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: |-
               set -e &&
+              rustup update stable &&
+              rustup default stable &&
+              rustup target add x86_64-unknown-linux-musl &&
               npm run build -- --target x86_64-unknown-linux-musl &&
               strip *.node
 
