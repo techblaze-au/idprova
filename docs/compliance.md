@@ -84,6 +84,18 @@ Wildcards (`*`) are supported at each level, enabling graduated privilege escala
 
 ---
 
+## Other Compliance Frameworks
+
+| Framework | Reference doc |
+|---|---|
+| NIST SP 800-53 Rev 5 (US Federal + global enterprise) | [controls.md](controls.md) |
+| GDPR / EU AI Act (EU + UK + adequacy partners) | [gdpr.md](gdpr.md) |
+| Singapore MAS TRM, UAE NESA, ISO 27001:2022, SOC 2, HIPAA | (planned v1.0 launch) |
+
+For NIST 800-53 control-level mapping (AU, IA, AC, SC, SI families), see `controls.md`. For GDPR Article-by-article mapping including DPA template references, see `gdpr.md`.
+
+---
+
 ## Delegation Chain Security
 
 DATs support constrained delegation:
