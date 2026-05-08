@@ -1,0 +1,268 @@
+name: npm publish (TS SDK)
+
+# Builds @idprova/core for all supported platforms and publishes to npm.
+# Triggers:
+#   - Push of a tag matching `v*` (e.g. v0.1.2) — full release
+#   - Manual workflow_dispatch with a `dry_run` input — verifies builds without publishing
+#
+# Required secret: NPM_TOKEN  (npm Automation token with publish access to @idprova scope)
+# Set via:  GitHub repo  →  Settings  →  Secrets and variables  →  Actions  →  New repository secret
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build all platforms but do NOT publish (for verification)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+defaults:
+  run:
+    working-directory: sdks/typescript/packages/core
+
+env:
+  DEBUG: "napi:*"
+  APP_NAME: idprova
+  MACOSX_DEPLOYMENT_TARGET: "10.13"
+
+permissions:
+  contents: read
+  id-token: write   # required for npm provenance attestation
+
+jobs:
+  # ── Build one binary per supported platform ────────────────────────────────
+  build:
+    name: Build ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          # --- Windows --------------------------------------------------------
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: npm run build -- --target x86_64-pc-windows-msvc
+
+          # --- macOS Intel ----------------------------------------------------
+          - host: macos-13
+            target: x86_64-apple-darwin
+            build: npm run build -- --target x86_64-apple-darwin
+
+          # --- macOS Apple Silicon -------------------------------------------
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: npm run build -- --target aarch64-apple-darwin
+
+          # --- Linux x64 (glibc) ---------------------------------------------
+          # Uses the official napi-rs Docker image which has the right glibc + Rust setup
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |-
+              set -e &&
+              cd sdks/typescript/packages/core &&
+              npm run build -- --target x86_64-unknown-linux-gnu &&
+              strip *.node
+
+          # --- Linux ARM64 (glibc) — for AWS Graviton, Azure Ampere, etc. ----
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            build: |-
+              set -e &&
+              cd sdks/typescript/packages/core &&
+              npm run build -- --target aarch64-unknown-linux-gnu &&
+              aarch64-unknown-linux-gnu-strip *.node
+
+          # --- Linux x64 (musl) — for Alpine / smaller Docker images ---------
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |-
+              set -e &&
+              cd sdks/typescript/packages/core &&
+              npm run build -- --target x86_64-unknown-linux-musl &&
+              strip *.node
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: ${{ !matrix.settings.docker }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sdks/typescript/packages/core/package-lock.json
+
+      - name: Install Rust toolchain
+        if: ${{ !matrix.settings.docker }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache cargo registry
+        if: ${{ !matrix.settings.docker }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            sdks/typescript/packages/core/target/
+          key: napi-${{ matrix.settings.target }}-${{ hashFiles('Cargo.lock', 'sdks/typescript/packages/core/Cargo.toml') }}
+          restore-keys: napi-${{ matrix.settings.target }}-
+
+      - name: Install npm deps
+        if: ${{ !matrix.settings.docker }}
+        run: npm ci
+
+      - name: Build (native — non-Docker hosts)
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+        run: ${{ matrix.settings.build }}
+
+      - name: Setup QEMU (for cross-arch Docker on x64 runners)
+        if: ${{ matrix.settings.docker && contains(matrix.settings.target, 'aarch64') }}
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build (Docker — Linux variants)
+        if: ${{ matrix.settings.docker }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: ${{ contains(matrix.settings.target, 'aarch64') && '--platform linux/arm64' || '' }} -v ${{ github.workspace }}:/build -w /build
+          run: |
+            cd sdks/typescript/packages/core &&
+            npm ci &&
+            ${{ matrix.settings.build }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: sdks/typescript/packages/core/${{ env.APP_NAME }}.*.node
+          if-no-files-found: error
+          retention-days: 5
+
+  # ── Smoke-test on the matching host so a broken binary blocks the publish ──
+  test:
+    name: Test ${{ matrix.settings.target }} on ${{ matrix.settings.host }}
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+          - host: macos-13
+            target: x86_64-apple-darwin
+          - host: macos-latest
+            target: aarch64-apple-darwin
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sdks/typescript/packages/core/package-lock.json
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: sdks/typescript/packages/core
+
+      - name: Run vitest
+        run: npm test
+
+  # ── Publish all platform packages + the metapackage ────────────────────────
+  publish:
+    name: Publish to npm
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    # Skip publish on workflow_dispatch dry runs
+    if: ${{ github.event_name == 'push' || github.event.inputs.dry_run == 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org/"
+          cache: npm
+          cache-dependency-path: sdks/typescript/packages/core/package-lock.json
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Download all platform binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: sdks/typescript/packages/core/artifacts
+
+      - name: List downloaded artifacts (debug)
+        run: ls -R artifacts/
+
+      - name: Move binaries into npm/<platform>/ via napi artifacts
+        run: npx napi artifacts
+
+      - name: Run napi prepublish (validates and stages)
+        run: npx napi prepublish -t npm --skip-gh-release
+
+      - name: Publish each platform package
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -e
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+
+          for dir in npm/*/; do
+            if [ -f "${dir}package.json" ]; then
+              echo "Publishing ${dir}..."
+              # Platform packages have no scripts; --ignore-scripts is harmless and
+              # avoids any inherited hook from npm config.
+              (cd "${dir}" && npm publish --access public --provenance --ignore-scripts)
+            fi
+          done
+
+      - name: Publish metapackage
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -e
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          # --ignore-scripts skips the prepublishOnly hook (which would call
+          # `napi prepublish` again — already done above).
+          npm publish --access public --provenance --ignore-scripts
+
+      - name: Output published versions
+        run: |
+          echo "Published @idprova/core@$(node -p \"require('./package.json').version\")"
+          echo "Platform packages published:"
+          for dir in npm/*/; do
+            if [ -f "${dir}package.json" ]; then
+              name=$(node -p "require('./${dir}package.json').name")
+              version=$(node -p "require('./${dir}package.json').version")
+              echo "  - ${name}@${version}"
+            fi
+          done
