@@ -252,9 +252,10 @@ jobs:
         # `napi artifacts` (next step) writes binaries INTO npm/<platform>/ but
         # doesn't create the dirs itself. Without this step, the move fails
         # with `ENOENT: no such file or directory, open 'npm/.../idprova...node'`.
-        # `napi create-npm-dirs` materialises one dir per triple in package.json
-        # napi.triples, each with a starter package.json.
-        run: npx napi create-npm-dirs
+        # `napi create-npm-dir` (singular — yes, the command name is singular
+        # despite creating multiple dirs) materialises one dir per triple in
+        # package.json napi.triples, each with a starter package.json.
+        run: npx napi create-npm-dir
 
       - name: Move binaries into npm/<platform>/ via napi artifacts
         run: npx napi artifacts
