@@ -2,9 +2,9 @@
 
 <h1>IDProva</h1>
 
-<h3>Cryptographic identity for AI agents</h3>
+<h3>Identity for AI agents — the layer your existing IdP was never designed for</h3>
 
-<p>An open protocol for verifiable identity, scoped delegation, and tamper-evident audit trails — purpose-built for autonomous AI agents.</p>
+<p>An open protocol for cryptographically verifiable agent identity, scoped delegation, and tamper-evident audit. Apache 2.0. Self-hostable on AWS, GCP, Azure, or air-gapped. Built in Australia. Deployable globally.</p>
 
 [![CI](https://github.com/techblaze-au/idprova/actions/workflows/ci.yml/badge.svg)](https://github.com/techblaze-au/idprova/actions)
 [![Crates.io](https://img.shields.io/crates/v/idprova-core.svg)](https://crates.io/crates/idprova-core)
@@ -13,8 +13,9 @@
 [![Docs.rs](https://img.shields.io/docsrs/idprova-core)](https://docs.rs/idprova-core)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Spec](https://img.shields.io/badge/spec-v0.1--draft-orange.svg)](docs/protocol-spec-v0.1.md)
+[![NIST](https://img.shields.io/badge/NIST-CAISI--filed-success)](docs/compliance.md)
 
-[Documentation](https://idprova.dev) | [Getting Started](docs/getting-started.md) | [Protocol Spec](docs/protocol-spec-v0.1.md) | [API Reference](docs/api-reference.md)
+[Documentation](https://idprova.dev) | [Getting Started](docs/getting-started.md) | [Protocol Spec](docs/protocol-spec-v0.1.md) | [Compliance](docs/compliance.md) | [Cloud Product](https://idprova.com)
 
 </div>
 
@@ -22,23 +23,49 @@
 
 ## Why IDProva?
 
-AI agents are calling APIs, delegating tasks to sub-agents, and accessing sensitive systems. But today's identity infrastructure was built for humans and static workloads — not autonomous software that spawns other autonomous software.
+You've already invested in identity infrastructure. Okta, Entra ID, Auth0, your custom CIAM — these handle humans well. Now AI agents are calling your APIs, delegating to sub-agents, and accessing sensitive systems on behalf of users.
 
-**The problem:** There is no standard way to answer three critical questions about AI agent activity:
+**The gap:** every line of your existing identity stack was designed for humans who type passwords, click "allow", and authenticate dozens of times per day. None of it answers the questions that matter for AI agents:
 
-- **Who** is this agent, and can I cryptographically prove it?
-- **What** is it allowed to do, and who granted that permission?
-- **What did it do**, and can I verify that audit trail hasn't been tampered with?
+- **Who** is this agent — cryptographically, not just by API key?
+- **What** is it allowed to do, and **who** granted that permission?
+- **What did it do** — and can you prove the audit trail wasn't tampered with?
 
-OAuth tokens don't chain. API keys can't scope. SPIFFE wasn't designed for delegation hierarchies. None of them produce tamper-evident audit logs.
+OAuth tokens don't chain. JWTs don't carry delegation provenance. API keys can't scope to specific actions. SPIFFE was built for workloads, not delegation chains. None of them produce tamper-evident audit logs you can take to a compliance auditor.
 
-**IDProva solves this** with three cryptographic primitives designed specifically for the agent era:
+**IDProva is the layer that fits alongside your existing IdP** — three cryptographic primitives designed specifically for AI agents:
 
 | Primitive | Purpose |
-|-----------|---------|
-| **Agent Identity Documents (AIDs)** | W3C DID-based identity bound to Ed25519 keys |
+|---|---|
+| **Agent Identity Documents (AIDs)** | W3C DID-based identity bound to Ed25519 + ML-DSA-65 hybrid keys |
 | **Delegation Attestation Tokens (DATs)** | Signed, scoped, time-bounded, chainable permission tokens |
-| **Action Receipts** | Hash-chained, tamper-evident audit log of every agent action |
+| **Action Receipts** | Hash-chained, tamper-evident audit log of every agent action, mapped to compliance controls |
+
+You keep Okta. You keep Entra ID. You keep Auth0. You add IDProva for the agents.
+
+## Where this fits
+
+Three deployment stories — pick whichever fits your environment:
+
+### 1. Global Cloud
+Hosted IDProva on AWS, GCP, or Azure in your region of choice. AU (live), US East (v1.0), EU Frankfurt (v1.0 stretch), Singapore + UAE (v1.1). Web dashboard, SSO, RBAC, compliance report generator, SIEM integration, anomaly detection. Starting at $149/mo. → [idprova.com](https://idprova.com)
+
+### 2. Self-hosted Enterprise
+Run the full stack inside your VPC. Apache 2.0 source. No licence fees for the protocol. Commercial Enterprise Edition available with SLA, support, and additional management features.
+
+### 3. Sovereign / air-gapped
+Deploy in PROTECTED, classified, or otherwise isolated environments. Offline issuance and verification. Epoch-based revocation list distribution. No phone-home requirement. Designed for defence, intelligence, and critical infrastructure.
+
+## Works alongside your existing identity stack
+
+| Existing IdP | Integration pattern | Effort |
+|---|---|---|
+| **Okta** | OIDC ID token → RFC 8693 token exchange → IDProva DAT | ~50 lines of code |
+| **Microsoft Entra ID** | Entra Agent ID provisions → IDProva wraps actions in DATs + signs receipts (complementary) | Configurable; existing Entra deployment unchanged |
+| **Auth0** | Auth0 Action calls IDProva `/v1/dat/issue` after user authentication | ~30 lines of JavaScript |
+| **Custom / SAML** | Generic OIDC bridge or direct DAT issuance from your auth callback | Varies; ~1 day for typical integrations |
+
+See `docs/integrations/` for full integration walkthroughs (LangChain, MCP, CrewAI, AutoGen).
 
 ## Quick Install
 
@@ -62,6 +89,13 @@ git clone https://github.com/techblaze-au/idprova.git
 cd idprova
 cargo build --release
 # Binaries at: target/release/idprova and target/release/idprova-registry
+```
+
+### Docker
+
+```bash
+docker pull techblazeau/idprova:latest
+docker run -p 8080:8080 techblazeau/idprova:latest
 ```
 
 ## 60-Second Quickstart
@@ -91,6 +125,43 @@ idprova dat issue \
 idprova dat verify <TOKEN> --key operator.key.pub --scope "mcp:tool:filesystem:read"
 ```
 
+### Python: LangChain integration in 30 lines _(v1.0 target API — preview)_
+
+> The `idprova_langchain` callback handler lands as part of the v1.0 launch (target 2026-08-25; sandbox in flight Wk 2 of the launch plan, May 13–19). The snippet below is the shape it will take. Today's working Python integration uses `from idprova_http import IDProvaClient` — see [`examples/python/`](examples/python/) and [`docs/integrations/`](docs/integrations/).
+
+```python
+from langchain.agents import AgentExecutor, create_react_agent
+from idprova_langchain import IDProvaAuditCallbackHandler
+from idprova import AgentIdentity
+
+# 1. Identify your agent
+agent_identity = AgentIdentity.create(
+    name="customer-support-agent",
+    domain="example.com",
+)
+
+# 2. Get a delegation token (in production, this comes from your IdP)
+dat = agent_identity.issue_dat(
+    subject_did=agent_identity.did,
+    scope="mcp:tool:knowledge-base:read",
+    expires_in_seconds=3600,
+)
+
+# 3. Attach IDProva audit to your LangChain agent
+audit = IDProvaAuditCallbackHandler(
+    agent_did=agent_identity.did,
+    dat_token=dat.to_compact(),
+    receipts_path="/var/lib/idprova/receipts/",
+    registry_url="https://registry.idprova.com",
+)
+
+# 4. Use your agent normally — every tool call now produces a signed receipt
+executor = AgentExecutor(agent=your_agent, tools=your_tools, callbacks=[audit])
+executor.invoke({"input": "Help me find that order"})
+```
+
+The receipt log is now an audit-grade record of every action your agent took, signed and chained.
+
 ### Rust: programmatic usage
 
 ```rust
@@ -115,145 +186,83 @@ let dat = Dat::issue(
     "did:aid:example.com:operator",   // issuer
     "did:aid:example.com:my-agent",   // subject
     vec!["mcp:tool:filesystem:read".into()],
-    Utc::now() + Duration::hours(24),     // expiry
-    None,                                  // constraints
-    None,                                  // config attestation
+    Utc::now() + Duration::hours(24), // expiry
+    None,                              // constraints
+    None,                              // config attestation
     &keypair,
 )?;
 
-// Serialize to compact JWS
-let token = dat.to_compact()?;
-
-// Verify: signature + timing + scope in one call
-let pub_bytes = keypair.public_key_bytes();
-dat.verify(&pub_bytes, "mcp:tool:filesystem:read", &Default::default())?;
+// Receipts produced by `idprova-verify` middleware automatically
 ```
 
-> **Managed cloud registry coming Q2 2026.** Self-host today, or [join early access](https://idprova.dev/early-access) for the managed service.
+## Standards alignment
 
-## Architecture
+IDProva is designed to fit into existing standards rather than invent new ones where it doesn't have to:
 
-![IDProva Protocol Architecture](docs/idprova-protocol-architecture.png)
+| Standard | Role | Status |
+|---|---|---|
+| **W3C DID Core 1.0** | Identifier model (`did:aid:` method) | Aligned; submitted to DID Method Registry |
+| **NIST SP 800-53 Rev 5** | Compliance control mapping (US Federal + global enterprise) | [docs/controls.md](docs/controls.md) |
+| **NIST SP 800-207 Zero Trust** | Architectural alignment | [docs/compliance.md](docs/compliance.md) |
+| **NIST CAISI submission** | AI standards body engagement | Filed (NIST-2025-0035) |
+| **GDPR (EU 2016/679)** | EU privacy compliance mapping | [docs/gdpr.md](docs/gdpr.md) |
+| **EU AI Act (2024/1689)** | Logging + transparency obligations | [docs/gdpr.md](docs/gdpr.md) §EU AI Act |
+| **ISO 27001:2022** | Annex A control mapping | (planned v1.0) |
+| **Australian ISM** | Defence-aligned controls | [docs/compliance.md](docs/compliance.md) |
+| **Singapore MAS TRM** | SG financial services | (planned v1.0) |
+| **UAE NESA** | UAE government + financial | (planned v1.0) |
+| **HIPAA Security Rule** | US healthcare | (planned v1.0) |
+| **SOC 2 Type II readiness** | US enterprise procurement | (planned v1.0 mapping pack; certification v1.1) |
+| **JOSE / JWS** | DAT token format | RFC 7515-compliant |
+| **RFC 8693** | OAuth token exchange (IdP integration) | Supported in `idprova-bridge` |
+| **FIPS 204 (ML-DSA-65)** | Post-quantum signatures (hybrid mode) | Supported in `idprova-core` |
+| **BLAKE3** | Receipt hash chain | Native |
+| **Ed25519 (RFC 8032)** | Classical signatures | Native |
 
-![IDProva Trust Chain, Verification & Audit](docs/idprova-mermaid-flow.png)
+## Cryptographic foundations
 
-```
-Workspace Layout
-─────────────────
-crates/
-  idprova-core/        Core library (crypto, AID, DAT, receipts, trust, policy)
-  idprova-verify/      High-level verification utilities
-  idprova-cli/         Command-line tool
-  idprova-registry/    Registry server (Axum + SQLite)
-  idprova-middleware/  Tower/Axum DAT verification middleware
-  idprova-mcp-demo/    MCP protocol integration demo
-sdks/
-  python/              Python SDK (PyO3)
-  typescript/          TypeScript SDK (napi-rs)
-docs/                  Protocol specification and guides
-```
+- **Ed25519** for classical signatures (RFC 8032). Constant-time, 128-bit security level, 64-byte signatures.
+- **ML-DSA-65** for post-quantum signatures (FIPS 204). Hybrid signing supported — operators choose classical-only, hybrid, or PQ-only per identity.
+- **BLAKE3** for content hashing in the receipt chain. Parallelisable, faster than SHA-256 on modern CPUs.
 
-## DID Method
-
-IDProva uses a W3C DID-compatible identifier scheme:
-
-```
-did:aid:techblaze.com.au:kai
-│   │       │                 └─ agent name
-│   │       └─ domain (verification anchor)
-│   └─ did method
-└─ DID scheme
-```
-
-## Scope System
-
-Delegation scopes follow a hierarchical `namespace:category:resource:action` pattern with wildcard support:
-
-```
-mcp:tool:filesystem:read        # specific permission
-mcp:tool:filesystem:*           # all filesystem actions
-mcp:*:*:*                       # full MCP access
-api:service:billing:read        # custom namespace
-```
-
-Scopes are **subtractive** — a re-delegated token can only narrow permissions, never widen them.
-
-## Comparison: Agent Identity Solutions
-
-| Capability | **IDProva** | OAuth 2.0 | SPIFFE | mTLS | API Keys |
-|---|---|---|---|---|---|
-| Agent-to-agent delegation | Chainable DATs | No native chaining | No | No | No |
-| Scoped permissions | Hierarchical scopes | Coarse scopes | No scopes | No scopes | All-or-nothing |
-| Time-bounded access | Per-token expiry | Refresh tokens | Cert rotation | Cert expiry | Manual rotation |
-| Tamper-evident audit | Hash-chained receipts | No | No | No | No |
-| Delegation depth limits | Configurable per-token | N/A | N/A | N/A | N/A |
-| Offline verification | Ed25519 signature check | Requires auth server | Requires SPIRE | CA required | Requires server |
-| Post-quantum ready | ML-DSA-65 planned | No | No | No | No |
-| Purpose-built for agents | Yes | No (human-centric) | No (workload-centric) | No (transport) | No |
-
-## Trust Levels
-
-| Level | Name | Verification | Use Case |
-|-------|------|-------------|----------|
-| L0 | Self-declared | None | Development, testing |
-| L1 | Domain-verified | DNS TXT record | Production agents |
-| L2 | Organisation-verified | CA-like process | Enterprise agents |
-| L3 | Third-party audited | External audit | Regulated industries |
-| L4 | Continuously monitored | Runtime monitoring | Critical infrastructure |
-
-## Cryptography
-
-| Purpose | Algorithm | Status |
-|---------|-----------|--------|
-| Signatures | Ed25519 | Stable |
-| Hashing | BLAKE3 | Stable |
-| Interop hashing | SHA-256 | Stable |
-| Key zeroing | Zeroize on drop | Stable |
-| Post-quantum | ML-DSA-65 (FIPS 204) | Planned |
-
-## Running the Registry
-
-```bash
-# From source
-cargo run -p idprova-registry
-
-# Docker
-docker run -p 3000:3000 idprova/registry
-
-# Production (with admin key)
-REGISTRY_ADMIN_PUBKEY=<hex-32-bytes> cargo run -p idprova-registry
-```
-
-**Endpoints:** `GET /health` | `GET /ready` | `GET /v1/meta` | `GET|PUT|DELETE /v1/aid/:id` | `GET /v1/aid/:id/key` | `POST /v1/dat/verify` | `POST /v1/dat/revoke` | `GET /v1/dat/revocations` | `GET /v1/dat/revoked/:jti`
-
-## Compliance Mapping
-
-| Framework | Relevant Controls | IDProva Component |
-|-----------|------------------|-------------------|
-| NIST 800-53 | AU-2, AU-3, AU-8, AU-9, AU-10, AU-12, IA-2, AC-6 | Receipts, AIDs, DATs |
-| Australian ISM | Agent identity, access control, audit logging | All three pillars |
-| SOC 2 | CC6.1, CC6.3, CC7.2 | DATs, Receipts |
+See [docs/security.md](docs/security.md) for cryptographic rationale and [docs/STRIDE-THREAT-MODEL.md](docs/STRIDE-THREAT-MODEL.md) for the formal threat analysis.
 
 ## Documentation
 
-Full documentation, guides, and the protocol specification are available at **[idprova.dev](https://idprova.dev)**.
+- [Getting Started](docs/getting-started.md) — install, configure, issue your first DAT
+- [Protocol Specification](docs/protocol-spec-v0.1.md) — the full spec, normative
+- [Concepts](docs/concepts.md) — AIDs, DATs, scopes, trust levels, receipts
+- [Core API](docs/core-api.md) — Rust core library reference
+- [Python SDK](docs/sdk-python.md) — PyO3 bindings reference
+- [TypeScript SDK](docs/sdk-typescript.md) — napi-rs bindings reference
+- [API Reference](docs/api-reference.md) — registry HTTP API
+- [Adoption Guide](docs/ADOPTION-GUIDE.md) — for engineering leaders considering IDProva
+- [Technical Requirements](docs/TRD.md) — detailed technical requirements
+- [Threat Model](docs/STRIDE-THREAT-MODEL.md) — STRIDE analysis
+- [Security Model](docs/security.md) — cryptographic foundations
+- [Key Rotation](docs/key-rotation.md) — operator playbook
+- [NIST 800-53 Mapping](docs/controls.md) — compliance control mapping
+- [GDPR Mapping](docs/gdpr.md) — EU privacy + AI Act alignment
+- [Compliance Overview](docs/compliance.md) — ISM + Zero Trust mapping
 
-- [Getting Started](docs/getting-started.md)
-- [Protocol Concepts](docs/concepts.md)
-- [Core Library API](docs/core-api.md)
-- [API Reference](docs/api-reference.md)
-- [Security Model](docs/security.md)
-- [Protocol Specification](docs/protocol-spec-v0.1.md)
-- [Video Walkthroughs](https://www.youtube.com/playlist?list=PL4svyyKD4sjwivQsb9EWmkKAFJeS0A-2T)
+## Status
 
-## License
+IDProva v0.1 was published 2026-03-23. Spec is `v0.1-draft`; v1.0 launch targeted for late August 2026. Track progress at [the public roadmap](https://github.com/techblaze-au/idprova/projects).
 
-Apache 2.0 — see [LICENSE](LICENSE) for details.
+## Contributing
 
----
+We accept contributions via Developer Certificate of Origin (DCO) — sign off your commits with `git commit -s`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
 
-<div align="center">
+Security disclosures: please email `security@idprova.dev` rather than opening a public issue. See [SECURITY.md](SECURITY.md) for our vulnerability disclosure policy.
 
-Built by [Tech Blaze Consulting](https://techblaze.com.au) | [idprova.dev](https://idprova.dev) | [YouTube](https://www.youtube.com/@TechBlazeConsulting)
+## Built by
 
-</div>
+[Tech Blaze](https://techblaze.com.au) — a Canberra-based cybersecurity consultancy. We build IDProva and publish what we learn building it on the [Tech Blaze YouTube channel](https://youtube.com/@techblaze).
+
+For commercial support, IDProva Cloud, or implementation consulting, see [idprova.com](https://idprova.com) or contact [hello@techblaze.com.au](mailto:hello@techblaze.com.au).
+
+## Licence
+
+Protocol spec, core library, SDKs, and registry: Apache License 2.0. See [LICENSE](LICENSE).
+
+The Cloud product (idprova.com) and the commercial Self-hosted Enterprise Edition are separately licensed; see [idprova.com/terms](https://idprova.com/terms) for details.
