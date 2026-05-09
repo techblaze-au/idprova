@@ -125,7 +125,9 @@ idprova dat issue \
 idprova dat verify <TOKEN> --key operator.key.pub --scope "mcp:tool:filesystem:read"
 ```
 
-### Python: LangChain integration in 30 lines
+### Python: LangChain integration in 30 lines _(v1.0 target API — preview)_
+
+> The `idprova_langchain` callback handler lands as part of the v1.0 launch (target 2026-08-25; sandbox in flight Wk 2 of the launch plan, May 13–19). The snippet below is the shape it will take. Today's working Python integration uses `from idprova_http import IDProvaClient` — see [`examples/python/`](examples/python/) and [`docs/integrations/`](docs/integrations/).
 
 ```python
 from langchain.agents import AgentExecutor, create_react_agent
