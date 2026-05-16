@@ -1,5 +1,12 @@
-"""IDProva LangChain integration — audit callback handler."""
-import hashlib
+"""IDProva LangChain integration — audit callback handler.
+
+Receipts emitted by this handler use BLAKE3 with the algorithm-prefix
+format ``blake3:<64-hex>``, matching the Rust core (see
+``crates/idprova-core/src/crypto/hash.rs::prefixed_blake3``). Pre-2026-05
+revisions of this file used SHA-256 hex without a prefix; receipts emitted
+by those revisions are incompatible with the protocol's hash-chain
+verifier and must be regenerated.
+"""
 import json
 import time
 from pathlib import Path
@@ -10,6 +17,13 @@ try:
     from langchain_core.outputs import LLMResult
 except ImportError:
     raise ImportError("langchain-core is required: pip install langchain-core")
+
+try:
+    import blake3 as _blake3
+except ImportError:
+    raise ImportError(
+        "blake3 is required for IDProva receipt hashing: pip install blake3"
+    )
 
 from idprova_http import IDProvaClient
 
@@ -44,8 +58,15 @@ class IDProvaAuditCallbackHandler(BaseCallbackHandler):
         self.client = IDProvaClient(registry_url)
         self._prev_hash: Optional[str] = None
 
-    def _sha256(self, data: str) -> str:
-        return hashlib.sha256(data.encode()).hexdigest()
+    @staticmethod
+    def _prefixed_blake3(data: str) -> str:
+        """BLAKE3 hash of ``data`` formatted as ``blake3:<64-hex>``.
+
+        Matches ``idprova_core::crypto::hash::prefixed_blake3`` so receipts
+        produced by this Python handler chain-verify against receipts
+        produced by the Rust core or any other IDProva SDK.
+        """
+        return "blake3:" + _blake3.blake3(data.encode()).hexdigest()
 
     def _write_receipt(self, tool_name: str, payload: dict, outcome: str) -> None:
         now = time.time()
@@ -54,11 +75,11 @@ class IDProvaAuditCallbackHandler(BaseCallbackHandler):
             "agent_did": self.agent_did,
             "tool": tool_name,
             "outcome": outcome,
-            "payload_hash": self._sha256(json.dumps(payload, sort_keys=True)),
+            "payload_hash": self._prefixed_blake3(json.dumps(payload, sort_keys=True)),
             "prev_hash": self._prev_hash,
         }
         receipt_str = json.dumps(receipt)
-        self._prev_hash = self._sha256(receipt_str)
+        self._prev_hash = self._prefixed_blake3(receipt_str)
         with self.receipts_path.open("a") as f:
             f.write(receipt_str + "\n")
 
