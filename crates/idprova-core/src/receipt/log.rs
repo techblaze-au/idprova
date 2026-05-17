@@ -107,6 +107,14 @@ impl ReceiptLog {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Test-only mutable accessor for tamper-detection tests. Production
+    /// code must not mutate entries after append — the chain is
+    /// append-only by construction.
+    #[cfg(test)]
+    pub(crate) fn entries_mut_for_test(&mut self) -> &mut Vec<Receipt> {
+        &mut self.entries
+    }
 }
 
 impl Default for ReceiptLog {
@@ -119,7 +127,7 @@ impl Default for ReceiptLog {
 mod tests {
     use super::*;
     use crate::crypto::KeyPair;
-    use crate::receipt::entry::{ActionDetails, ChainLink};
+    use crate::receipt::entry::{ActionDetails, ChainLink, ReceiptKind};
     use chrono::Utc;
 
     fn make_signed_receipt(kp: &KeyPair, seq: u64, prev_hash: &str) -> Receipt {
@@ -141,6 +149,7 @@ mod tests {
             timestamp: Utc::now(),
             agent: "did:aid:example.com:agent".to_string(),
             dat: "dat_test".to_string(),
+            kind: ReceiptKind::Data,
             action,
             context: None,
             chain,
@@ -149,6 +158,86 @@ mod tests {
         let sig = kp.sign(&r.signing_payload_bytes());
         r.signature = hex::encode(sig);
         r
+    }
+
+    /// IDP-002 — a `ChainCheckpoint` receipt verifies against the
+    /// hash-chain across a 100-receipt window.
+    fn make_signed_checkpoint(kp: &KeyPair, seq: u64, prev_hash: &str, ckpt_count: u64) -> Receipt {
+        let chain = ChainLink {
+            previous_hash: prev_hash.to_string(),
+            sequence_number: seq,
+        };
+        let action = ActionDetails {
+            action_type: "idprova:checkpoint".to_string(),
+            server: None,
+            tool: None,
+            input_hash: "blake3:checkpoint".to_string(),
+            output_hash: None,
+            status: "success".to_string(),
+            duration_ms: None,
+        };
+        let mut r = Receipt {
+            id: format!("rcpt_ckpt_{seq}"),
+            timestamp: Utc::now(),
+            agent: "did:aid:example.com:agent".to_string(),
+            dat: "dat_test".to_string(),
+            kind: ReceiptKind::ChainCheckpoint {
+                prev_hash: prev_hash.to_string(),
+                count: ckpt_count,
+            },
+            action,
+            context: None,
+            chain,
+            signature: String::new(),
+        };
+        let sig = kp.sign(&r.signing_payload_bytes());
+        r.signature = hex::encode(sig);
+        r
+    }
+
+    #[test]
+    fn test_idp002_checkpoint_verifies_across_100_receipt_window() {
+        let kp = KeyPair::generate();
+        let pub_bytes = kp.public_key_bytes();
+        let mut log = ReceiptLog::new();
+
+        // Append 100 data receipts.
+        for i in 0..100u64 {
+            let prev = log.last_hash();
+            let r = make_signed_receipt(&kp, i, &prev);
+            log.append(r);
+        }
+        assert_eq!(log.len(), 100);
+
+        // Append a checkpoint receipt at sequence 100, pointing at the
+        // hash of the 100th data receipt and claiming `count = 100`.
+        let prev_data_hash = log.last_hash();
+        let ckpt = make_signed_checkpoint(&kp, 100, &prev_data_hash, 100);
+        log.append(ckpt);
+        assert_eq!(log.len(), 101);
+
+        // Hash chain integrity still passes (checkpoint links via
+        // ChainLink.previous_hash like any other receipt).
+        log.verify_integrity()
+            .expect("100-data + 1-checkpoint chain must verify");
+        log.verify_integrity_with_key(&pub_bytes)
+            .expect("100-data + 1-checkpoint chain must verify cryptographically");
+
+        // Tampering the checkpoint's discriminator payload must
+        // invalidate the signature (kind is part of the signing payload
+        // when kind != Data).
+        let mut tampered_log = log;
+        let last = tampered_log.entries_mut_for_test().last_mut().unwrap();
+        match &mut last.kind {
+            ReceiptKind::ChainCheckpoint { count, .. } => {
+                *count = 999;
+            }
+            _ => panic!("expected checkpoint as last entry"),
+        }
+        assert!(
+            tampered_log.verify_integrity_with_key(&pub_bytes).is_err(),
+            "tampering checkpoint count must fail signature verification"
+        );
     }
 
     fn build_log(kp: &KeyPair, count: usize) -> ReceiptLog {
