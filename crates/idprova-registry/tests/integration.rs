@@ -451,3 +451,86 @@ async fn test_admin_auth_wrong_scope_returns_401() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
+
+// ── IDP-010 route-table snapshot ────────────────────────────────────────────
+
+/// Snapshot test guarding the public HTTP surface against accidental
+/// regressions during the lib.rs → modules refactor. If a route is moved
+/// or renamed, this test fails before any consumer notices.
+///
+/// The test exercises each documented `(method, path)` pair and asserts
+/// that **the route is reachable** — distinguished from axum's default
+/// unregistered-route 404 (which has an empty body) by reading the
+/// response body. Handler-emitted 404s (resource-not-found, valid JSON
+/// error) are acceptable because they prove the route reached our code.
+#[tokio::test]
+async fn test_idp010_route_table_snapshot() {
+    use axum::http::Method;
+
+    // (method, path) pairs that define the v0.1 public HTTP surface.
+    let routes: &[(Method, &str)] = &[
+        (Method::GET, "/health"),
+        (Method::GET, "/v1/meta"),
+        (Method::GET, "/v1/aids"),
+        (Method::GET, "/v1/aid/example.com:any-agent"),
+        (Method::PUT, "/v1/aid/example.com:any-agent"),
+        (Method::DELETE, "/v1/aid/example.com:any-agent"),
+        (Method::GET, "/v1/aid/example.com:any-agent/key"),
+        (Method::POST, "/v1/dat/verify"),
+        (Method::POST, "/v1/dat/revoke"),
+        (Method::GET, "/v1/dat/revoked/some-jti"),
+    ];
+
+    for (method, path) in routes {
+        let app = make_app();
+        let body = match method.as_str() {
+            "POST" | "PUT" => Body::from("{}"),
+            _ => Body::empty(),
+        };
+        let mut req = Request::builder().method(method.clone()).uri(*path);
+        if matches!(method.as_str(), "POST" | "PUT") {
+            req = req.header("Content-Type", "application/json");
+        }
+        let resp = app.oneshot(req.body(body).unwrap()).await.unwrap();
+        let status = resp.status();
+        assert_ne!(
+            status,
+            StatusCode::METHOD_NOT_ALLOWED,
+            "route {method} {path} returned 405 — verb wiring is wrong"
+        );
+
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        if status == StatusCode::NOT_FOUND {
+            assert!(
+                !body_bytes.is_empty(),
+                "route {method} {path} returned a default axum 404 \
+                 (empty body) — route is NOT registered",
+            );
+        }
+    }
+
+    // Negative control: a clearly-unregistered path MUST yield the
+    // default axum 404 with an empty body. If this stops being true,
+    // the test's discrimination criterion is invalid and the snapshot
+    // is meaningless.
+    let app = make_app();
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/this-route-does-not-exist")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let neg_status = resp.status();
+    let neg_body = resp.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(neg_status, StatusCode::NOT_FOUND);
+    assert!(
+        neg_body.is_empty(),
+        "axum's default unregistered-route 404 must have an empty body — \
+         the snapshot test relies on this discriminator (got {} bytes)",
+        neg_body.len()
+    );
+}
