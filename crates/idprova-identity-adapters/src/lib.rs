@@ -36,4 +36,6 @@ pub use attributes::AttributeMapper;
 pub use audit::AuditExporter;
 pub use error::{AdapterError, AdapterResult};
 pub use oidc::{IdTokenClaims, OidcDiscovery, OidcIdpAdapter};
-pub use scim::{ScimAgentExtension, ScimEmail, ScimGroup, ScimGroupMember, ScimProvisioner, ScimUser};
+pub use scim::{
+    ScimAgentExtension, ScimEmail, ScimGroup, ScimGroupMember, ScimProvisioner, ScimUser,
+};

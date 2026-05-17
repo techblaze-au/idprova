@@ -187,9 +187,9 @@ pub mod testing {
         ) -> AdapterResult<IdTokenClaims> {
             match &self.outcome {
                 Outcome::Accept(claims) => Ok(claims.clone()),
-                Outcome::Reject(reason) => Err(crate::error::AdapterError::Verification(
-                    reason.clone(),
-                )),
+                Outcome::Reject(reason) => {
+                    Err(crate::error::AdapterError::Verification(reason.clone()))
+                }
             }
         }
     }
@@ -208,8 +208,7 @@ pub mod testing {
             groups: vec!["agents".to_string()],
             extra: Default::default(),
         };
-        let adapter =
-            MockOidcIdpAdapter::with_claims("https://example.com", claims.clone());
+        let adapter = MockOidcIdpAdapter::with_claims("https://example.com", claims.clone());
         let got = adapter
             .verify_id_token("any-token", &["idprova"])
             .await
