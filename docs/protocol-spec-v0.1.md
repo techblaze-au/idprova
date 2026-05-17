@@ -1157,6 +1157,8 @@ The IDProva Trust Framework defines five trust levels representing increasing de
 | **L3** | Third-Party Attested | An independent auditor or certification body attests to the agent's identity and configuration | The agent has undergone external review. Attestation may reference specific standards (e.g., SOC 2, ISM). |
 | **L4** | Continuously Monitored | Real-time monitoring confirms ongoing compliance with identity, configuration, and behaviour policies | The highest trust level. Requires active monitoring infrastructure and automated trust level demotion on policy violation. |
 
+**Note on L2 verification (SAML inbound deferred to v0.3):** The L2 row above is intentionally framed in terms of an Identity Provider (IdP) or directory service vouching for the agent — it is *transport-agnostic*. v0.2 of the protocol ships OIDC as the sole standardised L2 inbound binding (see RFC 0001 §6.1, "Flow 1 — OIDC bridge"). SAML 2.0 inbound, X.509-SAN binding, and LDAP/AD group attestation remain valid L2 verification methods conceptually, but their standardised protocol bindings are deferred to **v0.3** (see RFC 0001 §11 "Deferred items"). Implementers building L2 verifiers SHOULD ship OIDC first; SAML/X.509/LDAP attestations remain interoperable today via the trust-framework primitive but are not part of v0.2's protocol surface.
+
 ### 7.2 Verification Methods
 
 Each trust level requires specific verification methods:
@@ -1171,9 +1173,10 @@ Each trust level requires specific verification methods:
 - Suitable for: production agents with domain ownership proof.
 
 **L2 — Organisation-Verified:**
-- OIDC/SAML assertion from an organisational IdP linking the agent DID to an organisational identity.
-- LDAP/AD group membership attestation.
-- X.509 certificate from an organisational CA with the agent DID in the Subject Alternative Name (SAN) extension.
+- OIDC assertion from an organisational IdP linking the agent DID to an organisational identity (v0.2 standard binding; see RFC 0001 §6.1).
+- SAML 2.0 assertion (deferred to v0.3 per §7.1 note; RFC 0001 §11).
+- LDAP/AD group membership attestation (informational in v0.2; protocol binding deferred to v0.3).
+- X.509 certificate from an organisational CA with the agent DID in the Subject Alternative Name (SAN) extension (informational in v0.2; protocol binding deferred to v0.3).
 - Suitable for: enterprise agents requiring organisational binding.
 
 **L3 — Third-Party Attested:**
