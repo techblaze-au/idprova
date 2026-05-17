@@ -1,0 +1,33 @@
+[package]
+name = "idprova-identity-adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-identity-adapters"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "oidc", "scim", "adapter"]
+categories = ["authentication"]
+readme = "README.md"
+description = "Trait definitions for IDProva identity adapters (OIDC, SCIM, audit, attribute mapping)"
+
+[dependencies]
+# Core types (DID, DAT, Receipt, TrustLevel, Scope).
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
+
+# Serialization for adapter wire-format types (OIDC claim shapes,
+# SCIM resource shapes). Pulled from the workspace.
+serde = { workspace = true }
+# JSON values for vendor-specific extras on OIDC / SCIM resources.
+# Pre-existing transitive dep via idprova-core; we depend on it
+# explicitly here so the public API surface compiles standalone.
+serde_json = { workspace = true }
+
+# Error handling.
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Used only by the in-tree MockOidcIdpAdapter for downstream-crate
+# testing. The crate itself ships no runtime async dep.
+tokio = { workspace = true, features = ["test-util", "macros", "rt"] }
