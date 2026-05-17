@@ -864,6 +864,25 @@ The `constraints` object in a DAT provides additional restrictions beyond scopes
 - Geofence: child set must be a subset of parent set.
 - Time windows: child windows must be contained within parent windows.
 
+#### Reserved for v0.3
+
+The following constraint primitives and terminal-state values are **deliberately not specified in v0.1 / v0.2** of the protocol and are reserved for v0.3. Implementers MUST NOT introduce ad-hoc fields under these names in v0.2; v0.3 will assign canonical semantics. See RFC 0001 §11 (Deferred items) and RFC 0002 §8 / Appendix A.8 for the rationale.
+
+**Constraint fields reserved for v0.3:**
+
+| Field | Type (planned) | Intent (informational) |
+|-------|----------------|------------------------|
+| `riskScoreUpperBound` | number (0.0–1.0) | Maximum acceptable agent risk score (from a continuously-scoring system) at which the DAT remains usable. Was considered for v0.2; deferred to avoid coupling the core DAT to a not-yet-standardised scoring substrate. |
+
+**Action-receipt terminal-state values reserved for v0.3** (extends `action.status` in §6.1):
+
+| Value | Intent (informational) |
+|-------|------------------------|
+| `error:exec` | The tool / sub-agent invocation failed during execution (the call reached the target, the target rejected or errored). Distinguishes execution-side faults from transport-side faults. |
+| `error:net` | The tool / sub-agent invocation failed during transport (the call did not reach the target, or no response was received within timeout). |
+
+v0.2 implementations SHOULD continue to use the v0.1 terminal-state values (`success`, `failure`) and SHOULD NOT emit `error:exec` / `error:net`. Receivers MUST ignore unknown `action.status` values gracefully (treat them as `failure` plus a structured log warning) so that v0.2 deployments remain forward-compatible with v0.3-emitting senders.
+
 ### 5.5 Delegation Chains
 
 Delegation chains trace the path of authority from a root principal to a leaf agent.
