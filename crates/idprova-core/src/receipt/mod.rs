@@ -8,5 +8,5 @@
 pub mod entry;
 pub mod log;
 
-pub use entry::{ActionDetails, Receipt, ReceiptContext};
+pub use entry::{ActionDetails, Receipt, ReceiptContext, ReceiptKind};
 pub use log::ReceiptLog;

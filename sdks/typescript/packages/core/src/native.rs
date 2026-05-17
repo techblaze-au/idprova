@@ -702,6 +702,7 @@ impl ReceiptLog {
             timestamp: Utc::now(),
             agent: agent_did,
             dat: dat_jti,
+            kind: idprova_core::receipt::ReceiptKind::Data,
             action,
             context,
             chain,
