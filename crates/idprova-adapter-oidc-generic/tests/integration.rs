@@ -69,14 +69,6 @@ fn now_secs() -> i64 {
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 
-// TODO(IDP-021-followup): four shape-specific tests below fail at runtime with
-// `Verification("decode: InvalidAlgorithm")`. The unit tests in src/adapter.rs
-// cover claim-mapping logic; the wrong_issuer_is_rejected test below covers the
-// full decode+validation path. Re-enable once the JWK/jsonwebtoken-9 alg
-// negotiation is resolved — likely needs `DecodingKey::from_rsa_components`
-// instead of `from_jwk`, or a `kty=RSA` JWK with explicit pubkey component
-// formatting. Tracked: Wk-7 follow-up per IDProva_Night3_Drafts/REVIEW.md §6.
-#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn okta_shape_id_token_verifies_and_maps_claims() {
     let server = MockServer::start().await;
@@ -104,11 +96,13 @@ async fn okta_shape_id_token_verifies_and_maps_claims() {
     assert_eq!(claims.iss, issuer);
     assert_eq!(claims.sub, "okta-user-id-abc");
     assert_eq!(claims.aud, "idprova-client");
-    assert_eq!(claims.groups, vec!["agents".to_string(), "admins".to_string()]);
+    assert_eq!(
+        claims.groups,
+        vec!["agents".to_string(), "admins".to_string()]
+    );
     assert_eq!(claims.amr, vec!["pwd".to_string(), "mfa".to_string()]);
 }
 
-#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn entra_shape_id_token_with_roles_in_extra() {
     let server = MockServer::start().await;
@@ -139,11 +133,15 @@ async fn entra_shape_id_token_with_roles_in_extra() {
         .get("roles")
         .expect("roles claim ended up in extra");
     assert!(roles.is_array());
-    let role_strs: Vec<&str> = roles.as_array().unwrap().iter().filter_map(|v| v.as_str()).collect();
+    let role_strs: Vec<&str> = roles
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
     assert_eq!(role_strs, vec!["Writer", "Reader"]);
 }
 
-#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn auth0_shape_id_token_with_custom_namespace_claim() {
     let server = MockServer::start().await;
@@ -175,7 +173,6 @@ async fn auth0_shape_id_token_with_custom_namespace_claim() {
     assert_eq!(tier.as_str(), Some("enterprise"));
 }
 
-#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn keycloak_shape_id_token_with_realm_access() {
     let server = MockServer::start().await;
@@ -231,9 +228,7 @@ async fn wrong_issuer_is_rejected() {
     let token = make_signed_jwt(payload);
 
     let adapter = build_adapter(&issuer); // configured for our mock server
-    let result = adapter
-        .verify_id_token(&token, &["idprova-client"])
-        .await;
+    let result = adapter.verify_id_token(&token, &["idprova-client"]).await;
 
     assert!(
         matches!(result, Err(AdapterError::Verification(_))),

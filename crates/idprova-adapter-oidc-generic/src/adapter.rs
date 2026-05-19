@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use jsonwebtoken::jwk::AlgorithmParameters;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use reqwest::Client;
 use serde_json::Value;
@@ -147,9 +148,7 @@ impl GenericOidcAdapter {
                 .and_then(|v| v.as_str())
                 .map(String::from)
                 .ok_or_else(|| {
-                    AdapterError::InvalidInput(
-                        "aud array is empty or contains non-strings".into(),
-                    )
+                    AdapterError::InvalidInput("aud array is empty or contains non-strings".into())
                 })?,
             _ => {
                 return Err(AdapterError::InvalidInput(
@@ -228,8 +227,16 @@ impl OidcIdpAdapter for GenericOidcAdapter {
         token: &'a str,
         expected_audiences: &'a [&'a str],
     ) -> AdapterResult<IdTokenClaims> {
+        const ALLOWED_ALGORITHMS: &[Algorithm] = &[Algorithm::RS256, Algorithm::ES256];
+
         let header = decode_header(token)
             .map_err(|e| AdapterError::Verification(format!("decode_header: {e}")))?;
+        if !ALLOWED_ALGORITHMS.contains(&header.alg) {
+            return Err(AdapterError::Verification(format!(
+                "unsupported JWT alg: {:?}",
+                header.alg
+            )));
+        }
         let kid = header
             .kid
             .ok_or_else(|| AdapterError::Verification("JWT header missing kid".into()))?;
@@ -239,15 +246,35 @@ impl OidcIdpAdapter for GenericOidcAdapter {
             .keys
             .iter()
             .find(|k| k.common.key_id.as_deref() == Some(&kid))
-            .ok_or_else(|| {
-                AdapterError::Verification(format!("no matching JWK for kid: {kid}"))
-            })?;
+            .ok_or_else(|| AdapterError::Verification(format!("no matching JWK for kid: {kid}")))?;
 
-        let decoding_key = DecodingKey::from_jwk(jwk)
-            .map_err(|e| AdapterError::Verification(format!("DecodingKey::from_jwk: {e}")))?;
+        // Use explicit RSA/EC component extraction rather than DecodingKey::from_jwk:
+        // from_jwk requires the JWK to carry a single `alg` and locks the key to it,
+        // which breaks when validation.algorithms contains multiple algorithms
+        // (RS256+ES256) — jsonwebtoken-9 returns InvalidAlgorithm even for valid
+        // RS256-signed tokens. from_rsa_components / from_ec_components let
+        // validation.algorithms drive the alg negotiation.
+        let decoding_key = match &jwk.algorithm {
+            AlgorithmParameters::RSA(rsa) => DecodingKey::from_rsa_components(&rsa.n, &rsa.e)
+                .map_err(|e| {
+                    AdapterError::Verification(format!("DecodingKey::from_rsa_components: {e}"))
+                })?,
+            AlgorithmParameters::EllipticCurve(ec) => DecodingKey::from_ec_components(&ec.x, &ec.y)
+                .map_err(|e| {
+                    AdapterError::Verification(format!("DecodingKey::from_ec_components: {e}"))
+                })?,
+            _ => {
+                return Err(AdapterError::Verification(format!(
+                    "unsupported JWK key type for kid: {kid}"
+                )));
+            }
+        };
 
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.algorithms = vec![Algorithm::RS256, Algorithm::ES256];
+        // Validation::new(alg) sets algorithms = [alg]. jsonwebtoken-9 requires
+        // every entry in validation.algorithms to be supported by the key, so we
+        // can't pass [RS256, ES256] against an RSA-only key. The header.alg has
+        // already been allowlisted above, so use it directly.
+        let mut validation = Validation::new(header.alg);
         validation.set_audience(expected_audiences);
         validation.set_issuer(&[self.config.issuer.as_str()]);
         validation.leeway = 60;
