@@ -1,0 +1,36 @@
+[package]
+name = "idprova-adapter-oidc-generic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-adapter-oidc-generic"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "oidc", "adapter", "jwt"]
+categories = ["authentication"]
+readme = "README.md"
+description = "Generic OIDC IdP adapter for IDProva — covers Okta, Entra, Auth0, Keycloak via standard discovery + JWKS"
+
+[dependencies]
+# Trait surface (port).
+idprova-identity-adapters = { path = "../idprova-identity-adapters", version = "0.1.1" }
+# Core types (TrustLevel for the AttributeMapper).
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
+
+# HTTP for discovery + JWKS fetch (workspace dep already pinned with `json` + `blocking`).
+reqwest = { workspace = true }
+
+# JWT verification + JWKS parsing — local to this crate (not yet in workspace).
+jsonwebtoken = "9"
+
+# Workspace-shared async runtime / serialization.
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error machinery comes from idprova-identity-adapters::AdapterError.
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = "0.6"

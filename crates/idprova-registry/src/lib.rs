@@ -4,6 +4,7 @@
 //!
 //! Re-exports `build_app()` for integration testing.
 
+pub mod binding;
 pub mod store;
 
 use axum::{
