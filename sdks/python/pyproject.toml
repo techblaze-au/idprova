@@ -36,7 +36,8 @@ Documentation = "https://idprova.dev/docs"
 "Bug Tracker" = "https://github.com/techblaze-au/idprova/issues"
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+test = ["pytest>=7.0", "blake3>=0.4.1"]
+langchain = ["langchain-core>=0.3", "blake3>=0.4.1"]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
