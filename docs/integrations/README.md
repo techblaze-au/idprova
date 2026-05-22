@@ -9,7 +9,7 @@ Status reflects what exists in the repo today (2026-05-09). The launch-target AP
 | Integration | Today | Where to look |
 |---|---|---|
 | **MCP (Model Context Protocol)** | **Shipped.** Auth middleware, scope evaluation, signed-receipt logging for every tool call. | [`crates/idprova-mcp/`](../../crates/idprova-mcp/), runnable examples in [`crates/idprova-mcp/examples/`](../../crates/idprova-mcp/examples/) (`filesystem_mcp.rs`, `multi_agent.rs`). |
-| **OIDC bridge** (Okta, Microsoft Entra ID, Auth0, generic OIDC) | **Shipped.** Registry endpoints accept an OIDC ID token via RFC 8693 token exchange and return a scoped DAT. | Registry routes `/v1/auth/oidc/bridge`, `/v1/auth/challenge`, `/v1/auth/verify`. See [`../api-reference.md`](../api-reference.md). |
+| **OIDC bridge** (Okta, Microsoft Entra ID, Auth0, generic OIDC) | **Pending v0.2 (ships 2026-08-25).** The registry routes are specified in RFC 0001 §7.2 but are not yet wired into `build_app()` — only `health`, `/v1/meta`, `/v1/aids`, `/v1/aid/:id` and `/v1/dat/*` are exposed in v0.1.2. | Spec: [RFC 0001 §7.2 — OIDC Bridge](../rfcs/IDProva_Okta_Bridge_RFC_v0.1.md). Tracking task: Asana IDP-011. |
 | **Python (`idprova` package, HTTP client)** | **Shipped.** PyO3 bindings on PyPI; HTTP client for registry interactions. | [`sdks/python/`](../../sdks/python/), examples in [`examples/python/`](../../examples/python/). |
 | **TypeScript (`@idprova/core`, napi-rs)** | **Shipped.** Native bindings on npm. | [`sdks/typescript/`](../../sdks/typescript/), examples in [`examples/typescript/`](../../examples/typescript/). |
 | **LangChain (`idprova_langchain` Python package)** | **In flight — Wk 2 of v1.0 launch plan (May 13–19).** Sandbox under construction; package not yet published to PyPI. README's LangChain code block shows the target API. | Tracked in Asana: "Stand up CT 261 LangChain sandbox" (due 2026-05-16). Working Python integration today uses `IDProvaClient` from `idprova_http` — see [`examples/python/issue_verify.py`](../../examples/python/issue_verify.py). |
@@ -22,7 +22,7 @@ Status reflects what exists in the repo today (2026-05-09). The launch-target AP
 If you are…
 
 - **Wrapping an MCP server** — start with [`crates/idprova-mcp/examples/filesystem_mcp.rs`](../../crates/idprova-mcp/examples/filesystem_mcp.rs). It is the shortest end-to-end path: keypair → DAT → tool call → signed receipt.
-- **Already on Okta / Entra / Auth0** — use the OIDC bridge. Your existing user authentication stays in place; IDProva only mints scoped DATs for the agent identity. See the standards-alignment table in the [root README](../../README.md#works-alongside-your-existing-identity-stack).
+- **Already on Okta / Entra / Auth0** — the OIDC bridge ships in v0.2 (target 2026-08-25). Until then, agent AIDs can be bootstrapped manually via `idprova aid create` and bound to an existing identity out-of-band; see the standards-alignment table in the [root README](../../README.md#works-alongside-your-existing-identity-stack) for the v1.0 story.
 - **Building with LangChain today** — use the `idprova_http.IDProvaClient` Python class directly (see `examples/python/`). The `idprova_langchain` callback handler is in flight and lands as part of the v1.0 launch.
 - **Building with CrewAI / AutoGen** — there is no first-party adapter yet. The Python HTTP client is generic enough to wire into either framework's tool-call hook; first-party adapters land post-v1.0.
 
