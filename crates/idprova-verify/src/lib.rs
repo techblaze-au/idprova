@@ -139,6 +139,7 @@ mod tests {
             timestamp: Utc::now(),
             agent: "did:aid:test:agent".to_string(),
             dat: "dat_test".to_string(),
+            kind: idprova_core::receipt::ReceiptKind::Data,
             action: ActionDetails {
                 action_type: "mcp:tool-call".to_string(),
                 server: None,
@@ -392,6 +393,7 @@ mod tests {
             timestamp: Utc::now(),
             agent: "did:aid:test:agent".to_string(),
             dat: "dat_test".to_string(),
+            kind: idprova_core::receipt::ReceiptKind::Data,
             action: ActionDetails {
                 action_type: "mcp:tool-call".to_string(),
                 server: None,

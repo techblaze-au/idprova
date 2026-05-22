@@ -2,7 +2,7 @@
 
 use chrono::Utc;
 use idprova_core::receipt::entry::{ActionDetails, ChainLink};
-use idprova_core::receipt::{Receipt, ReceiptLog};
+use idprova_core::receipt::{Receipt, ReceiptKind, ReceiptLog};
 
 /// MCP-aware receipt log for recording tool calls and denials.
 pub struct McpReceiptLog {
@@ -31,6 +31,7 @@ impl McpReceiptLog {
             timestamp: Utc::now(),
             agent: agent_did.to_string(),
             dat: dat_jti.to_string(),
+            kind: ReceiptKind::Data,
             action: ActionDetails {
                 action_type: "mcp:tool-call".to_string(),
                 server: None,
@@ -64,6 +65,7 @@ impl McpReceiptLog {
             timestamp: Utc::now(),
             agent: agent_did.to_string(),
             dat: dat_jti.to_string(),
+            kind: ReceiptKind::Data,
             action: ActionDetails {
                 action_type: "mcp:tool-call".to_string(),
                 server: None,
