@@ -30,7 +30,10 @@ impl ApiError {
     }
 
     pub fn bad_request(error: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-        (StatusCode::BAD_REQUEST, Json(Self::new("BAD_REQUEST", error)))
+        (
+            StatusCode::BAD_REQUEST,
+            Json(Self::new("BAD_REQUEST", error)),
+        )
     }
 
     pub fn not_found(error: impl Into<String>) -> (StatusCode, Json<ApiError>) {
@@ -38,7 +41,10 @@ impl ApiError {
     }
 
     pub fn unauthorized(error: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-        (StatusCode::UNAUTHORIZED, Json(Self::new("UNAUTHORIZED", error)))
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(Self::new("UNAUTHORIZED", error)),
+        )
     }
 
     pub fn internal(error: impl Into<String>) -> (StatusCode, Json<ApiError>) {
