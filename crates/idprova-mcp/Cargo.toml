@@ -24,3 +24,5 @@ ulid = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }
+ulid = { workspace = true }
+hex = { workspace = true }
