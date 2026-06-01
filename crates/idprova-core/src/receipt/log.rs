@@ -154,6 +154,7 @@ mod tests {
             context: None,
             chain,
             signature: String::new(),
+            anchor: None,
         };
         let sig = kp.sign(&r.signing_payload_bytes());
         r.signature = hex::encode(sig);
@@ -189,6 +190,7 @@ mod tests {
             context: None,
             chain,
             signature: String::new(),
+            anchor: None,
         };
         let sig = kp.sign(&r.signing_payload_bytes());
         r.signature = hex::encode(sig);

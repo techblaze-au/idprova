@@ -705,6 +705,7 @@ impl ReceiptLog {
             context,
             chain,
             signature: String::new(),
+            anchor: None,
         };
 
         let canonical = serde_json::to_vec(&receipt)

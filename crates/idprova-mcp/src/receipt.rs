@@ -47,6 +47,7 @@ impl McpReceiptLog {
                 sequence_number: self.inner.next_sequence(),
             },
             signature: String::new(),
+            anchor: None,
         };
         self.inner.append(receipt);
         self.inner.entries().last().unwrap()
@@ -81,6 +82,7 @@ impl McpReceiptLog {
                 sequence_number: self.inner.next_sequence(),
             },
             signature: String::new(),
+            anchor: None,
         };
         self.inner.append(receipt);
         self.inner.entries().last().unwrap()

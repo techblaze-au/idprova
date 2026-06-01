@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::crypto::hash::prefixed_blake3;
 use crate::crypto::KeyPair;
+use crate::receipt::anchor::TransparencyAnchor;
 use crate::{IdprovaError, Result};
 
 /// Discriminator marking whether a receipt records a normal action or a
@@ -119,6 +120,13 @@ pub struct Receipt {
     pub chain: ChainLink,
     /// Agent's signature over this receipt.
     pub signature: String,
+    /// Optional transparency-log anchor (ADR 0011). Recorded AFTER the receipt
+    /// is signed and chained, so it is deliberately excluded from
+    /// `ReceiptSigningPayload` / `compute_hash` (preserves the S3 fix). A
+    /// `None` anchor is a valid, simply-unanchored receipt; skipped on the
+    /// wire when absent so v0.1/v0.2 receipts are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<TransparencyAnchor>,
 }
 
 /// Hash chain linkage for tamper-evidence.
@@ -231,6 +239,7 @@ mod tests {
             context: None,
             chain,
             signature: String::new(), // placeholder
+            anchor: None,
         };
         // Sign the payload
         let payload = r.signing_payload_bytes();
@@ -364,6 +373,7 @@ mod tests {
             context: None,
             chain,
             signature: "placeholder".to_string(),
+            anchor: None,
         };
 
         let json = serde_json::to_string(&r).expect("serialise checkpoint");
