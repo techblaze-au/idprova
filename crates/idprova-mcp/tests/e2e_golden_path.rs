@@ -16,8 +16,11 @@
 //! bearing golden path is built on `idprova-core` primitives. The wrapper's
 //! own chain-integrity path is covered separately below.
 //!
-//! TODO(2a): once `feat/receipt-rekor-anchor` merges, assert `receipt.anchor`
-//! round-trips through Rekor verification here too.
+//! 7. Offline anchor round-trip (`golden_path_anchor_offline_roundtrip`): the
+//!    optional `Receipt::anchor` (ADR 0011) binds the exact SHA-512 of the
+//!    signing payload, is excluded from that payload (preserving the S3 fix),
+//!    verifies offline via Ed25519ph, and survives serde / wire-skip. The live
+//!    Rekor submission round-trip is covered by idprova-core's `#[ignore]` test.
 
 use chrono::{Duration, Utc};
 use idprova_core::crypto::KeyPair;
@@ -25,6 +28,11 @@ use idprova_core::dat::Dat;
 use idprova_core::receipt::entry::{ActionDetails, ChainLink, Receipt, ReceiptKind};
 use idprova_core::receipt::ReceiptLog;
 use idprova_mcp::{McpAuth, McpReceiptLog};
+
+use ed25519_dalek::SigningKey;
+use idprova_core::receipt::anchor::{
+    ed25519_pubkey_pem_b64, ed25519ph_sign, ed25519ph_verify, sha512_hex, TransparencyAnchor,
+};
 
 /// Build a signed receipt with the agent key, chained onto `log`.
 fn signed_receipt(
@@ -58,6 +66,7 @@ fn signed_receipt(
             sequence_number: log.next_sequence(),
         },
         signature: String::new(),
+        anchor: None,
     };
     r.signature = hex::encode(agent_kp.sign(&r.signing_payload_bytes()));
     r
@@ -219,4 +228,128 @@ fn mcp_wrapper_chain_integrity() {
     receipts
         .verify_integrity()
         .expect("MCP wrapper chain integrity must hold");
+}
+
+#[test]
+fn golden_path_anchor_offline_roundtrip() {
+    // 1. Deterministic agent key, receipt log, one signed receipt
+    let agent_kp = KeyPair::from_secret_bytes(&[1u8; 32]);
+    let log = ReceiptLog::new();
+    let mut receipt = signed_receipt(
+        &agent_kp,
+        "did:aid:example.com:fs-worker",
+        "dat_test",
+        &log,
+        "filesystem:read",
+        "blake3:in",
+        Some("blake3:out"),
+    );
+
+    // 2. Capture signing payload BEFORE anchoring
+    let payload = receipt.signing_payload_bytes();
+
+    // 3. Dedicated anchor key
+    let anchor_key = SigningKey::from_bytes(&[0x2a; 32]);
+
+    // 4. Compute anchor crypto artifacts
+    let sha = sha512_hex(&payload);
+    let sig_b64 = ed25519ph_sign(&anchor_key, &payload).expect("ed25519ph sign must succeed");
+    let pem_b64 =
+        ed25519_pubkey_pem_b64(&anchor_key.verifying_key()).expect("pem b64 must succeed");
+    assert!(!pem_b64.is_empty(), "pem_b64 must be non-empty");
+
+    // 5. Construct offline anchor and attach to receipt
+    let anchor = TransparencyAnchor {
+        log: "rekor".to_string(),
+        instance_url: "https://rekor.sigstore.dev".to_string(),
+        log_index: 1687966334,
+        entry_uuid: "offline-test-uuid".to_string(),
+        integrated_time: 1_700_000_000,
+        signed_entry_timestamp: String::new(),
+        inclusion_proof: serde_json::json!({}),
+        anchored_sha512: sha.clone(),
+    };
+    receipt.anchor = Some(anchor);
+
+    // 6a. Anchor did NOT change signing payload (S3 exclusion holds)
+    assert_eq!(
+        receipt.signing_payload_bytes(),
+        payload,
+        "anchor must not alter signing payload (S3 exclusion)"
+    );
+
+    // 6b. Original receipt signature still verifies after anchoring
+    assert!(
+        independently_verify(&receipt, &agent_kp.public_key_bytes()),
+        "agent signature must still verify after anchoring"
+    );
+
+    // 6c. Anchor binds exactly the signing-payload SHA-512
+    assert_eq!(
+        receipt.anchor.as_ref().unwrap().anchored_sha512,
+        sha512_hex(&payload),
+        "anchor must bind the exact SHA-512 of the signing payload"
+    );
+
+    // 6d. Anchor's Ed25519ph signature verifies offline
+    assert!(
+        ed25519ph_verify(&anchor_key.verifying_key(), &payload, &sig_b64),
+        "anchor Ed25519ph signature must verify"
+    );
+
+    // 6e. NEGATIVE: wrong key must NOT verify
+    let wrong_key = SigningKey::from_bytes(&[0x99; 32]);
+    assert!(
+        !ed25519ph_verify(&wrong_key.verifying_key(), &payload, &sig_b64),
+        "wrong key must not verify anchor signature"
+    );
+
+    // 6f. NEGATIVE: tampered payload must fail
+    let mut tampered_payload = payload.clone();
+    if let Some(b) = tampered_payload.first_mut() {
+        *b ^= 0xff;
+    }
+    assert!(
+        !ed25519ph_verify(&anchor_key.verifying_key(), &tampered_payload, &sig_b64),
+        "tampered payload must not verify anchor signature"
+    );
+
+    // 6g. SERDE round-trip: anchor survives serialization
+    let json = serde_json::to_string(&receipt).expect("serialize anchored receipt");
+    let deserialized: Receipt = serde_json::from_str(&json).expect("deserialize anchored receipt");
+    assert!(
+        deserialized.anchor.is_some(),
+        "deserialized receipt must have anchor"
+    );
+    assert_eq!(
+        deserialized.anchor.as_ref().unwrap().anchored_sha512,
+        sha512_hex(&payload),
+        "deserialized anchor must preserve anchored_sha512"
+    );
+    assert!(
+        independently_verify(&deserialized, &agent_kp.public_key_bytes()),
+        "deserialized anchored receipt must still verify"
+    );
+
+    // 6h. WIRE-SKIP: anchored JSON contains "anchor"; unanchored does NOT
+    assert!(
+        json.contains("anchor"),
+        "anchored receipt JSON must contain anchor field"
+    );
+
+    let log2 = ReceiptLog::new();
+    let unanchored = signed_receipt(
+        &agent_kp,
+        "did:aid:example.com:fs-worker",
+        "dat_test",
+        &log2,
+        "filesystem:read",
+        "blake3:in",
+        Some("blake3:out"),
+    );
+    let unanchored_json = serde_json::to_string(&unanchored).expect("serialize unanchored receipt");
+    assert!(
+        !unanchored_json.contains("anchor"),
+        "unanchored receipt JSON must NOT contain anchor field (skip_serializing_if)"
+    );
 }

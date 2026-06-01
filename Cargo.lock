@@ -1171,6 +1171,8 @@ name = "idprova-mcp"
 version = "0.1.1"
 dependencies = [
  "chrono",
+ "ed25519-dalek",
+ "hex",
  "idprova-core",
  "idprova-verify",
  "serde",
