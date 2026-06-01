@@ -155,6 +155,7 @@ mod tests {
                 sequence_number: log.next_sequence(),
             },
             signature: "placeholder".to_string(),
+            anchor: None,
         }
     }
 
@@ -409,6 +410,7 @@ mod tests {
                 sequence_number: 2,
             },
             signature: "placeholder".to_string(),
+            anchor: None,
         };
 
         let mut entries = log.entries().to_vec();

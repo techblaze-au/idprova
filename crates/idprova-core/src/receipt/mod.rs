@@ -5,8 +5,10 @@
 //! - Hash-chained to the previous receipt (tamper-evident)
 //! - Contains hashes of inputs and outputs (privacy-preserving)
 
+pub mod anchor;
 pub mod entry;
 pub mod log;
 
+pub use anchor::{TransparencyAnchor, TransparencyLog};
 pub use entry::{ActionDetails, Receipt, ReceiptContext, ReceiptKind};
 pub use log::ReceiptLog;
