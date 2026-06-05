@@ -42,6 +42,8 @@ were proposed (not the order they were accepted). The current sequence:
 | ID   | Title                                  | Status   |
 |------|----------------------------------------|----------|
 | 0003 | Tenant boundary in registry, not core  | Proposed |
+| 0011 | Transparency anchoring via Sigstore Rekor | Accepted |
+| 0012 | Privacy-preserving batched anchoring   | Proposed |
 
 ADRs 0001 and 0002 are reserved for retrospective records of decisions that
 shipped before this ADR process was introduced (specifically: the choice of

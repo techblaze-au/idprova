@@ -268,6 +268,8 @@ fn golden_path_anchor_offline_roundtrip() {
         signed_entry_timestamp: String::new(),
         inclusion_proof: serde_json::json!({}),
         anchored_sha512: sha.clone(),
+        nonce: None,
+        merkle_proof: None,
     };
     receipt.anchor = Some(anchor);
 

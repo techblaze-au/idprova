@@ -66,7 +66,24 @@ pub struct TransparencyAnchor {
     /// Inclusion proof (opaque JSON).
     pub inclusion_proof: serde_json::Value,
     /// The SHA-512 hash that was anchored, in hex.
+    ///
+    /// In ADR-0011 raw-hash mode this is the SHA-512 of this receipt's signing
+    /// payload. In ADR-0012 commitment mode (when [`Self::nonce`] and
+    /// [`Self::merkle_proof`] are present) this is the **batch Merkle root**
+    /// that was anchored to Rekor, and it MUST equal `merkle_proof.root`.
     pub anchored_sha512: String,
+    /// Per-receipt nonce (hex), present only for ADR-0012 commitment-mode
+    /// anchors. Together with the tenant key it derives the commitment that
+    /// the Merkle proof attests to. Skipped on the wire when absent so
+    /// ADR-0011 anchors are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
+    /// Merkle inclusion proof of this receipt's commitment into the anchored
+    /// batch root, present only for ADR-0012 commitment-mode anchors. When
+    /// present, `anchored_sha512` holds the batch root and `merkle_proof.root`
+    /// must equal it. Skipped on the wire when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub merkle_proof: Option<super::merkle::InclusionProof>,
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +345,8 @@ fn parse_log_entries_response(
         signed_entry_timestamp,
         inclusion_proof,
         anchored_sha512: sha512_hex.to_string(),
+        nonce: None,
+        merkle_proof: None,
     })
 }
 
@@ -381,6 +400,8 @@ fn parse_single_entry_response(
         signed_entry_timestamp,
         inclusion_proof,
         anchored_sha512: String::new(),
+        nonce: None,
+        merkle_proof: None,
     })
 }
 
