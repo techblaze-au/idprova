@@ -1,6 +1,12 @@
-"""IDProva LangChain integration — audit callback handler.
+"""IDProva LangChain integration — audit + enforce callback handlers.
 
-Receipts emitted by this handler use BLAKE3 with the algorithm-prefix
+Two callback handlers are provided:
+
+- ``IDProvaAuditCallbackHandler`` — original audit-only handler (legacy).
+- ``IDProvaGuardCallbackHandler`` — scope-gated enforcement via ToolGuard
+  (in ``idprova_agents.langchain_adapter``).
+
+Receipts emitted by the audit handler use BLAKE3 with the algorithm-prefix
 format ``blake3:<64-hex>``, matching the Rust core (see
 ``crates/idprova-core/src/crypto/hash.rs::prefixed_blake3``). Pre-2026-05
 revisions of this file used SHA-256 hex without a prefix; receipts emitted
@@ -92,3 +98,16 @@ class IDProvaAuditCallbackHandler(BaseCallbackHandler):
 
     def on_tool_error(self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any) -> None:
         self._write_receipt("tool_error", {"error": str(error)}, "error")
+
+
+# ── Backward-compat re-exports from the enforce+audit adapter ─────────────
+from idprova_agents.langchain_adapter import (  # noqa: E402
+    IDProvaGuardCallbackHandler,
+    guarded_tool,
+)
+
+__all__ = [
+    "IDProvaAuditCallbackHandler",
+    "IDProvaGuardCallbackHandler",
+    "guarded_tool",
+]
