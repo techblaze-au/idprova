@@ -96,22 +96,31 @@ def main() -> None:
         print(f"    BLOCKED: {exc}")
 
     # ── Also demo guarded_tool wrapper ───────────────────────────────────
+    # guarded_tool() wraps a real LangChain Tool so its execution is
+    # scope-gated. Invoke it the way an agent executor would — via .invoke().
+
+    from langchain_core.tools import Tool
 
     print("\n[3] Using guarded_tool() wrapper (same guard):")
-    g_kb = guarded_tool(
-        type("T", (), {"name": "knowledge_base_search", "description": "Search KB", "func": knowledge_base_search, "return_direct": False})(),
-        guard,
+    kb_tool = Tool.from_function(
+        func=knowledge_base_search,
+        name="knowledge_base_search",
+        description="Search the internal knowledge base",
     )
-    g_email = guarded_tool(
-        type("T", (), {"name": "send_email", "description": "Send email", "func": send_email, "return_direct": False})(),
-        guard,
+    email_tool = Tool.from_function(
+        # Single-input adapter so the Tool can be invoked with one string.
+        func=lambda body: send_email("alice@example.com", "Hi", body),
+        name="send_email",
+        description="Send an email via the corporate mail server",
     )
+    g_kb = guarded_tool(kb_tool, guard)
+    g_email = guarded_tool(email_tool, guard)
 
-    result3 = g_kb.func("neural networks")
+    result3 = g_kb.invoke("neural networks")
     print(f"    knowledge_base_search via wrapper: {result3}")
 
     try:
-        g_email.func("bob@example.com", "Test", "Body")
+        g_email.invoke("Hello from the guarded wrapper")
         print("    send_email via wrapper: executed (unexpected)")
     except PermissionError as exc:
         print(f"    send_email via wrapper BLOCKED: {exc}")
