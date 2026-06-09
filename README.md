@@ -125,42 +125,43 @@ idprova dat issue \
 idprova dat verify <TOKEN> --key operator.key.pub --scope "mcp:tool:filesystem:read"
 ```
 
-### Python: LangChain integration in 30 lines _(v1.0 target API — preview)_
+### Python: LangChain integration
 
-> The `idprova_langchain` callback handler lands as part of the v1.0 launch (target 2026-08-25; sandbox in flight Wk 2 of the launch plan, May 13–19). The snippet below is the shape it will take. Today's working Python integration uses `from idprova_http import IDProvaClient` — see [`examples/python/`](examples/python/) and [`docs/integrations/`](docs/integrations/).
+> Shipped in-repo as the `idprova_agents` package (enforce **and** audit-only modes). The guard checks every tool call against the scopes the agent was delegated and writes a signed, hash-chained receipt that passes `idprova receipt verify`. No PyPI release yet — install from source (clone the repo and put `sdks/python` on your path). Full runnable example: [`examples/langchain/quickstart.py`](examples/langchain/quickstart.py).
 
 ```python
-from langchain.agents import AgentExecutor, create_react_agent
-from idprova_langchain import IDProvaAuditCallbackHandler
-from idprova import AgentIdentity
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from langchain_core.tools import Tool
+from idprova_agents import ToolGuard, guarded_tool
 
-# 1. Identify your agent
-agent_identity = AgentIdentity.create(
-    name="customer-support-agent",
-    domain="example.com",
+# 1. Map each tool to the scope it needs; list what this agent was granted.
+#    In production, granted_scopes comes from the agent's delegation token (DAT).
+SCOPES = {"knowledge_base_search": "mcp:tool:knowledge-base:read",
+          "send_email": "mcp:tool:email:send"}
+GRANTED = ["mcp:tool:knowledge-base:read"]   # send_email is NOT granted
+
+# 2. Build the guard (signing_key would come from your key store / IdP).
+guard = ToolGuard(
+    aid="did:aid:co:customer-support-agent",
+    dat="dat-customer-support-001",
+    signing_key=Ed25519PrivateKey.generate(),
+    scope_for_tool=lambda name: SCOPES.get(name, "mcp:tool:unknown:none"),
+    granted_scopes=GRANTED,
+    receipts_path="receipts.jsonl",
 )
 
-# 2. Get a delegation token (in production, this comes from your IdP)
-dat = agent_identity.issue_dat(
-    subject_did=agent_identity.did,
-    scope="mcp:tool:knowledge-base:read",
-    expires_in_seconds=3600,
-)
+# 3. Wrap each LangChain tool so its execution is scope-gated, then give the
+#    guarded tools to your agent as usual.
+kb = guarded_tool(Tool.from_function(
+    func=your_kb_search, name="knowledge_base_search", description="Search the KB"), guard)
+email = guarded_tool(Tool.from_function(
+    func=your_send_email, name="send_email", description="Send an email"), guard)
 
-# 3. Attach IDProva audit to your LangChain agent
-audit = IDProvaAuditCallbackHandler(
-    agent_did=agent_identity.did,
-    dat_token=dat.to_compact(),
-    receipts_path="/var/lib/idprova/receipts/",
-    registry_url="https://registry.idprova.com",
-)
-
-# 4. Use your agent normally — every tool call now produces a signed receipt
-executor = AgentExecutor(agent=your_agent, tools=your_tools, callbacks=[audit])
-executor.invoke({"input": "Help me find that order"})
+kb.invoke("quantum computing")    # in scope  -> runs, writes a "success" receipt
+email.invoke("...")               # out of scope -> raises PermissionError, "denied" receipt
 ```
 
-The receipt log is now an audit-grade record of every action your agent took, signed and chained.
+Every guarded tool call appends to `receipts.jsonl` — an audit-grade record, signed and hash-chained. Verify it independently with `idprova receipt verify receipts.jsonl`. (An `IDProvaGuardCallbackHandler` for audit-only logging is also included — see the [quickstart](examples/langchain/quickstart.py).)
 
 ### Rust: programmatic usage
 
@@ -238,7 +239,8 @@ See [docs/security.md](docs/security.md) for cryptographic rationale and [docs/S
 - [API Reference](docs/api-reference.md) — registry HTTP API
 - [Adoption Guide](docs/ADOPTION-GUIDE.md) — for engineering leaders considering IDProva
 - [Technical Requirements](docs/TRD.md) — detailed technical requirements
-- [Threat Model](docs/STRIDE-THREAT-MODEL.md) — STRIDE analysis
+- [Threat Model](docs/THREAT-MODEL.md) — what IDProva protects, what it does not, and trust assumptions
+- [STRIDE Threat Model](docs/STRIDE-THREAT-MODEL.md) — formal STRIDE analysis
 - [Security Model](docs/security.md) — cryptographic foundations
 - [Key Rotation](docs/key-rotation.md) — operator playbook
 - [NIST 800-53 Mapping](docs/controls.md) — compliance control mapping
