@@ -1,0 +1,39 @@
+name: Publish idprova-agents to PyPI
+
+# Manual by default (workflow_dispatch). Also fires when a GitHub Release is
+# published, so a tagged release can ship the package automatically.
+#
+# Requires a repository secret PYPI_API_TOKEN (a PyPI API token scoped to the
+# idprova-agents project). For the very first publish, run this manually
+# (Actions -> "Publish idprova-agents to PyPI" -> Run workflow) after adding
+# the secret.
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build sdks/python-agents
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdks/python-agents/dist
+          password: ${{ secrets.PYPI_API_TOKEN }}

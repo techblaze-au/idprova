@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idprova-agents"
+version = "0.1.0"
+description = "Verifiable, scope-gated tool execution for AI agent frameworks (IDProva)"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+authors = [{ name = "Pratyush Sood", email = "hello@techblaze.com.au" }]
+keywords = ["ai-agent", "identity", "delegation", "audit", "langchain", "mcp", "receipts"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "blake3>=0.4.1",
+    "cryptography>=41",
+]
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.3"]
+test = ["pytest>=7.0", "langchain-core>=0.3"]
+
+[project.urls]
+Homepage = "https://idprova.dev"
+Repository = "https://github.com/techblaze-au/idprova"
+Documentation = "https://idprova.dev/docs"
+"Bug Tracker" = "https://github.com/techblaze-au/idprova/issues"
+
+[tool.setuptools]
+packages = ["idprova_agents"]

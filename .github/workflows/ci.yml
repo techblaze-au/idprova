@@ -125,15 +125,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Python test dependencies
-        run: python -m pip install --upgrade pip cryptography blake3 pytest langchain-core
+      - name: Install the idprova-agents package (editable, with test extras)
+        run: python -m pip install --upgrade pip "./sdks/python-agents[test]"
 
       - name: Run agent enforcement tests (incl. real CLI receipt verify)
-        env:
-          PYTHONPATH: sdks/python
         run: pytest tests/test_langchain_quickstart.py -v
 
       - name: Smoke-run the LangChain quickstart
-        env:
-          PYTHONPATH: sdks/python
         run: python examples/langchain/quickstart.py
