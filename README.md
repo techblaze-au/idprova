@@ -127,7 +127,7 @@ idprova dat verify <TOKEN> --key operator.pub --scope "mcp:tool:filesystem:read"
 
 ### Python: LangChain integration
 
-> Shipped in-repo as the `idprova_agents` package (enforce **and** audit-only modes). The guard checks every tool call against the scopes the agent was delegated and writes a signed, hash-chained receipt that passes `idprova receipt verify`. No PyPI release yet — install from source (clone the repo and put `sdks/python` on your path). Full runnable example: [`examples/langchain/quickstart.py`](examples/langchain/quickstart.py).
+> Shipped in-repo as the `idprova_agents` package (enforce **and** audit-only modes). The guard checks every tool call against the scopes the agent was delegated and writes a signed, hash-chained receipt that passes `idprova receipt verify`. No PyPI release yet — install from source: `pip install "idprova-agents[langchain] @ git+https://github.com/techblaze-au/idprova#subdirectory=sdks/python-agents"`. Full runnable example: [`examples/langchain/quickstart.py`](examples/langchain/quickstart.py).
 
 ```python
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
