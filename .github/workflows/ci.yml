@@ -93,3 +93,47 @@ jobs:
 
       - name: Build release
         run: cargo build --workspace --release
+
+  python-agents:
+    name: Python agents (LangChain)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      - name: Build idprova CLI (for real receipt verification)
+        run: cargo build -p idprova-cli --release
+
+      - name: Put idprova on PATH
+        run: echo "${{ github.workspace }}/target/release" >> "$GITHUB_PATH"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python test dependencies
+        run: python -m pip install --upgrade pip cryptography blake3 pytest langchain-core
+
+      - name: Run agent enforcement tests (incl. real CLI receipt verify)
+        env:
+          PYTHONPATH: sdks/python
+        run: pytest tests/test_langchain_quickstart.py -v
+
+      - name: Smoke-run the LangChain quickstart
+        env:
+          PYTHONPATH: sdks/python
+        run: python examples/langchain/quickstart.py

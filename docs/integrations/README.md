@@ -2,7 +2,7 @@
 
 Where IDProva fits in your AI agent stack. The protocol layer (AID + DAT + receipts, see [`../protocol-spec-v0.1.md`](../protocol-spec-v0.1.md)) is identity-system-agnostic; this directory documents the surface that connects it to specific runtimes and identity providers.
 
-Status reflects what exists in the repo today (2026-05-09). The launch-target API for v1.0 is **2026-08-25** — track week-by-week progress at the [public roadmap](https://github.com/techblaze-au/idprova/projects).
+Status reflects what exists in the repo today (2026-06-08). The launch-target API for v1.0 is **2026-08-25** — track week-by-week progress at the [public roadmap](https://github.com/techblaze-au/idprova/projects).
 
 ## Status by integration
 
@@ -12,7 +12,7 @@ Status reflects what exists in the repo today (2026-05-09). The launch-target AP
 | **OIDC bridge** (Okta, Microsoft Entra ID, Auth0, generic OIDC) | **Pending v0.2 (ships 2026-08-25).** The registry routes are specified in RFC 0001 §7.2 but are not yet wired into `build_app()` — only `health`, `/v1/meta`, `/v1/aids`, `/v1/aid/:id` and `/v1/dat/*` are exposed in v0.1.2. | Spec: [RFC 0001 §7.2 — OIDC Bridge](../rfcs/IDProva_Okta_Bridge_RFC_v0.1.md). Tracking task: Asana IDP-011. |
 | **Python (`idprova` package, HTTP client)** | **Shipped.** PyO3 bindings on PyPI; HTTP client for registry interactions. | [`sdks/python/`](../../sdks/python/), examples in [`examples/python/`](../../examples/python/). |
 | **TypeScript (`@idprova/core`, napi-rs)** | **Shipped.** Native bindings on npm. | [`sdks/typescript/`](../../sdks/typescript/), examples in [`examples/typescript/`](../../examples/typescript/). |
-| **LangChain (`idprova_langchain` Python package)** | **In flight — Wk 2 of v1.0 launch plan (May 13–19).** Sandbox under construction; package not yet published to PyPI. README's LangChain code block shows the target API. | Tracked in Asana: "Stand up CT 261 LangChain sandbox" (due 2026-05-16). Working Python integration today uses `IDProvaClient` from `idprova_http` — see [`examples/python/issue_verify.py`](../../examples/python/issue_verify.py). |
+| **LangChain (`idprova_agents.langchain_adapter`)** | **Shipped (in-repo).** `IDProvaGuardCallbackHandler` (enforce + audit-only) and `guarded_tool()` scope-gate LangChain tool calls and emit signed receipts that pass `idprova receipt verify`. Runnable example + CI-tested enforcement (incl. real CLI receipt verification). Install from source today; PyPI publish tracked (N6, not yet published). | Adapter: [`sdks/python/idprova_agents/`](../../sdks/python/idprova_agents/). Example: [`examples/langchain/quickstart.py`](../../examples/langchain/quickstart.py). Tests: [`tests/test_langchain_quickstart.py`](../../tests/test_langchain_quickstart.py). |
 | **Agent-to-Agent (A2A) patterns** | **Protocol foundation shipped; reference patterns documented.** A DID-identified agent can issue a scoped DAT to another agent and chain delegations. Concrete walkthroughs ship post-v1.0. | Protocol-level treatment in [`../concepts.md`](../concepts.md). Multi-agent example: [`crates/idprova-mcp/examples/multi_agent.rs`](../../crates/idprova-mcp/examples/multi_agent.rs). |
 | **CrewAI** | **Planned (post-v1.0, v1.1 target).** | Not started. |
 | **AutoGen** | **Planned (post-v1.0, v1.1 target).** | Not started. |
