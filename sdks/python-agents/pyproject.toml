@@ -31,7 +31,8 @@ dependencies = [
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.3"]
-test = ["pytest>=7.0", "langchain-core>=0.3"]
+autogen = ["autogen-core>=0.4"]
+test = ["pytest>=7.0", "langchain-core>=0.3", "autogen-core>=0.4"]
 
 [project.urls]
 Homepage = "https://idprova.dev"
