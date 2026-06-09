@@ -47,7 +47,7 @@ echo
 echo "## 5. ANYONE verifies that token OFFLINE with just the public key."
 echo "##    No call to IDProva. No network. No trust in us."
 $IDPROVA dat verify "$TOKEN" \
-  --key operator.key.pub \
+  --key operator.pub \
   --scope "mcp:tool:knowledge-base:read"
 echo
 

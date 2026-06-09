@@ -62,7 +62,7 @@ Run the harness, or type the steps live. Commands are the repo's blessed quickst
 idprova keygen --output operator.key
 ```
 *Expected:* `Generated Ed25519 keypair:` + private/public paths + multibase pubkey.
-`operator.key` (hex secret) and `operator.key.pub` (multibase public) are written.
+`operator.key` (hex secret) and `operator.pub` (multibase public) are written.
 
 ```bash
 # 2. Create the agent's identity document (AID)
@@ -91,7 +91,7 @@ idprova dat issue \
 ```bash
 # 4. A third party verifies that token OFFLINE — only the PUBLIC key, no network
 idprova dat verify <PASTE_TOKEN> \
-  --key operator.key.pub \
+  --key operator.pub \
   --scope "mcp:tool:knowledge-base:read"
 ```
 *Expected (verbatim shape):*
