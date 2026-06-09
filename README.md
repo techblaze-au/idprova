@@ -122,7 +122,7 @@ idprova dat issue \
   --key operator.key
 
 # 4. Verify the token
-idprova dat verify <TOKEN> --key operator.key.pub --scope "mcp:tool:filesystem:read"
+idprova dat verify <TOKEN> --key operator.pub --scope "mcp:tool:filesystem:read"
 ```
 
 ### Python: LangChain integration

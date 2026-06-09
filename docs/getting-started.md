@@ -32,7 +32,7 @@ Output:
 ```
 Generated Ed25519 keypair:
   Private key: /home/user/.idprova/keys/my-agent.key
-  Public key:  /home/user/.idprova/keys/my-agent.key.pub
+  Public key:  /home/user/.idprova/keys/my-agent.pub
   Public key (multibase): z6Mk...
 ```
 
@@ -40,7 +40,7 @@ The private key is written with mode `0600` (owner-read only on Unix).
 
 **Key files:**
 - `my-agent.key` — hex-encoded 32-byte Ed25519 secret key (keep private)
-- `my-agent.key.pub` — multibase-encoded Ed25519 public key (safe to share)
+- `my-agent.pub` — multibase-encoded Ed25519 public key (safe to share)
 
 ## Step 2: Create an Agent Identity Document (AID)
 
@@ -189,7 +189,7 @@ Multiple scopes (comma-separated):
 
 ```bash
 idprova dat verify <TOKEN> \
-  --key ~/.idprova/keys/operator.key.pub \
+  --key ~/.idprova/keys/operator.pub \
   --scope "mcp:tool:filesystem:read"
 ```
 
