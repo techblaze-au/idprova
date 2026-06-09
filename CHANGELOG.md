@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-06-09
 
-_Changes since `v0.1.2`. The next version number is not yet decided._
+_First tagged release since `v0.1.2`._
 
 ### Added
 
+- LangChain integration: `idprova_agents` — `ToolGuard` scope gate, `IDProvaGuardCallbackHandler` (enforce + audit-only), and `guarded_tool()` wrapper. Every guarded tool call emits a signed, hash-chained receipt that passes `idprova receipt verify`; ships with a runnable quickstart and CI-tested enforcement. Available in-repo (install from source); PyPI publish pending. (#60)
 - Sigstore Rekor transparency-log anchoring for receipts, per ADR 0011 (opt-in, default-OFF). (#53)
 - Privacy-preserving batched anchoring (salted HMAC leaf + Merkle root), per ADR 0012. (#56)
 - `ChainCheckpoint` discriminator on `Receipt` (IDP-002). (#49)
@@ -31,8 +32,10 @@ _Changes since `v0.1.2`. The next version number is not yet decided._
 
 ### Docs
 
+- Threat model (`docs/THREAT-MODEL.md`) — conservative protects / does-not-protect / trust assumptions / anchoring caveat. (#59)
+- vs-alternatives positioning one-pager comparing IDProva to in-toto, SPIFFE, cosign, and PKI (`docs/positioning/idprova-vs-alternatives.md`). (#58)
 - ADR 0003: the tenant boundary lives in the registry + adapters, not in core (IDP-005). (#48)
 - Reconcile the L2 trust definition — SAML inbound deferred to v0.3. (#46)
 - Reserve `riskScoreUpperBound` and `error:exec` / `error:net` for v0.3 (IDP-004). (#47)
 
-[Unreleased]: https://github.com/techblaze-au/idprova/compare/v0.1.2...HEAD
+[0.4.0]: https://github.com/techblaze-au/idprova/compare/v0.1.2...v0.4.0
