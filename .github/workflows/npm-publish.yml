@@ -204,9 +204,11 @@ jobs:
         # `require('./idprova.node')`. The platform-aware loader is what
         # `napi prepublish` generates for the published metapackage; pre-publish
         # tests need the unsuffixed file.
+        # NOTE: defaults.run.working-directory already puts this step in
+        # sdks/typescript/packages/core — do NOT `cd` again (a relative re-cd
+        # was the v0.4.0 failure: sdks/.../core/sdks/.../core does not exist).
         shell: bash
         run: |
-          cd sdks/typescript/packages/core
           ls -la *.node || true
           if [ ! -f "idprova.node" ]; then
             cp idprova.*.node idprova.node
@@ -255,7 +257,10 @@ jobs:
         # `napi create-npm-dir` (singular — yes, the command name is singular
         # despite creating multiple dirs) materialises one dir per triple in
         # package.json napi.triples, each with a starter package.json.
-        run: npx napi create-npm-dir
+        # `-t .` is REQUIRED in @napi-rs/cli v2: without it targetDir is
+        # undefined and the CLI dies with `TypeError: The "path" argument must
+        # be of type string` (the v0.4.0 publish failure).
+        run: npx napi create-npm-dir -t . -c ./package.json
 
       - name: Move binaries into npm/<platform>/ via napi artifacts
         run: npx napi artifacts
