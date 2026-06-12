@@ -3,10 +3,24 @@ name: Publish idprova-agents to PyPI
 # Manual by default (workflow_dispatch). Also fires when a GitHub Release is
 # published, so a tagged release can ship the package automatically.
 #
-# Requires a repository secret PYPI_API_TOKEN (a PyPI API token scoped to the
-# idprova-agents project). For the very first publish, run this manually
-# (Actions -> "Publish idprova-agents to PyPI" -> Run workflow) after adding
-# the secret.
+# Auth: PyPI Trusted Publishing (OIDC) — NO stored token. The job mints a
+# short-lived OIDC token via `id-token: write`; pypa/gh-action-pypi-publish
+# exchanges it with PyPI automatically (no `password:` input).
+#
+# ONE-TIME PyPI-side setup (maintainer, in the PyPI web UI):
+#   pypi.org → project `idprova-agents` → Settings → Publishing →
+#   "Add a new publisher" (GitHub):
+#     owner:            techblaze-au
+#     repository:       idprova
+#     workflow name:    pypi-publish.yml
+#     environment name: pypi
+#   The `environment: pypi` below must match; create the environment under
+#   GitHub repo Settings → Environments → New environment → "pypi"
+#   (optionally add a required reviewer to gate releases).
+#
+# NOTE: a GitHub Release created by another workflow (release.yml) does NOT
+# fire the `release: published` trigger here (GITHUB_TOKEN limitation) —
+# dispatch this workflow manually after tagging.
 on:
   workflow_dispatch:
   release:
@@ -19,6 +33,10 @@ jobs:
   publish:
     name: Build and publish
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # required for PyPI Trusted Publishing (OIDC)
     steps:
       - uses: actions/checkout@v4
 
@@ -36,4 +54,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdks/python-agents/dist
-          password: ${{ secrets.PYPI_API_TOKEN }}
