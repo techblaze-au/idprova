@@ -1,0 +1,24 @@
+# cargo-audit configuration (read by rustsec/audit-check in audit.yml).
+# Every ignore below MUST carry a justification and a removal condition.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — `rsa` Marvin timing sidechannel. No patched
+    # version exists upstream. `rsa` enters this workspace ONLY as a
+    # dev-dependency of idprova-adapter-oidc-generic's integration tests,
+    # which generate an ephemeral RSA-2048 key at runtime to sign synthetic
+    # JWKS tokens. No shipped code depends on `rsa`; there is no
+    # network-observable private-key operation. REMOVE this ignore if `rsa`
+    # ever becomes a non-dev dependency.
+    "RUSTSEC-2023-0071",
+
+    # RUSTSEC-2026-0176 / -0177 — pyo3 0.24.x: OOB read in PyList/PyTuple
+    # iterator nth/nth_back, and missing Sync bound on
+    # PyCFunction::new_closure. Verified 2026-06-13: none of these
+    # functions are used anywhere in this workspace (only std
+    # str::split().nth()). TEMPORARY ignore until the pyo3 0.29 bump —
+    # tracked in the repo issue "chore(python): bump pyo3 to 0.29".
+    # REMOVE both when sdks/python/Cargo.toml moves off 0.24.
+    "RUSTSEC-2026-0176",
+    "RUSTSEC-2026-0177",
+]

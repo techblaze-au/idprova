@@ -2,6 +2,7 @@
 members = [
     "crates/idprova-core",
     "crates/idprova-identity-adapters",
+    "crates/idprova-adapter-oidc-generic",
     "crates/idprova-verify",
     "crates/idprova-registry",
     "crates/idprova-cli",

@@ -9,6 +9,7 @@
 //! | Module        | Responsibility                                       |
 //! |---------------|------------------------------------------------------|
 //! | [`store`]     | SQLite-backed AID + revocation persistence           |
+//! | [`binding`]   | AID-to-IdP binding persistence (RFC 0001 §6.1)       |
 //! | [`error`]     | Crate-level error type                               |
 //! | [`state`]     | `AppState`, env loaders, shared-state alias          |
 //! | [`ratelimit`] | Per-IP sliding-window rate limiter                   |
@@ -20,6 +21,7 @@
 //! in-memory store from integration tests to exercise the full pipeline.
 
 pub mod auth;
+pub mod binding;
 pub mod error;
 pub mod middleware;
 pub mod ratelimit;
