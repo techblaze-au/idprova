@@ -1,0 +1,5 @@
+crewai>=1.14         # multi-agent orchestration framework
+idprova-agents       # IDProva identity / capability / receipt SDK (ToolGuard + adapters)
+cryptography         # Ed25519 signing of receipts
+blake3               # BLAKE3 hash-chained receipt integrity
+litellm              # optional: only needed to route to a non-OpenAI model (see README Option B)
