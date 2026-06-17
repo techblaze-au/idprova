@@ -2,4 +2,9 @@ crewai>=1.14         # multi-agent orchestration framework
 idprova-agents       # IDProva identity / capability / receipt SDK (ToolGuard + adapters)
 cryptography         # Ed25519 signing of receipts
 blake3               # BLAKE3 hash-chained receipt integrity
-litellm              # optional: only needed to route to a non-OpenAI model (see README Option B)
+litellm              # optional: only needed to route CrewAI to a non-OpenAI model (see README Option B)
+
+# Optional — only for the LangChain / AutoGen variants in this folder:
+# langchain-anthropic   # demo_langchain_guarded.py
+# autogen-agentchat     # demo_autogen_guarded.py
+# autogen-ext[anthropic]# demo_autogen_guarded.py (Anthropic model client)

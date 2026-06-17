@@ -85,6 +85,22 @@ public key, so anyone holding a receipt log can independently confirm what each 
 | **Capability** | DATs (`identities/*.dat`) — issuer-signed, scope-limited delegation tokens |
 | **Accountability** | hash-chained receipt logs (`receipts/*.jsonl`) — every allowed *and denied* action, verifiable offline |
 
+## Same proof in other frameworks
+
+This folder also ships the identical Identity → Capability → Accountability proof in two more
+popular frameworks, reusing the same `identities/` (run `setup_identities.sh` once):
+
+| File | Framework | Run |
+|---|---|---|
+| `demo_crewai_multiagent.py` | CrewAI | `python demo_crewai_multiagent.py` |
+| `demo_langchain_guarded.py` | LangChain (`langchain-core` + `langchain-anthropic`) | `pip install langchain-anthropic` then `python demo_langchain_guarded.py` |
+| `demo_autogen_guarded.py` | AutoGen (`autogen-agentchat` 0.7.x) | `pip install "autogen-agentchat" "autogen-ext[anthropic]"` then `python demo_autogen_guarded.py` |
+
+The LangChain and AutoGen variants drive a model via `langchain-anthropic` / AutoGen's Anthropic
+client — set `IDPROVA_DEMO_MODEL_LC` / `IDPROVA_DEMO_MODEL_AG` plus `ANTHROPIC_API_BASE` and
+`ANTHROPIC_API_KEY`. Each prints the same deterministic enforcement matrix and writes
+offline-verifiable receipts (`receipts/langchain_*.jsonl`, `receipts/autogen_*.jsonl`).
+
 ## Note
 
 `identities/`, `receipts/` and `output_document.md` are generated locally and **gitignored**
