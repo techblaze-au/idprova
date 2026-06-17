@@ -68,8 +68,15 @@ its guarantees is worse than one that is honest about its edges.
 - **Guarantees:** existence, time, and agent signature are independently verifiable.
 - **Does NOT guarantee:** event truth; completeness (an operator may choose not to anchor some
   receipts); or confidentiality of anchored content beyond what the batched/HMAC scheme provides.
-- **Sovereignty note:** the default path uses public Sigstore infrastructure. A self-hostable
-  log is a roadmap item for data-residency-sensitive deployments.
+- **Sovereignty note:** the networked path uses public Sigstore infrastructure. For
+  data-residency-sensitive / air-gapped deployments, ADR 0013 adds a **local append-only,
+  hash-chained anchor log** (`idprova receipt anchor-local` / `verify-local`) that commits
+  Merkle roots offline with no network and no vendor trust. This local anchor is
+  **producer-controlled — it has no independent third-party witness**, so it is tamper-evident
+  and offline-verifiable but does NOT provide independent temporal attestation or split-view
+  protection. A fully *witnessed* self-hostable log (external witnesses / gossip) remains a
+  roadmap item; the networked Rekor path (ADR 0011/0012) remains the route for independent
+  attestation.
 
 ## Out of scope (current)
 
