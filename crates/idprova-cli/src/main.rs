@@ -136,6 +136,40 @@ enum ReceiptCommands {
         /// Path to the receipt log file (JSONL).
         file: String,
     },
+
+    /// Anchor receipts to a local append-only anchor log (ADR-0013).
+    ///
+    /// Producer-controlled, offline, self-hostable. NO third-party witness —
+    /// see `verify-local` output for the honesty boundary.
+    AnchorLocal {
+        /// Path to the receipt log file (JSONL).
+        #[arg(long)]
+        log: String,
+        /// Path to the local anchor log file (JSONL); created or appended.
+        #[arg(long)]
+        anchor_file: String,
+        /// Producer signing key (hex secret). Strongly recommended; without it
+        /// the anchor record is unsigned.
+        #[arg(long)]
+        key: Option<String>,
+        /// Optional producer DID to record in the anchor.
+        #[arg(long)]
+        producer_did: Option<String>,
+    },
+
+    /// Verify receipts against a local anchor log (ADR-0013) — fully offline.
+    VerifyLocal {
+        /// Path to the receipt log file (JSONL).
+        #[arg(long)]
+        log: String,
+        /// Path to the local anchor log file (JSONL).
+        #[arg(long)]
+        anchor_file: String,
+        /// Producer public key (.pub multibase or hex) to check record
+        /// signatures. Omit to verify roots + chain only.
+        #[arg(long)]
+        key: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -205,6 +239,21 @@ fn main() -> Result<()> {
             }
             ReceiptCommands::Stats { file } => {
                 commands::receipt::stats(&file)?;
+            }
+            ReceiptCommands::AnchorLocal {
+                log,
+                anchor_file,
+                key,
+                producer_did,
+            } => {
+                commands::receipt::anchor_local(&log, &anchor_file, key.as_deref(), producer_did)?;
+            }
+            ReceiptCommands::VerifyLocal {
+                log,
+                anchor_file,
+                key,
+            } => {
+                commands::receipt::verify_local(&log, &anchor_file, key.as_deref())?;
             }
         },
     }

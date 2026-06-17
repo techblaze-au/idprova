@@ -35,6 +35,8 @@ chrono.workspace = true
 
 # Hex encoding
 hex.workspace = true
+# Ed25519 (producer signing of local anchor records)
+ed25519-dalek.workspace = true
 # URL parsing
 url.workspace = true
 
