@@ -10,6 +10,10 @@ primary_region = "syd"
 [env]
   REGISTRY_PORT = "8080"
   RUST_LOG = "info"
+  # Persist the SQLite DB on the mounted volume (see [mounts] below). Without this the
+  # registry defaults to a relative path on the ephemeral rootfs and AIDs are wiped on
+  # every machine restart/redeploy. Must match the [mounts] destination.
+  IDPROVA_DB_PATH = "/app/data/idprova_registry.db"
 
 [http_service]
   internal_port = 8080
