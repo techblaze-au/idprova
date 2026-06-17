@@ -10,7 +10,9 @@ import { DashboardPanel } from './components/DashboardPanel';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('keygen');
-  const [registryUrl, setRegistryUrl] = useState('');
+  const [registryUrl, setRegistryUrl] = useState(
+    import.meta.env.VITE_REGISTRY_URL || 'https://idprova-registry.fly.dev'
+  );
 
   return (
     <KeyProvider>
