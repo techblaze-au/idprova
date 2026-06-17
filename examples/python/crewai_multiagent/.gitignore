@@ -1,0 +1,6 @@
+# Generated locally by setup_identities.sh / the demo — never commit secrets
+identities/
+receipts/
+output_document.md
+run.log
+__pycache__/
