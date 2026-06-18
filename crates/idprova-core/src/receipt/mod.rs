@@ -10,6 +10,7 @@ pub mod batch;
 pub mod commitment;
 pub mod entry;
 pub mod guardrails;
+pub mod local_anchor;
 pub mod log;
 pub mod merkle;
 
@@ -21,5 +22,10 @@ pub use batch::{
 pub use commitment::{commit, generate_nonce};
 pub use entry::{ActionDetails, Receipt, ReceiptContext, ReceiptKind};
 pub use guardrails::{AnchorMetrics, BreakerState, CircuitBreaker, RateBudget};
+pub use local_anchor::{
+    build_record_from_leaves, build_record_from_receipts, receipt_leaf, verify_local_anchor,
+    LocalAnchorError, LocalAnchorLog, LocalAnchorRecord, LocalAnchorVerification,
+    LOCAL_ANCHOR_GENESIS_PREV,
+};
 pub use log::ReceiptLog;
 pub use merkle::{InclusionProof, MerkleTree};
