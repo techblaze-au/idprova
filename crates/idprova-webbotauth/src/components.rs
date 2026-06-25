@@ -45,7 +45,7 @@ impl Component {
             Component::Method => Ok(req.method.clone()),
             Component::Authority => Ok(req.authority.clone()),
             Component::Path => Ok(req.path.clone()),
-            Component::Query => Ok(req.query.clone().unwrap_or_else(String::new)),
+            Component::Query => Ok(req.query.clone().unwrap_or_default()),
             Component::Header(name) => req
                 .headers
                 .get(name)
