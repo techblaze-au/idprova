@@ -51,10 +51,12 @@ impl HttpVerifier {
         now: i64,
         required_components: &[Component],
     ) -> VerifyOutcome {
-        // 1. Extract label and params (Simplified: assuming single entry "sig1")
-        let label = "sig1";
-        let entry = match sig_input_dict.get(label) {
-            Some(e) => e,
+        // 1. Extract the signature label dynamically: take the FIRST entry of the
+        //    Signature-Input dictionary as (label, entry). The label is arbitrary
+        //    (the official RFC 9421 B.2.6 vector uses `sig-b26`, not `sig1`), so it
+        //    must NOT be hardcoded.
+        let (label, entry) = match sig_input_dict.iter().next() {
+            Some((k, v)) => (k.clone(), v),
             None => return VerifyOutcome::InvalidSignature,
         };
 
@@ -96,20 +98,30 @@ impl HttpVerifier {
             }
         }
 
-        // 5. Reconstruct Base
-        let base = match build_signature_base(req, &covered_components, &params) {
+        // 5. Reconstruct the VERBATIM @signature-params value by re-serializing the parsed
+        //    inner-list entry (a one-element List). Using the received params verbatim — rather
+        //    than regenerating them from a struct — is what RFC 9421 §2.5 requires, so the
+        //    reconstructed base matches the signer's exactly even when params differ from our
+        //    defaults (e.g. the B.2.6 vector carries no `alg`).
+        let sig_params_value = match crate::sfv::serialize_list(&vec![entry.clone()]) {
+            Ok(s) => s,
+            Err(_) => return VerifyOutcome::InvalidSignature,
+        };
+
+        // 6. Reconstruct the signature base.
+        let base = match build_signature_base(req, &covered_components, &sig_params_value) {
             Ok(b) => b,
             Err(_) => return VerifyOutcome::MissingComponents,
         };
 
-        // 6. Resolve Key
+        // 7. Resolve Key
         let vk = match resolver.resolve(&params.keyid) {
             Some(k) => k,
             None => return VerifyOutcome::KeyNotFound,
         };
 
-        // 7. Verify Signature
-        let sig_entry = match sig_dict.get(label) {
+        // 8. Verify Signature — look up by the SAME label extracted above.
+        let sig_entry = match sig_dict.get(&label) {
             Some(e) => e,
             None => return VerifyOutcome::InvalidSignature,
         };

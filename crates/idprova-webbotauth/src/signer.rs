@@ -2,7 +2,7 @@
 //!
 //! Handles the creation of HTTP signatures for outbound requests.
 
-use super::components::{build_signature_base, Component, SignatureParams};
+use super::components::{build_signature_base, Component};
 use super::request::SignableRequest;
 use super::Result;
 use ed25519_dalek::{Signer, SigningKey};
@@ -55,29 +55,9 @@ impl HttpSigner {
         expires: Option<i64>,
         directory_uri: &str,
     ) -> Result<SignatureHeaders> {
-        // 1. Construct Signature Params
-        let params = SignatureParams {
-            keyid: self.keyid.clone(),
-            created,
-            expires,
-            alg: "ed25519".to_string(),
-            nonce: None, // TODO: expose in API if needed
-            tag: self.tag.clone(),
-        };
-
-        // 2. Build Signature Base
-        let base = build_signature_base(req, covered, &params)?;
-
-        // 3. Sign
-        let signature = self.signing_key.sign(base.as_bytes());
-        let sig_bytes = signature.to_bytes();
-
-        // 4. Serialize Headers via the sfv crate (RFC 8941) so they are valid
-        //    structured fields and round-trip with the verifier.
+        // 1. Build the Signature-Input inner list (covered components + signature params).
+        //    Each covered component is a SEPARATE string item in the inner list.
         let label = "sig1"; // TODO: support custom labels
-
-        // Signature-Input: label=("@method" "@authority" ...);created=...;keyid=...;alg=...
-        // Each covered component is a SEPARATE string item in the inner list.
         let items: Vec<Item> = covered
             .iter()
             .filter(|c| **c != Component::SignatureParams)
@@ -102,13 +82,28 @@ impl HttpSigner {
         }
 
         let inner = InnerList(items, sig_params);
+
+        // 2. Serialize the VERBATIM @signature-params VALUE (the `(...);params` string,
+        //    WITHOUT a label) by serializing a one-element List. This exact value is both
+        //    fed into the signature base AND carried in the Signature-Input header, so the
+        //    bytes the verifier reconstructs are identical (RFC 9421 §2.5).
+        let sig_params_value =
+            crate::sfv::serialize_list(&vec![ListEntry::InnerList(inner.clone())])?;
+
+        // 3. Build the signature base from the verbatim params value, then sign.
+        let base = build_signature_base(req, covered, &sig_params_value)?;
+        let signature = self.signing_key.sign(base.as_bytes());
+        let sig_bytes = signature.to_bytes();
+
+        // 4. Signature-Input header value: label=(...);params. Equivalent to the dictionary
+        //    serialization below; we keep the dictionary form for a canonical header string.
         let mut si_dict: Dictionary = Dictionary::new();
         si_dict.insert(label.to_string(), ListEntry::InnerList(inner));
         let sig_input_val = si_dict
             .serialize_value()
             .map_err(|e| crate::Error::InvalidStructuredField(e.to_string()))?;
 
-        // Signature: label=:<base64 byte sequence>:
+        // 5. Signature header value: label=:<base64 byte sequence>:
         let mut sig_dict: Dictionary = Dictionary::new();
         sig_dict.insert(
             label.to_string(),
@@ -121,7 +116,7 @@ impl HttpSigner {
             .serialize_value()
             .map_err(|e| crate::Error::InvalidStructuredField(e.to_string()))?;
 
-        // 5. Signature-Agent header
+        // 6. Signature-Agent header
         let agent_val = directory_uri.to_string();
 
         Ok(SignatureHeaders {
@@ -141,13 +136,67 @@ mod tests {
     use chrono::Utc;
     use ed25519_dalek::SigningKey;
 
-    // RFC 9421 Appendix-B Ed25519 vector placeholder
+    /// Verifies the OFFICIAL RFC 9421 Appendix B.2.6 Ed25519 test vector end-to-end.
+    ///
+    /// The base, params (note: NO `alg`), label (`sig-b26`), and signature are taken verbatim
+    /// from the RFC. A passing result proves our signature-base construction is conformant.
     #[test]
-    #[ignore]
-    fn test_rfc_9421_appendix_b() {
-        // "The test vector for Ed25519 (Appendix B) verifies that the base construction
-        // and signature logic conform to the RFC."
-        todo!("Run against RFC 9421 Appendix B vectors");
+    fn test_rfc_9421_appendix_b_ed25519() {
+        use crate::components::Component;
+        use crate::request::SignableRequest;
+        use crate::verifier::{HttpVerifier, KeyResolver, VerifyOutcome};
+        use ed25519_dalek::VerifyingKey;
+
+        // test-key-ed25519 public key (RFC 9421 B.1.4), raw 32 bytes.
+        let pk_hex = "26b40b8f93fff3d897112f7ebc582b232dbd72517d082fe83cfb30ddce43d1bb";
+        let mut pk = [0u8; 32];
+        for i in 0..32 {
+            pk[i] = u8::from_str_radix(&pk_hex[i * 2..i * 2 + 2], 16).unwrap();
+        }
+        let vk = VerifyingKey::from_bytes(&pk).unwrap();
+
+        struct R(VerifyingKey);
+        impl KeyResolver for R {
+            fn resolve(&self, keyid: &str) -> Option<VerifyingKey> {
+                if keyid == "test-key-ed25519" {
+                    Some(self.0)
+                } else {
+                    None
+                }
+            }
+        }
+
+        // RFC B.2 test-request — only the covered fields matter; headers lowercased.
+        let mut req =
+            SignableRequest::new("POST", "example.com", "/foo", Some("param=Value&Pet=dog"));
+        req.headers
+            .insert("date".into(), "Tue, 20 Apr 2021 02:07:55 GMT".into());
+        req.headers
+            .insert("content-type".into(), "application/json".into());
+        req.headers.insert("content-length".into(), "18".into());
+
+        let si = crate::sfv::parse_dictionary(
+            "sig-b26=(\"date\" \"@method\" \"@path\" \"@authority\" \"content-type\" \"content-length\");created=1618884473;keyid=\"test-key-ed25519\"",
+        )
+        .unwrap();
+        let sg = crate::sfv::parse_dictionary(
+            "sig-b26=:wqcAqbmYJ2ji2glfAMaRy4gruYYnx2nEFN2HN6jrnDnQCK1u02Gb04v9EDgwUPiu4A0w6vuQv5lIp5WPpBKRCw==:",
+        )
+        .unwrap();
+
+        let outcome = HttpVerifier::verify(
+            &req,
+            &si,
+            &sg,
+            &R(vk),
+            1618884473,
+            &[Component::Method, Component::Path, Component::Authority],
+        );
+        assert_eq!(
+            outcome,
+            VerifyOutcome::Valid,
+            "official RFC 9421 B.2.6 Ed25519 vector must verify"
+        );
     }
 
     struct OneKey(ed25519_dalek::VerifyingKey);

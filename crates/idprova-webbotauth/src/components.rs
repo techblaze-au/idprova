@@ -113,9 +113,17 @@ impl SignatureParams {
 ///
 /// * `req` - The request being signed.
 /// * `covered_components` - The list of components to include (order matters).
-/// * `params` - The signature parameters (created, expires, keyid, etc.).
+/// * `signature_params_value` - The VERBATIM `@signature-params` value string, i.e. the
+///   serialized inner-list `("date" "@method" ...);created=...;keyid="..."` exactly as it
+///   appears (or will appear) in the `Signature-Input` header — with NO label. The verbatim
+///   value (not a regenerated one) is what RFC 9421 §2.5 requires, so that signer and verifier
+///   agree on the EXACT bytes (including which params are present, e.g. the official B.2.6
+///   vector has no `alg`).
 ///
-/// # Example
+/// # Conformance
+///
+/// Per RFC 9421 §2.5, every component identifier is QUOTED in the base, including the derived
+/// `@signature-params` identifier:
 ///
 /// ```text
 /// "@method": POST
@@ -123,10 +131,12 @@ impl SignatureParams {
 /// "@path": /foo
 /// "@signature-params": ("@method" "@authority" "@path");created=...
 /// ```
+///
+/// Lines are joined with a single `\n`; there is no trailing newline.
 pub fn build_signature_base(
     req: &SignableRequest,
     covered_components: &[Component],
-    params: &SignatureParams,
+    signature_params_value: &str,
 ) -> Result<String> {
     if covered_components.is_empty() {
         return Err(Error::MissingComponent(
@@ -136,38 +146,21 @@ pub fn build_signature_base(
 
     let mut lines = Vec::new();
 
-    // Add covered components in order
+    // Add covered components in order. RFC 9421 §2.5: the component identifier is QUOTED.
     for component in covered_components {
         if component == &Component::SignatureParams {
             continue; // We add this manually at the end
         }
         let name = component.name();
         let value = component.extract_value(req)?;
-        lines.push(format!("{}: {}", name, value));
+        lines.push(format!("\"{}\": {}", name, value));
     }
 
-    // Construct the @signature-params line
-    // Format: ("name1" "name2");key=...
-    let covered_names = covered_components
-        .iter()
-        .filter_map(|c| {
-            if c == &Component::SignatureParams {
-                None
-            } else {
-                Some(format!("\"{}\"", c.name()))
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
+    // Final line: the QUOTED `@signature-params` identifier followed by the VERBATIM
+    // serialized inner-list value. This is the exact value carried in `Signature-Input`.
+    lines.push(format!("\"@signature-params\": {}", signature_params_value));
 
-    let param_string = params.to_param_string();
-    lines.push(format!(
-        "@signature-params: ({});{}",
-        covered_names, param_string
-    ));
-
-    // RFC 9421 says lines are joined by \n (no trailing \n explicitly requested,
-    // but base string usually acts as the signed payload. \n is standard).
+    // RFC 9421 §2.5: lines joined by '\n', no trailing newline.
     Ok(lines.join("\n"))
 }
 
@@ -195,19 +188,14 @@ mod tests {
             Component::SignatureParams,
         ];
 
-        let params = SignatureParams {
-            keyid: "test-key".into(),
-            created: 1234567890,
-            expires: None,
-            alg: "ed25519".into(),
-            nonce: None,
-            tag: None,
-        };
+        // Verbatim @signature-params value (no label), as it would appear in Signature-Input.
+        let spv = "(\"@method\" \"@authority\" \"@path\");created=1234567890;keyid=\"test-key\"";
 
-        let base = build_signature_base(&req, &covered, &params).unwrap();
-        assert!(base.contains("@method: GET"));
-        assert!(base.contains("@authority: example.com"));
-        assert!(base.contains("@path: /path"));
-        assert!(base.contains("@signature-params:"));
+        let base = build_signature_base(&req, &covered, spv).unwrap();
+        // RFC 9421 §2.5: component identifiers are QUOTED in the base.
+        assert!(base.contains("\"@method\": GET"));
+        assert!(base.contains("\"@authority\": example.com"));
+        assert!(base.contains("\"@path\": /path"));
+        assert!(base.contains("\"@signature-params\": ("));
     }
 }
