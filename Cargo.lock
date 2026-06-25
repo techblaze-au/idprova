@@ -1543,6 +1543,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "idprova-trust-registry"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "axum",
+ "blake3",
+ "chrono",
+ "ed25519-dalek",
+ "idprova-core",
+ "proptest",
+ "r2d2",
+ "r2d2_sqlite",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "idprova-typescript"
 version = "0.1.1"
 dependencies = [
