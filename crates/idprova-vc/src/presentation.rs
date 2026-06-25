@@ -48,11 +48,16 @@ pub fn build_submission(
     let submission = PresentationSubmission {
         id: format!("urn:uuid:{}", chrono::Utc::now().timestamp()),
         definition_id: def.id.clone(),
-        descriptor_map: def.input_descriptors.iter().enumerate().map(|(i, d)| DescriptorMap {
-            id: d.id.clone(),
-            format: "ldp_vc".to_string(),
-            path: format!("$.verifiableCredential[{}]", i),
-        }).collect(),
+        descriptor_map: def
+            .input_descriptors
+            .iter()
+            .enumerate()
+            .map(|(i, d)| DescriptorMap {
+                id: d.id.clone(),
+                format: "ldp_vc".to_string(),
+                path: format!("$.verifiableCredential[{}]", i),
+            })
+            .collect(),
     };
 
     let vp = VerifiablePresentation {
@@ -71,6 +76,6 @@ pub fn evaluate(def: &PresentationDefinition, vp: &VerifiablePresentation) -> Ev
     if vp.verifiable_credential.is_empty() {
         return EvalOutcome::Invalid("No credentials provided".to_string());
     }
-    
+
     EvalOutcome::Valid
 }

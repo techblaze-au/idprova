@@ -8,4 +8,5 @@ pub mod dat_bridge;
 pub mod issue;
 pub mod model;
 pub mod presentation;
+pub(crate) mod suite;
 pub mod verify;

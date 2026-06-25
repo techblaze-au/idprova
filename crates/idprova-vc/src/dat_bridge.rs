@@ -8,7 +8,10 @@ use idprova_core::dat::token::DatClaims;
 ///
 /// This mapping is **lossy by design**.
 /// DAT encodes *authorization/capability* while VC encodes *identity/attestation*.
-pub fn dat_to_vc(dat_claims: &DatClaims, proof: crate::model::DataIntegrityProof) -> VerifiableCredential {
+pub fn dat_to_vc(
+    dat_claims: &DatClaims,
+    proof: crate::model::DataIntegrityProof,
+) -> VerifiableCredential {
     let subject = serde_json::json!({
         "id": dat_claims.sub,
         "scopes": dat_claims.scope,
@@ -17,8 +20,14 @@ pub fn dat_to_vc(dat_claims: &DatClaims, proof: crate::model::DataIntegrityProof
     });
 
     VerifiableCredential {
-        context: vec!["https://www.w3.org/ns/credentials/v2".to_string(), "https://www.idprova.dev/contexts/dat-bridge/v1.json".to_string()],
-        types: vec!["VerifiableCredential".to_string(), "IDProvaDelegatedCapability".to_string()],
+        context: vec![
+            "https://www.w3.org/ns/credentials/v2".to_string(),
+            "https://www.idprova.dev/contexts/dat-bridge/v1.json".to_string(),
+        ],
+        types: vec![
+            "VerifiableCredential".to_string(),
+            "IDProvaDelegatedCapability".to_string(),
+        ],
         id: format!("urn:dat:{}", dat_claims.jti),
         issuer: dat_claims.iss.clone(),
         valid_from: chrono::Utc.timestamp_opt(dat_claims.iat, 0).unwrap(),
@@ -39,7 +48,10 @@ pub fn vc_to_dat_claims(vc: &VerifiableCredential) -> Option<DatClaims> {
 
     let sub = vc.credential_subject.get("id")?.as_str()?.to_string();
     let scopes = vc.credential_subject.get("scopes")?.as_array()?;
-    let scope_strings: Vec<String> = scopes.iter().filter_map(|s| s.as_str().map(String::from)).collect();
+    let scope_strings: Vec<String> = scopes
+        .iter()
+        .filter_map(|s| s.as_str().map(String::from))
+        .collect();
 
     Some(DatClaims {
         iss: vc.issuer.clone(),
