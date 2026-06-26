@@ -9,6 +9,7 @@ members = [
     "crates/idprova-mcp-demo",
     "crates/idprova-middleware",
     "crates/idprova-mcp",
+    "crates/idprova-webbotauth",
     "sdks/python",
     "sdks/typescript/packages/core",
 ]
