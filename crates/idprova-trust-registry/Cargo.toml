@@ -1,0 +1,60 @@
+[package]
+name = "idprova-trust-registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/idprova-trust-registry"
+authors.workspace = true
+keywords = ["identity", "ai-agent", "registry", "trust", "did"]
+categories = ["authentication", "web-programming::http-server"]
+readme = "README.md"
+description = "IDProva Trust Registry — Issuer trust authority and cross-standard resolver"
+
+[[bin]]
+name = "idprova-trust-registry"
+path = "src/main.rs"
+
+[lib]
+name = "idprova_trust_registry"
+path = "src/lib.rs"
+
+[dependencies]
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
+
+# Web framework
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+
+# Database
+rusqlite.workspace = true
+r2d2.workspace = true
+r2d2_sqlite.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+
+# Crypto
+ed25519-dalek.workspace = true
+blake3.workspace = true
+rand.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true

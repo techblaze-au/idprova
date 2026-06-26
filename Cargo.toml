@@ -11,6 +11,7 @@ members = [
     "crates/idprova-mcp",
     "crates/idprova-webbotauth",
     "crates/idprova-vc",
+    "crates/idprova-trust-registry",
     "sdks/python",
     "sdks/typescript/packages/core",
 ]
