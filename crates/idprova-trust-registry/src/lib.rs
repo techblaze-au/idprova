@@ -19,3 +19,6 @@ pub mod store;
 
 pub use model::{Issuer, IssuerStatus, SignedTrustList, TrustList};
 pub use store::{SqliteTrustStore, TrustStore};
+
+#[cfg(test)]
+mod tests;

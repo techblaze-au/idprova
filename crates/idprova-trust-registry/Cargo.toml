@@ -42,6 +42,7 @@ serde_json_canonicalizer.workspace = true
 # Crypto
 ed25519-dalek.workspace = true
 blake3.workspace = true
+rand.workspace = true
 
 # Time
 chrono.workspace = true

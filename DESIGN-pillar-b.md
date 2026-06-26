@@ -119,3 +119,56 @@ Normalizes external standard references to `did:aid:`.
 - `test_may_attest`: Check `TrustStore::may_attest` logic against credential types.
 - `test_resolver_normalize`: Map `WebBotAuthKey` to `DidAid` via mock backend.
 - `test_federation_consistency_proof`: (Stubbed) Verify `verify_consistency` logic.
+
+## 8. IMPLEMENTATION NOTES (open library shipped)
+
+This crate now ships the working **open library**. Summary of what was implemented and the
+boundaries held.
+
+### Open-core boundary (held)
+The public crate implements only the **provable neutrality primitives**:
+- single-authority **TrustList sign + offline verify** (`authority.rs`),
+- **SQLite store + `may_attest`** (`store.rs`),
+- **cross-standard resolver** with a concrete `did:aid:` backend (`resolver.rs`),
+- **federation Merkle math**: proof generation + pure verification + signed tree heads
+  (`federation.rs`).
+
+Everything that is "operate/govern at scale" was deliberately **not** built:
+issuer-admission/approval governance, RBAC/SCIM, multi-operator federation management, scheduled
+live mirroring, HSM custody, HA/replication, compliance reporting. `federation::mirror()` is a
+**documented boundary stub**: it validates the peer URL via `idprova_core::http::validate_registry_url`
+(SSRF guard) and then returns an `Err` stating live multi-operator mirroring is part of the
+operator/enterprise edition. A `//! open-core boundary` note sits at the top of `federation.rs`.
+
+### Merkle construction (RFC 6962-style, BLAKE3)
+Domain-separated hashing using `idprova_core::crypto::hash::blake3_hash_bytes`:
+- leaf hash = `blake3(0x00 ‖ entry_bytes)`,
+- internal node = `blake3(0x01 ‖ left ‖ right)`,
+- empty tree root = `blake3(&[])`,
+- single-leaf root = that leaf hash (not re-hashed).
+
+`MerkleLog` stores the precomputed leaf hashes. The Merkle Tree Hash (`mth`), audit path
+(`audit_path`) and consistency `SUBPROOF` (`subproof`, with the RFC 6962 `b` complete-subtree flag)
+all split at the largest power of two strictly below the slice length and push nodes **outermost-last
+(post-order)**. The pure verifiers (`verify_inclusion`, `verify_consistency`) mirror that recursion
+exactly, consuming the proof nodes **back-to-front**, and require the cursor to be fully drained
+(no leftover nodes) — so a malformed or padded proof fails. `verify_consistency` reconstructs **both**
+the old and new tree heads and checks each; when the old tree is a complete subtree omitted from the
+proof, its root is seeded from the supplied `old_root`. Signed Tree Heads sign over
+`size ‖ root ‖ sequence` (all big-endian for the integers).
+
+### JCS sign/verify determinism
+`TrustAuthority::publish` builds a `TrustList { proof: None }`, calls `canonicalize()` (sorts entries
+by DID), serializes via **RFC 8785 JCS** (`serde_json_canonicalizer::to_string`), and signs those
+exact bytes with Ed25519. `verify_signed_list` re-serializes **the same `TrustList` struct**
+(`signed.list`, still `proof: None`) the identical way, so the signed bytes are identical by
+construction — no hand-built JSON on either side, and the `signature`/`signer_keyid` fields are never
+part of the signed payload. Any mutation of an entry changes `JCS(list)` and fails verification
+(covered by `tamper_fails_verification`). `signer_keyid` is the lowercase hex of the signer's
+Ed25519 public key.
+
+### Tests
+9 tests, all green: publish/verify round-trip, tamper-fails, store round-trip + claim filter,
+`may_attest` (active/suspended/expired-window/missing-claim), Merkle inclusion (+ tamper),
+Merkle consistency (+ wrong old-root), STH sign/verify (+ wrong key), resolver did:aid
+(present / unparseable / unsupported variant), and the `mirror()` boundary stub returning `Err`.

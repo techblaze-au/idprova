@@ -1,19 +1,21 @@
 //! Axum API routes for the Trust Registry service.
-
-use axum::{routing::get, Router};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::{extract::Path, extract::Query, extract::State, routing::get, Json, Router};
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::authority::TrustAuthority;
 use crate::resolver::{AgentRef, CrossStandardResolver};
 use crate::store::TrustStore;
 
-/// Shared application state.
 #[derive(Clone)]
 pub struct AppState {
     pub store: Arc<dyn TrustStore>,
     pub resolver: Arc<CrossStandardResolver>,
+    pub authority: Arc<TrustAuthority>,
 }
 
-/// Builds the main application router.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
@@ -28,29 +30,38 @@ async fn healthz() -> &'static str {
     "ok"
 }
 
-async fn get_trust_list(
-    axum::extract::State(_state): axum::extract::State<AppState>,
-) -> impl axum::response::IntoResponse {
-    (axum::http::StatusCode::NOT_IMPLEMENTED, "trust-list not implemented")
+async fn get_trust_list(State(state): State<AppState>) -> impl IntoResponse {
+    match state.authority.publish(&*state.store) {
+        Ok(signed) => Json(signed).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
-async fn get_issuer(
-    axum::extract::State(_state): axum::extract::State<AppState>,
-    axum::extract::Path(_did): axum::extract::Path<String>,
-) -> impl axum::response::IntoResponse {
-    (axum::http::StatusCode::NOT_IMPLEMENTED, "get issuer not implemented")
+async fn get_issuer(State(state): State<AppState>, Path(did): Path<String>) -> impl IntoResponse {
+    match state.store.get_issuer(&did) {
+        Ok(Some(i)) => Json(i).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 async fn list_issuers(
-    axum::extract::State(_state): axum::extract::State<AppState>,
-    axum::extract::Query(_params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> impl axum::response::IntoResponse {
-    (axum::http::StatusCode::NOT_IMPLEMENTED, "list issuers not implemented")
+    State(state): State<AppState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let claim = params.get("claim_type").map(String::as_str);
+    match state.store.list_issuers(claim) {
+        Ok(v) => Json(v).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 async fn resolve_agent(
-    axum::extract::State(_state): axum::extract::State<AppState>,
-    axum::Json(_agent_ref): axum::Json<AgentRef>,
-) -> impl axum::response::IntoResponse {
-    (axum::http::StatusCode::NOT_IMPLEMENTED, "resolve not implemented")
+    State(state): State<AppState>,
+    Json(agent_ref): Json<AgentRef>,
+) -> impl IntoResponse {
+    match state.resolver.resolve(&agent_ref) {
+        Some(r) => Json(r).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }

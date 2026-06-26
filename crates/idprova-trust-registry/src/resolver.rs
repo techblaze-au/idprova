@@ -1,8 +1,8 @@
 //! Cross-standard agent resolution.
-
+use crate::store::TrustStore;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-/// A reference to an agent across various standards.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum AgentRef {
@@ -16,31 +16,48 @@ pub enum AgentRef {
     EntraAgent(String),
 }
 
-/// The resolved state of an agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedAgent {
     pub did_aid: String,
-    pub attestations: Vec<String>, // Simplified for design phase
+    pub attestations: Vec<String>,
     pub trust_status: String,
 }
 
-/// Backend trait for resolving specific `AgentRef` types.
 pub trait ResolverBackend: Send + Sync {
-    /// Attempts to resolve an `AgentRef` to a `ResolvedAgent`.
-    /// Returns `None` if the backend does not support this reference type.
     fn try_resolve(&self, agent_ref: &AgentRef) -> Option<ResolvedAgent>;
 }
 
-/// Coordinates resolution across multiple backends.
 pub struct CrossStandardResolver {
     pub backends: Vec<Box<dyn ResolverBackend>>,
 }
 
 impl CrossStandardResolver {
-    /// Attempts to resolve an agent using its registered backends.
     pub fn resolve(&self, agent_ref: &AgentRef) -> Option<ResolvedAgent> {
         self.backends
             .iter()
             .find_map(|backend| backend.try_resolve(agent_ref))
+    }
+}
+
+/// Resolves `did:aid:` references against the trust store.
+pub struct DidAidBackend {
+    pub store: Arc<dyn TrustStore>,
+}
+
+impl ResolverBackend for DidAidBackend {
+    fn try_resolve(&self, agent_ref: &AgentRef) -> Option<ResolvedAgent> {
+        match agent_ref {
+            AgentRef::DidAid(did) => {
+                idprova_core::aid::AidIdentifier::parse(did).ok()?;
+                let issuer = self.store.get_issuer(did).ok()??;
+                Some(ResolvedAgent {
+                    did_aid: did.clone(),
+                    attestations: issuer.credential_types.clone(),
+                    trust_status: format!("{:?}", issuer.status),
+                })
+            }
+            // TODO: cross-standard envelope->did:aid mapping table (follow-up round)
+            _ => None,
+        }
     }
 }
