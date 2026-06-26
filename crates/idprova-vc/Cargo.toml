@@ -1,0 +1,38 @@
+[package]
+name = "idprova-vc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords = ["identity", "ai-agent", "verifiable-credentials", "dat", "ap2"]
+categories = ["authentication", "cryptography"]
+description = "IDProva W3C Verifiable Credentials (DM 2.0) interop layer"
+
+[dependencies]
+idprova-core = { path = "../idprova-core", version = "0.1.1" }
+
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+ed25519-dalek.workspace = true
+base64.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+multibase.workspace = true
+
+# Optional interop deps
+p256 = { version = "0.13", features = ["ecdsa"], optional = true }
+
+[features]
+default = []
+# Enables strict JSON-LD / RDF canonicalization suites
+rdfc-interop = []
+# Enables P-256 / ECDSA suites for Google AP2 compliance
+ecdsa-interop = ["dep:p256", "rdfc-interop"]
+
+[dev-dependencies]
+proptest.workspace = true
