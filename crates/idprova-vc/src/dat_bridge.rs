@@ -1,6 +1,6 @@
 //! The deterministic DAT to VC bridge.
 
-use crate::model::{CryptoSuite, VerifiableCredential};
+use crate::model::VerifiableCredential;
 use chrono::TimeZone;
 use idprova_core::dat::token::DatClaims;
 

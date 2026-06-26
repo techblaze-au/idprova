@@ -71,7 +71,7 @@ pub fn build_submission(
 }
 
 /// Evaluates a Verifiable Presentation against a Definition.
-pub fn evaluate(def: &PresentationDefinition, vp: &VerifiablePresentation) -> EvalOutcome {
+pub fn evaluate(_def: &PresentationDefinition, vp: &VerifiablePresentation) -> EvalOutcome {
     // TODO: Implement actual JSONPath / JSON-LD framing evaluation
     if vp.verifiable_credential.is_empty() {
         return EvalOutcome::Invalid("No credentials provided".to_string());

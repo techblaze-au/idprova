@@ -1,6 +1,6 @@
 //! Google AP2 / Agent2Agent (A2A) typed mandate builders.
 
-use crate::model::{CryptoSuite, DataIntegrityProof, VerifiableCredential};
+use crate::model::{DataIntegrityProof, VerifiableCredential};
 
 /// Enumerates the AP2 mandate profiles.
 pub enum Ap2Kind {
