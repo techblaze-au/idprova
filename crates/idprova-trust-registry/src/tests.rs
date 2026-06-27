@@ -283,3 +283,85 @@ fn mirror_is_boundary_stub() {
     let result = federation::mirror(&peer);
     assert!(result.is_err());
 }
+
+#[test]
+fn resolver_external_ref_webbotauth() {
+    let store = SqliteTrustStore::new_in_memory().expect("Failed to create store");
+    store
+        .upsert_issuer(&make_issuer(
+            "did:aid:example.com:bot1",
+            IssuerStatus::Active,
+            "claim_a",
+        ))
+        .expect("upsert failed");
+    store
+        .register_external_ref("webbotauth_keyid", "key-123", "did:aid:example.com:bot1")
+        .expect("register failed");
+
+    let store_arc: Arc<dyn TrustStore> = Arc::new(store);
+    let backend = DidAidBackend {
+        store: store_arc.clone(),
+    };
+    let resolver = CrossStandardResolver {
+        backends: vec![Box::new(backend)],
+    };
+
+    let resolved = resolver
+        .resolve(&AgentRef::WebBotAuthKey {
+            keyid: "key-123".into(),
+            directory_url: "https://d.example/dir".into(),
+        })
+        .expect("should resolve mapped keyid");
+    assert_eq!(resolved.did_aid, "did:aid:example.com:bot1");
+
+    assert!(resolver
+        .resolve(&AgentRef::WebBotAuthKey {
+            keyid: "nope".into(),
+            directory_url: "https://d.example/dir".into(),
+        })
+        .is_none());
+}
+
+#[test]
+fn resolver_external_ref_ap2_round_trip() {
+    let store = SqliteTrustStore::new_in_memory().expect("Failed to create store");
+    store
+        .upsert_issuer(&make_issuer(
+            "did:aid:example.com:ap2",
+            IssuerStatus::Active,
+            "claim_a",
+        ))
+        .expect("upsert failed");
+    store
+        .register_external_ref("ap2_issuer", "iss-9", "did:aid:example.com:ap2")
+        .expect("register failed");
+
+    let store_arc: Arc<dyn TrustStore> = Arc::new(store);
+    let backend = DidAidBackend {
+        store: store_arc.clone(),
+    };
+    let resolver = CrossStandardResolver {
+        backends: vec![Box::new(backend)],
+    };
+
+    let resolved = resolver
+        .resolve(&AgentRef::Ap2Issuer("iss-9".into()))
+        .expect("should resolve mapped ap2 issuer");
+    assert_eq!(resolved.did_aid, "did:aid:example.com:ap2");
+}
+
+#[test]
+fn authority_signer_keyid_is_multibase() {
+    let store = SqliteTrustStore::new_in_memory().expect("Failed to create store");
+    store
+        .upsert_issuer(&make_issuer(
+            "did:aid:example.com:issuer1",
+            IssuerStatus::Active,
+            "claim_a",
+        ))
+        .expect("upsert failed");
+
+    let authority = TrustAuthority::new(SigningKey::generate(&mut OsRng));
+    let signed = authority.publish(&store).expect("publish failed");
+    assert!(signed.signer_keyid.starts_with('z'));
+}

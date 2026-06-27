@@ -26,7 +26,9 @@ impl TrustAuthority {
 
         let msg = serde_json_canonicalizer::to_string(&list)?;
         let sig = self.signing_key.sign(msg.as_bytes());
-        let signer_keyid = to_hex(&self.signing_key.verifying_key().to_bytes());
+        let signer_keyid =
+            idprova_core::crypto::KeyPair::from_secret_bytes(&self.signing_key.to_bytes())
+                .public_key_multibase();
 
         Ok(SignedTrustList {
             list,
@@ -49,14 +51,4 @@ impl TrustAuthority {
 
         key.verify(msg.as_bytes(), &sig).is_ok()
     }
-}
-
-fn to_hex(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        // write! to a String is infallible; ignore the Result to satisfy clippy.
-        let _ = write!(s, "{b:02x}");
-    }
-    s
 }
