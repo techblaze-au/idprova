@@ -48,7 +48,7 @@ You keep Okta. You keep Entra ID. You keep Auth0. You add IDProva for the agents
 Three deployment stories — pick whichever fits your environment:
 
 ### 1. Global Cloud
-Hosted IDProva on AWS, GCP, or Azure in your region of choice. AU (live), US East (v1.0), EU Frankfurt (v1.0 stretch), Singapore + UAE (v1.1). Web dashboard, SSO, RBAC, compliance report generator, SIEM integration, anomaly detection. Starting at $149/mo. → [idprova.com](https://idprova.com)
+Hosted IDProva on AWS, GCP, or Azure in your region of choice. AU (live), US East (v1.0), EU Frankfurt (v1.0 stretch), Singapore + UAE (v1.1). Web dashboard, SSO, RBAC, compliance report generator, SIEM integration, anomaly detection. Contact us for pricing. → [idprova.com](https://idprova.com)
 
 ### 2. Self-hosted Enterprise
 Run the full stack inside your VPC. Apache 2.0 source. No licence fees for the protocol. Commercial Enterprise Edition available with SLA, support, and additional management features.
