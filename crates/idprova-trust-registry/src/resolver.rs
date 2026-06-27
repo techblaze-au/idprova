@@ -44,20 +44,41 @@ pub struct DidAidBackend {
     pub store: Arc<dyn TrustStore>,
 }
 
+impl DidAidBackend {
+    fn resolve_did_aid(&self, did: &str) -> Option<ResolvedAgent> {
+        idprova_core::aid::AidIdentifier::parse(did).ok()?;
+        let issuer = self.store.get_issuer(did).ok()??;
+        Some(ResolvedAgent {
+            did_aid: did.to_string(),
+            attestations: issuer.credential_types.clone(),
+            trust_status: format!("{:?}", issuer.status),
+        })
+    }
+}
+
 impl ResolverBackend for DidAidBackend {
     fn try_resolve(&self, agent_ref: &AgentRef) -> Option<ResolvedAgent> {
         match agent_ref {
-            AgentRef::DidAid(did) => {
-                idprova_core::aid::AidIdentifier::parse(did).ok()?;
-                let issuer = self.store.get_issuer(did).ok()??;
-                Some(ResolvedAgent {
-                    did_aid: did.clone(),
-                    attestations: issuer.credential_types.clone(),
-                    trust_status: format!("{:?}", issuer.status),
-                })
+            AgentRef::DidAid(did) => self.resolve_did_aid(did),
+            AgentRef::WebBotAuthKey { keyid, .. } => {
+                let did_aid = self
+                    .store
+                    .resolve_external_ref("webbotauth_keyid", keyid)
+                    .ok()??;
+                self.resolve_did_aid(&did_aid)
             }
-            // TODO: cross-standard envelope->did:aid mapping table (follow-up round)
-            _ => None,
+            AgentRef::Ap2Issuer(id) => {
+                let did_aid = self.store.resolve_external_ref("ap2_issuer", id).ok()??;
+                self.resolve_did_aid(&did_aid)
+            }
+            AgentRef::McpClient(id) => {
+                let did_aid = self.store.resolve_external_ref("mcp_client", id).ok()??;
+                self.resolve_did_aid(&did_aid)
+            }
+            AgentRef::EntraAgent(id) => {
+                let did_aid = self.store.resolve_external_ref("entra_agent", id).ok()??;
+                self.resolve_did_aid(&did_aid)
+            }
         }
     }
 }

@@ -12,6 +12,11 @@ pub trait TrustStore: Send + Sync {
     fn upsert_issuer(&self, issuer: &Issuer) -> Result<()>;
     fn get_issuer(&self, did: &str) -> Result<Option<Issuer>>;
     fn list_issuers(&self, claim_type: Option<&str>) -> Result<Vec<Issuer>>;
+
+    // Canonical `kind` strings: "webbotauth_keyid", "ap2_issuer", "mcp_client", "entra_agent".
+    fn register_external_ref(&self, kind: &str, external_id: &str, did_aid: &str) -> Result<()>;
+    fn resolve_external_ref(&self, kind: &str, external_id: &str) -> Result<Option<String>>;
+
     /// Default impl: true iff issuer exists, Active, and authorized for claim.
     fn may_attest(&self, issuer_did: &str, claim_type: &str) -> bool {
         match self.get_issuer(issuer_did) {
@@ -34,7 +39,8 @@ impl SqliteTrustStore {
         let pool = Pool::builder().max_size(8).build(manager)?;
         let conn = pool.get()?;
         conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS issuers (did TEXT PRIMARY KEY, document TEXT NOT NULL);",
+            "CREATE TABLE IF NOT EXISTS issuers (did TEXT PRIMARY KEY, document TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS external_refs (kind TEXT NOT NULL, external_id TEXT NOT NULL, did_aid TEXT NOT NULL, PRIMARY KEY (kind, external_id));",
         )?;
         Ok(SqliteTrustStore {
             pool: Arc::new(pool),
@@ -46,7 +52,8 @@ impl SqliteTrustStore {
         let pool = Pool::builder().max_size(1).build(manager)?;
         let conn = pool.get()?;
         conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS issuers (did TEXT PRIMARY KEY, document TEXT NOT NULL);",
+            "CREATE TABLE IF NOT EXISTS issuers (did TEXT PRIMARY KEY, document TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS external_refs (kind TEXT NOT NULL, external_id TEXT NOT NULL, did_aid TEXT NOT NULL, PRIMARY KEY (kind, external_id));",
         )?;
         Ok(SqliteTrustStore {
             pool: Arc::new(pool),
@@ -108,6 +115,33 @@ impl TrustStore for SqliteTrustStore {
         }
 
         Ok(vec)
+    }
+
+    fn register_external_ref(&self, kind: &str, external_id: &str, did_aid: &str) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "INSERT OR REPLACE INTO external_refs (kind, external_id, did_aid) VALUES (?1, ?2, ?3)",
+            params![kind, external_id, did_aid],
+        )?;
+        Ok(())
+    }
+
+    fn resolve_external_ref(&self, kind: &str, external_id: &str) -> Result<Option<String>> {
+        let conn = self.pool.get()?;
+        let result = conn.query_row(
+            "SELECT did_aid FROM external_refs WHERE kind = ?1 AND external_id = ?2",
+            params![kind, external_id],
+            |row| {
+                let did_aid: String = row.get(0)?;
+                Ok(did_aid)
+            },
+        );
+
+        match result {
+            Ok(did_aid) => Ok(Some(did_aid)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(anyhow::Error::from(e)),
+        }
     }
 
     fn may_attest(&self, issuer_did: &str, claim_type: &str) -> bool {
