@@ -4,6 +4,29 @@ import { JsonViewer, StatusBadge } from './common';
 import type { Receipt } from '../types';
 import type { ChainVerifyResult } from '../protocol/receipt';
 
+// A sample audit trail for the Northwind procurement agent — three actions, hash-linked:
+// a $3k order (allowed), a $9k order (denied, over limit), and a $3k retry after revocation (denied).
+const SAMPLE_LOG = [
+  {
+    id: 'rcpt_0001', timestamp: '2026-07-13T09:00:00Z',
+    agent: 'did:aid:demo.example:procurement-agent', dat: 'dat_northwind_orders',
+    action: { type: 'orders:create', tool: 'create_order', inputHash: 'sha256:8f1c…order3000', outputHash: 'sha256:ab77…ok', status: 'success', durationMs: 142 },
+    chain: { previousHash: 'genesis', sequenceNumber: 0 }, signature: 'z3demoSig01',
+  },
+  {
+    id: 'rcpt_0002', timestamp: '2026-07-13T09:04:30Z',
+    agent: 'did:aid:demo.example:procurement-agent', dat: 'dat_northwind_orders',
+    action: { type: 'orders:create', tool: 'create_order', inputHash: 'sha256:5d2e…order9000', status: 'denied', durationMs: 38 },
+    chain: { previousHash: 'sha256:7a90…rcpt0001', sequenceNumber: 1 }, signature: 'z3demoSig02',
+  },
+  {
+    id: 'rcpt_0003', timestamp: '2026-07-13T09:10:12Z',
+    agent: 'did:aid:demo.example:procurement-agent', dat: 'dat_northwind_orders',
+    action: { type: 'orders:create', tool: 'create_order', inputHash: 'sha256:8f1c…order3000', status: 'denied', durationMs: 12 },
+    chain: { previousHash: 'sha256:c418…rcpt0002', sequenceNumber: 2 }, signature: 'z3demoSig03',
+  },
+].map(r => JSON.stringify(r)).join('\n');
+
 export function ReceiptPanel() {
   const [input, setInput] = useState('');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -38,22 +61,29 @@ export function ReceiptPanel() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-text">Receipt Verification</h2>
+      <h2 className="text-xl font-semibold text-text">Audit trail</h2>
 
       {/* Input */}
       <div className="card space-y-4">
-        <h3 className="text-lg font-medium">Receipt Log Input</h3>
+        <p className="text-sm text-text">
+          Every action an agent takes leaves a <span className="text-accent">tamper-evident receipt</span>, hash-linked to the one before it —
+          so the whole history can be verified and nothing can be quietly inserted or removed.
+        </p>
+        <p className="text-xs text-text-muted -mt-2">
+          New here? Click <span className="text-accent">Load sample audit trail</span>, then <span className="text-accent">Verify chain</span> — or paste/upload your own log.
+        </p>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Paste JSONL receipt log here (one JSON object per line)..."
+          placeholder="Paste a receipt log (one JSON object per line), or load the sample…"
           rows={8}
           className="w-full font-mono text-xs"
         />
         <div className="flex items-center gap-4">
-          <button onClick={handleVerify} className="btn-primary">Verify Chain</button>
+          <button onClick={handleVerify} className="btn-primary">Verify chain</button>
+          <button onClick={() => setInput(SAMPLE_LOG)} className="btn-secondary text-sm">Load sample audit trail</button>
           <label className="text-sm text-text-muted cursor-pointer hover:text-text">
-            Upload JSONL file
+            Upload log file
             <input type="file" accept=".jsonl,.json,.txt" onChange={handleFileUpload} className="hidden" />
           </label>
         </div>

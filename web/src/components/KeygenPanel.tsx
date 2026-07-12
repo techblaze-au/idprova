@@ -4,7 +4,7 @@ import { CopyButton } from './common';
 
 export function KeygenPanel() {
   const { keys, addKey, removeKey } = useKeys();
-  const [label, setLabel] = useState('');
+  const [label, setLabel] = useState('issuer-key');
   const [error, setError] = useState('');
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
 
@@ -28,14 +28,20 @@ export function KeygenPanel() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-text flex items-center gap-2">
-        Key Generation
+        Keys
         {keys.length > 0 && (
           <span className="text-xs font-medium bg-accent/20 text-accent px-2 py-0.5 rounded-full">{keys.length}</span>
         )}
       </h2>
 
+      <div className="card border border-accent/20 bg-accent/5">
+        <p className="text-sm text-text">
+          You usually don’t need this tab. <span className="text-text-muted">The <span className="text-accent">Create agent</span> and <span className="text-accent">Issue permission</span> steps generate signing keys for you automatically. Use this only to pre-make or inspect a key.</span>
+        </p>
+      </div>
+
       <div className="card">
-        <h3 className="text-lg font-medium mb-4">Generate Ed25519 Keypair</h3>
+        <h3 className="text-lg font-medium mb-4">Generate a signing key (Ed25519)</h3>
         <div className="flex gap-2">
           <input
             type="text"
