@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useKeys } from '../store/keys';
+import { useIssuedDat } from '../store/issuedDat';
 import { issueDat, verifyDatOffline } from '../protocol/dat';
 import { fromHex } from '../crypto/encoding';
 import { RegistryClient } from '../api/registry';
@@ -8,6 +9,37 @@ import type { RevocationRecord } from '../types';
 
 export function RevocationPanel({ registryUrl }: { registryUrl: string }) {
   const { addKey } = useKeys();
+  const { issued } = useIssuedDat();
+
+  // One-click "off-switch" — revoke the exact permission granted on the DATs step
+  const [offStatus, setOffStatus] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
+  const [offRevoked, setOffRevoked] = useState(false);
+  const [offNote, setOffNote] = useState('');
+
+  const handleRevokeAuthority = useCallback(async () => {
+    if (!issued) return;
+    setOffStatus('working'); setOffNote(''); setOffRevoked(false);
+    try {
+      const client = new RegistryClient(registryUrl);
+      await client.revokeDat({
+        jti: issued.jti,
+        reason: 'Authority withdrawn by issuer — agent decommissioned',
+        revoked_by: 'northwind-admin',
+        token: issued.token || undefined,
+      });
+      // Confirm it now reads as revoked.
+      const check = await client.checkRevocation(issued.jti);
+      setOffRevoked(check.revoked);
+      setOffStatus('done');
+    } catch (e) {
+      // Registry unreachable from this origin (CORS on the preview) — soft, retryable note.
+      setOffStatus('error');
+      setOffNote(
+        `Could not reach the registry from this page (${String(e).replace(/^Error:\s*/, '')}). ` +
+        `On the production portal this revokes instantly; here you can retry from "Revoke DAT" below.`
+      );
+    }
+  }, [issued, registryUrl]);
 
   // Revoke state
   const [revokeJti, setRevokeJti] = useState('');
@@ -117,10 +149,40 @@ export function RevocationPanel({ registryUrl }: { registryUrl: string }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-text">DAT Revocation</h2>
+      <h2 className="text-xl font-semibold text-text">Revocation — the off-switch</h2>
+
+      {/* One-click: revoke the exact permission granted on the DATs step */}
+      <div className="card space-y-3 border border-danger/30">
+        <h3 className="text-lg font-medium">Revoke the agent’s authority</h3>
+        {issued ? (
+          <>
+            <p className="text-sm text-text">
+              Revoke <span className="text-accent">{issued.subjectDid.split(':').pop()}</span>’s permission to{' '}
+              <span className="text-accent">{issued.scopes.join(', ')}</span>? Its next matching action will be denied.
+            </p>
+            <button onClick={handleRevokeAuthority} disabled={offStatus === 'working'}
+              className={`btn-danger ${offStatus === 'working' ? 'pulse-loading' : ''}`}>
+              {offStatus === 'working' ? 'Revoking…' : 'Revoke authority'}
+            </button>
+            {offStatus === 'done' && (
+              <div className="flex items-center gap-2">
+                <StatusBadge status={offRevoked ? 'fail' : 'pass'} label={offRevoked ? 'REVOKED' : 'NOT REVOKED'} />
+                <span className="text-sm text-text-muted">
+                  {offRevoked ? '✗ Authority revoked — the agent’s next order is denied.' : 'Revoke call returned, but the registry still reports active.'}
+                </span>
+              </div>
+            )}
+            {offNote && <p className="text-warning text-sm border border-warning/30 bg-warning/10 rounded p-2">{offNote}</p>}
+          </>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Grant a permission on the <span className="text-accent">DATs</span> tab first — then it appears here, ready to revoke in one click.
+          </p>
+        )}
+      </div>
 
       <div className="card space-y-4">
-        <h3 className="text-lg font-medium">Revoke DAT</h3>
+        <h3 className="text-lg font-medium">Revoke DAT (manual)</h3>
         <input value={revokeJti} onChange={e => setRevokeJti(e.target.value)} placeholder="JTI (e.g. dat_01HXZ...)" className="w-full" />
         <div className="grid grid-cols-2 gap-4">
           <input value={revokeReason} onChange={e => setRevokeReason(e.target.value)} placeholder="Reason" />

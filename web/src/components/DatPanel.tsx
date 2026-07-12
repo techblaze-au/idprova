@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useKeys } from '../store/keys';
+import { useIssuedDat } from '../store/issuedDat';
 import { issueDat, parseDat, verifyDatOffline } from '../protocol/dat';
 import { explainScopeMatch } from '../protocol/scope';
 import { fromHex } from '../crypto/encoding';
@@ -10,16 +11,30 @@ import type { DatVerifyResponse } from '../types';
 
 type SubTab = 'issue' | 'verify-offline' | 'verify-registry' | 'inspect' | 'scope';
 
+const EXPIRY_OPTIONS: { value: number; label: string }[] = [
+  { value: 900, label: '15 minutes' },
+  { value: 3600, label: '1 hour' },
+  { value: 86400, label: '24 hours' },
+  { value: 604800, label: '7 days' },
+  { value: 7776000, label: '90 days' },
+];
+const expiryLabel = (secs: number) => EXPIRY_OPTIONS.find(o => o.value === secs)?.label ?? `${secs}s`;
+
 export function DatPanel({ registryUrl }: { registryUrl: string }) {
-  const { getKey } = useKeys();
+  const { getKey, addKey } = useKeys();
+  const { setIssued } = useIssuedDat();
   const [subTab, setSubTab] = useState<SubTab>('issue');
 
-  // Issue state
-  const [issuerDid, setIssuerDid] = useState('');
-  const [subjectDid, setSubjectDid] = useState('');
-  const [scopesStr, setScopesStr] = useState('');
-  const [expiry, setExpiry] = useState(3600);
+  // Issue state — pre-filled with the Northwind procurement permission (matches the hero story)
+  const [issuerDid, setIssuerDid] = useState('did:aid:demo.example:northwind');
+  const [subjectDid, setSubjectDid] = useState('did:aid:demo.example:procurement-agent');
+  const [scopesStr, setScopesStr] = useState('orders:create');
+  const [expiry, setExpiry] = useState(7776000);
   const [issueKey, setIssueKey] = useState('');
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [issueStatus, setIssueStatus] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
+  const [issueChecks, setIssueChecks] = useState<VerifyCheck[]>([]);
+  const [issueValid, setIssueValid] = useState(false);
   const [issuedToken, setIssuedToken] = useState('');
   const [issueError, setIssueError] = useState('');
 
@@ -48,14 +63,19 @@ export function DatPanel({ registryUrl }: { registryUrl: string }) {
   const [scopeResult, setScopeResult] = useState<{ permitted: boolean; explanation: string } | null>(null);
 
   const handleIssue = useCallback(() => {
-    setIssueError('');
-    if (!issuerDid || !subjectDid || !scopesStr || !issueKey) {
-      setIssueError('All fields required');
+    setIssueError(''); setIssueChecks([]); setIssueValid(false);
+    if (!issuerDid.trim() || !subjectDid.trim() || !scopesStr.trim()) {
+      setIssueError('Issuer, subject, and scope are required');
       return;
     }
-    const key = getKey(issueKey);
-    if (!key) { setIssueError('Key not found'); return; }
+    setIssueStatus('working');
     try {
+      // Auto-generate an issuer signing key if none was picked — removes the hidden prerequisite.
+      let key = issueKey ? getKey(issueKey) : undefined;
+      if (!key) {
+        key = addKey('northwind-issuer-key');
+        setIssueKey(key.label);
+      }
       const scopes = scopesStr.split(',').map(s => s.trim()).filter(Boolean);
       const token = issueDat({
         issuerDid, subjectDid, scopes,
@@ -63,8 +83,18 @@ export function DatPanel({ registryUrl }: { registryUrl: string }) {
         privateKey: fromHex(key.privateKeyHex),
       });
       setIssuedToken(token);
-    } catch (e) { setIssueError(String(e)); }
-  }, [issuerDid, subjectDid, scopesStr, expiry, issueKey, getKey]);
+      // Verify it immediately against the issuer's public key + the first granted scope.
+      const result = verifyDatOffline(token, fromHex(key.publicKeyHex), scopes[0]);
+      setIssueChecks(result.checks);
+      setIssueValid(result.valid);
+      setIssueStatus('done');
+      // Share this permission so the Revocation step can target it directly (no JTI copy/paste).
+      try {
+        const jti = String((parseDat(token).claims as { jti?: string }).jti ?? '');
+        setIssued({ token, jti, issuerDid, subjectDid, scopes, expiresInSeconds: expiry, issuerKeyLabel: key.label });
+      } catch { /* jti extraction is best-effort; issuance already succeeded */ }
+    } catch (e) { setIssueError(String(e)); setIssueStatus('error'); }
+  }, [issuerDid, subjectDid, scopesStr, expiry, issueKey, getKey, addKey, setIssued]);
 
   const handleVerifyOffline = useCallback(() => {
     let pubKey: Uint8Array;
@@ -128,29 +158,76 @@ export function DatPanel({ registryUrl }: { registryUrl: string }) {
 
       {subTab === 'issue' && (
         <div className="card space-y-4">
-          <h3 className="text-lg font-medium">Issue DAT</h3>
-          <input value={issuerDid} onChange={e => setIssuerDid(e.target.value)} placeholder="Issuer DID (did:aid:...)" className="w-full" />
-          <input value={subjectDid} onChange={e => setSubjectDid(e.target.value)} placeholder="Subject DID (did:aid:...)" className="w-full" />
-          <input value={scopesStr} onChange={e => setScopesStr(e.target.value)} placeholder="Scopes (comma-separated, e.g. mcp:tool:*:read)" className="w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-text-muted mb-1">Expiry</label>
-              <select value={expiry} onChange={e => setExpiry(Number(e.target.value))} className="w-full">
-                <option value={900}>15 minutes</option>
-                <option value={3600}>1 hour</option>
-                <option value={86400}>24 hours</option>
-                <option value={604800}>7 days</option>
-              </select>
+          <h3 className="text-lg font-medium">Grant a permission</h3>
+          <p className="text-sm text-text">
+            Grant the <span className="text-accent">{subjectDid.split(':').pop()}</span> permission to{' '}
+            <span className="text-accent">{scopesStr || '—'}</span>, valid for{' '}
+            <span className="text-accent">{expiryLabel(expiry)}</span>.
+          </p>
+          <p className="text-xs text-text-muted -mt-2">
+            One click signs a scoped token (a DAT) and verifies it. Everything is pre-filled — edit only what you want.
+          </p>
+
+          <button type="button" onClick={() => setShowCustomize(v => !v)}
+            className="text-xs text-text-muted hover:text-text underline">
+            {showCustomize ? '– Hide options' : '+ Customize (issuer, subject, scope, expiry, key)'}
+          </button>
+
+          {showCustomize && (
+            <div className="space-y-3 border-l-2 border-border pl-4">
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Issuer DID (who grants the permission)</label>
+                <input value={issuerDid} onChange={e => setIssuerDid(e.target.value)} className="w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Subject DID (the agent receiving it)</label>
+                <input value={subjectDid} onChange={e => setSubjectDid(e.target.value)} className="w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Scope(s) — comma-separated</label>
+                <input value={scopesStr} onChange={e => setScopesStr(e.target.value)} placeholder="orders:create" className="w-full" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Expiry</label>
+                  <select value={expiry} onChange={e => setExpiry(Number(e.target.value))} className="w-full">
+                    {EXPIRY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <KeySelector value={issueKey} onChange={setIssueKey} label="Signing key (leave blank to auto-generate)" />
+              </div>
             </div>
-            <KeySelector value={issueKey} onChange={setIssueKey} label="Signing Key" />
-          </div>
-          <button onClick={handleIssue} className="btn-primary">Issue DAT</button>
+          )}
+
+          <button onClick={handleIssue} disabled={issueStatus === 'working'}
+            className={`btn-primary ${issueStatus === 'working' ? 'pulse-loading' : ''}`}>
+            {issueStatus === 'working' ? 'Issuing…' : 'Issue permission'}
+          </button>
           {issueError && <p className="text-danger text-sm">{issueError}</p>}
-          {issuedToken && (
-            <div>
-              <div className="flex items-center gap-2 mb-2"><span className="text-sm text-text-muted">Compact JWS:</span><CopyButton text={issuedToken} /></div>
-              <textarea readOnly value={issuedToken} rows={4} className="w-full font-mono text-xs" />
+
+          {issueStatus === 'done' && (
+            <p className={`text-sm ${issueValid ? 'text-success' : 'text-warning'}`}>
+              {issueValid
+                ? `✓ Permission issued and valid — scope ${scopesStr}, expires in ${expiryLabel(expiry)}`
+                : '⚠ Permission issued, but verification did not pass — see checks below'}
+            </p>
+          )}
+          {issueChecks.length > 0 && (
+            <div className="space-y-1">
+              {issueChecks.map((c, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <StatusBadge status={c.passed ? 'pass' : 'fail'} label={c.name} />
+                  <span className="text-sm text-text-muted">{c.detail}</span>
+                </div>
+              ))}
             </div>
+          )}
+          {issuedToken && (
+            <details>
+              <summary className="text-sm text-text-muted cursor-pointer">Show the signed token (compact JWS)</summary>
+              <div className="flex items-center gap-2 my-2"><CopyButton text={issuedToken} /></div>
+              <textarea readOnly value={issuedToken} rows={4} className="w-full font-mono text-xs" />
+            </details>
           )}
         </div>
       )}

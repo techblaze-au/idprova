@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { KeyProvider } from './store/keys';
+import { IssuedDatProvider } from './store/issuedDat';
 import { Layout, type TabId } from './components/Layout';
 import { KeygenPanel } from './components/KeygenPanel';
 import { AidPanel } from './components/AidPanel';
@@ -16,19 +17,21 @@ export default function App() {
 
   return (
     <KeyProvider>
-      <Layout
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        registryUrl={registryUrl}
-        onRegistryUrlChange={setRegistryUrl}
-      >
-        {activeTab === 'keygen' && <KeygenPanel />}
-        {activeTab === 'aid' && <AidPanel registryUrl={registryUrl} />}
-        {activeTab === 'dat' && <DatPanel registryUrl={registryUrl} />}
-        {activeTab === 'revocation' && <RevocationPanel registryUrl={registryUrl} />}
-        {activeTab === 'receipt' && <ReceiptPanel />}
-        {activeTab === 'dashboard' && <DashboardPanel registryUrl={registryUrl} />}
-      </Layout>
+      <IssuedDatProvider>
+        <Layout
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          registryUrl={registryUrl}
+          onRegistryUrlChange={setRegistryUrl}
+        >
+          {activeTab === 'keygen' && <KeygenPanel />}
+          {activeTab === 'aid' && <AidPanel registryUrl={registryUrl} />}
+          {activeTab === 'dat' && <DatPanel registryUrl={registryUrl} />}
+          {activeTab === 'revocation' && <RevocationPanel registryUrl={registryUrl} />}
+          {activeTab === 'receipt' && <ReceiptPanel />}
+          {activeTab === 'dashboard' && <DashboardPanel registryUrl={registryUrl} />}
+        </Layout>
+      </IssuedDatProvider>
     </KeyProvider>
   );
 }
