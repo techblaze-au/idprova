@@ -8,6 +8,7 @@ const TABS = [
   { id: 'dat', label: 'DATs' },
   { id: 'revocation', label: 'Revocation' },
   { id: 'receipt', label: 'Receipts' },
+  { id: 'scenario', label: 'Governed Dev Agent' },
   { id: 'dashboard', label: 'Dashboard' },
 ] as const;
 
@@ -20,6 +21,7 @@ const TAB_HINTS: Record<TabId, string> = {
   dat: 'Permissions — a signed token stating exactly what an agent may do, and for how long.',
   revocation: 'The off-switch — pull one agent’s authority instantly, without touching anything else.',
   receipt: 'Audit trail — a tamper-evident record of what was issued, used, and revoked.',
+  scenario: 'A coding agent on our own hardware, whose every action is sanctioned by the cloud registry — overreach denied by construction.',
   dashboard: 'Live registry — real-time stats from the registry enforcing all of the above.',
 };
 

@@ -1,0 +1,7 @@
+{"ts": "2026-07-13T13:42:20Z", "tool": "read_file", "scope": "repo:git:file:read", "decision": "ALLOW", "reason": "scope 'repo:git:file:read' granted", "verify_mode": "offline", "receipt_seq": 0}
+{"ts": "2026-07-13T13:42:22Z", "tool": "run_tests", "scope": "ci:test:suite:run", "decision": "ALLOW", "reason": "scope 'ci:test:suite:run' granted", "verify_mode": "offline", "receipt_seq": 1}
+{"ts": "2026-07-13T13:42:22Z", "tool": "open_pr", "scope": "repo:git:pr:create", "decision": "ALLOW", "reason": "scope 'repo:git:pr:create' granted", "verify_mode": "offline", "receipt_seq": 2}
+{"ts": "2026-07-13T13:42:22Z", "tool": "deploy_prod", "scope": "deploy:env:prod:write", "decision": "DENY", "reason": "scope 'deploy:env:prod:write' not in granted scopes", "verify_mode": "offline", "receipt_seq": 3}
+{"ts": "2026-07-13T13:42:22Z", "tool": "force_push", "scope": "repo:git:branch:force", "decision": "DENY", "reason": "scope 'repo:git:branch:force' not in granted scopes", "verify_mode": "offline", "receipt_seq": 4}
+{"ts": "2026-07-13T13:42:22Z", "tool": "delete_branch", "scope": "repo:git:branch:delete", "decision": "DENY", "reason": "scope 'repo:git:branch:delete' not in granted scopes", "verify_mode": "offline", "receipt_seq": 5}
+{"ts": "2026-07-13T13:42:22Z", "tool": "push_protected", "scope": "repo:git:branch:write-protected", "decision": "DENY", "reason": "scope 'repo:git:branch:write-protected' not in granted scopes", "verify_mode": "offline", "receipt_seq": 6}
