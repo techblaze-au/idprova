@@ -40,13 +40,13 @@ export function GuidedDemo({ registryUrl, onTabChange }: Props) {
     setShowPanel(true);
 
     const initialSteps: DemoStep[] = [
-      { label: 'Generate 3 keypairs', tab: 'keygen', status: 'pending', detail: '' },
-      { label: 'Create 3 AID documents', tab: 'aid', status: 'pending', detail: '' },
-      { label: 'Register AIDs with registry', tab: 'aid', status: 'pending', detail: '' },
-      { label: 'Issue DAT (delegation)', tab: 'dat', status: 'pending', detail: '' },
-      { label: 'Verify DAT offline', tab: 'dat', status: 'pending', detail: '' },
-      { label: 'Revoke DAT', tab: 'revocation', status: 'pending', detail: '' },
-      { label: 'Verify revoked DAT', tab: 'revocation', status: 'pending', detail: '' },
+      { label: 'Create the participants’ keys', tab: 'keygen', status: 'pending', detail: '' },
+      { label: 'Give each agent a verifiable identity', tab: 'aid', status: 'pending', detail: '' },
+      { label: 'Publish the identities to the registry', tab: 'aid', status: 'pending', detail: '' },
+      { label: 'Grant the agent a scoped permission', tab: 'dat', status: 'pending', detail: '' },
+      { label: 'Check the permission is valid', tab: 'dat', status: 'pending', detail: '' },
+      { label: 'Revoke the agent’s authority', tab: 'revocation', status: 'pending', detail: '' },
+      { label: 'Confirm the agent is now denied', tab: 'revocation', status: 'pending', detail: '' },
     ];
     setSteps(initialSteps);
 
@@ -147,12 +147,13 @@ export function GuidedDemo({ registryUrl, onTabChange }: Props) {
           running ? 'bg-warning/20 text-warning pulse-loading' : 'bg-accent/20 text-accent hover:bg-accent/30'
         }`}
       >
-        {running ? 'Demo Running...' : showPanel ? 'Close Demo' : 'Run Full Demo'}
+        {running ? 'Playing…' : showPanel ? 'Close story' : '▶ Watch the 60-second story'}
       </button>
 
       {showPanel && steps.length > 0 && (
         <div className="absolute right-6 top-14 w-96 bg-surface border border-border rounded-lg shadow-2xl z-50 p-4">
-          <h3 className="text-sm font-medium text-text mb-3">Guided Demo</h3>
+          <h3 className="text-sm font-medium text-text mb-1">The story: give an agent authority, then take it away</h3>
+          <p className="text-xs text-text-muted mb-3">Watch a permission get issued, used, and revoked — enforced by the registry, not the agent.</p>
           <div className="space-y-2">
             {steps.map((step, i) => (
               <div key={i} className="flex items-start gap-2">

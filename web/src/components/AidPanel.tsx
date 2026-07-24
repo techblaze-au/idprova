@@ -8,20 +8,35 @@ import type { AidDocument } from '../types';
 
 type SubTab = 'create' | 'register' | 'resolve';
 
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'agent';
+const deriveDid = (name: string) => `did:aid:demo.example:${slugify(name)}`;
+
 export function AidPanel({ registryUrl }: { registryUrl: string }) {
-  const { getKey } = useKeys();
+  const { getKey, addKey } = useKeys();
   const [subTab, setSubTab] = useState<SubTab>('create');
   const [createdAids, setCreatedAids] = useState<AidDocument[]>([]);
 
-  // Create form
-  const [did, setDid] = useState('');
-  const [name, setName] = useState('');
-  const [controllerDid, setControllerDid] = useState('');
-  const [model, setModel] = useState('');
-  const [runtime, setRuntime] = useState('');
+  // Create form — pre-filled with the Northwind procurement agent (matches the hero story)
+  const [name, setName] = useState('Northwind Procurement Agent');
+  const [did, setDid] = useState('did:aid:demo.example:procurement-agent');
+  const [didEdited, setDidEdited] = useState(false);
+  const [controllerDid, setControllerDid] = useState('did:aid:demo.example:northwind');
+  const [model, setModel] = useState('claude-opus-4');
+  const [runtime, setRuntime] = useState('langgraph');
   const [selectedKey, setSelectedKey] = useState('');
-  const [createResult, setCreateResult] = useState<AidDocument | { error: string } | null>(null);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [createStatus, setCreateStatus] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
+  const [createResult, setCreateResult] = useState<AidDocument | null>(null);
+  const [registerResponse, setRegisterResponse] = useState('');
+  const [registered, setRegistered] = useState(false);
+  const [registerNote, setRegisterNote] = useState('');
   const [error, setError] = useState('');
+
+  const onNameChange = (v: string) => {
+    setName(v);
+    if (!didEdited) setDid(deriveDid(v));   // DID auto-tracks the name until the user edits it
+  };
 
   // Register
   const [registerIdx, setRegisterIdx] = useState(0);
@@ -33,28 +48,52 @@ export function AidPanel({ registryUrl }: { registryUrl: string }) {
   const [resolveResult, setResolveResult] = useState<AidDocument | { error: string } | null>(null);
   const [resolveLoading, setResolveLoading] = useState(false);
 
-  const handleCreate = useCallback(() => {
-    setError('');
-    if (!did || !name || !controllerDid || !selectedKey) {
-      setError('DID, name, controller DID, and key are required');
+  const handleCreate = useCallback(async () => {
+    setError(''); setRegisterResponse(''); setRegistered(false); setRegisterNote('');
+    if (!name.trim() || !did.trim() || !controllerDid.trim()) {
+      setError('Name, DID, and controller DID are required');
       return;
     }
-    const key = getKey(selectedKey);
-    if (!key) { setError('Key not found'); return; }
-
+    setCreateStatus('working');
     try {
+      // Auto-generate a signing key if the user hasn't picked one — removes the hidden prerequisite.
+      let key = selectedKey ? getKey(selectedKey) : undefined;
+      if (!key) {
+        key = addKey(`${slugify(name)}-key`);
+        setSelectedKey(key.label);
+      }
       const doc = buildAidDocument({
         did, controllerDid, name,
         publicKey: fromHex(key.publicKeyHex),
         model: model || undefined,
         runtime: runtime || undefined,
       });
-      setCreateResult(doc);
       setCreatedAids(prev => [...prev, doc]);
+      setCreateResult(doc);
+      setCreateStatus('done');
+      // Register to the live registry in the same click — but a registry hiccup must NOT
+      // discard the created agent. Treat it as a soft, retryable note, not a fatal error.
+      if (registryUrl) {
+        try {
+          const client = new RegistryClient(registryUrl);
+          const id = doc.id.replace('did:aid:', '');
+          const res = await client.registerAid(id, doc);
+          setRegisterResponse(typeof res === 'string' ? res : JSON.stringify(res, null, 2));
+          setRegistered(true);
+        } catch (regErr) {
+          setRegistered(false);
+          setRegisterNote(
+            `Agent built and signed locally, but the registry could not be reached from this page ` +
+            `(${String(regErr).replace(/^Error:\s*/, '')}). This usually means this origin isn’t on ` +
+            `the registry’s allow-list. Use the Register tab to retry, or run from the production portal.`
+          );
+        }
+      }
     } catch (e) {
       setError(String(e));
+      setCreateStatus('error');
     }
-  }, [did, name, controllerDid, model, runtime, selectedKey, getKey]);
+  }, [name, did, controllerDid, model, runtime, selectedKey, getKey, addKey, registryUrl]);
 
   const handleRegister = useCallback(async () => {
     if (!registryUrl) { setRegisterResult('Registry URL not set'); return; }
@@ -104,18 +143,63 @@ export function AidPanel({ registryUrl }: { registryUrl: string }) {
 
       {subTab === 'create' && (
         <div className="card space-y-4">
-          <h3 className="text-lg font-medium">Create AID Document</h3>
-          <input value={did} onChange={e => setDid(e.target.value)} placeholder="did:aid:example.com:agent-name" className="w-full" />
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Agent Name" className="w-full" />
-          <input value={controllerDid} onChange={e => setControllerDid(e.target.value)} placeholder="Controller DID (e.g. did:aid:example.com:alice)" className="w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <input value={model} onChange={e => setModel(e.target.value)} placeholder="Model (optional)" />
-            <input value={runtime} onChange={e => setRuntime(e.target.value)} placeholder="Runtime (optional)" />
+          <h3 className="text-lg font-medium">Create an agent</h3>
+          <p className="text-sm text-text-muted -mt-2">
+            One click generates a signing key, builds the identity document, and registers it live.
+            Everything is pre-filled — edit only what you want.
+          </p>
+
+          <div>
+            <label className="block text-sm text-text-muted mb-1">Agent name</label>
+            <input value={name} onChange={e => onNameChange(e.target.value)} placeholder="Agent name" className="w-full" />
+            <p className="text-xs text-text-muted mt-1">Identity: <span className="text-accent">{did}</span></p>
           </div>
-          <KeySelector value={selectedKey} onChange={setSelectedKey} label="Signing Key" />
-          <button onClick={handleCreate} className="btn-primary">Create AID Document</button>
+
+          <button type="button" onClick={() => setShowCustomize(v => !v)}
+            className="text-xs text-text-muted hover:text-text underline">
+            {showCustomize ? '– Hide options' : '+ Customize (controller, model, runtime, signing key)'}
+          </button>
+
+          {showCustomize && (
+            <div className="space-y-3 border-l-2 border-border pl-4">
+              <div>
+                <label className="block text-sm text-text-muted mb-1">DID</label>
+                <input value={did} onChange={e => { setDidEdited(true); setDid(e.target.value); }} className="w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Controller DID</label>
+                <input value={controllerDid} onChange={e => setControllerDid(e.target.value)} className="w-full" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Model</label>
+                  <input value={model} onChange={e => setModel(e.target.value)} placeholder="Model (optional)" />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Runtime</label>
+                  <input value={runtime} onChange={e => setRuntime(e.target.value)} placeholder="Runtime (optional)" />
+                </div>
+              </div>
+              <KeySelector value={selectedKey} onChange={setSelectedKey} label="Signing key (leave blank to auto-generate)" />
+            </div>
+          )}
+
+          <button onClick={handleCreate} disabled={createStatus === 'working'}
+            className={`btn-primary ${createStatus === 'working' ? 'pulse-loading' : ''}`}>
+            {createStatus === 'working' ? 'Creating…' : 'Create agent'}
+          </button>
+
           {error && <p className="text-danger text-sm">{error}</p>}
+          {createStatus === 'done' && (
+            <p className="text-success text-sm">
+              ✓ Agent created{registered ? ' and registered — resolvable now' : ''} as <span className="text-accent">{createResult?.id}</span>
+            </p>
+          )}
+          {registerNote && (
+            <p className="text-warning text-sm border border-warning/30 bg-warning/10 rounded p-2">{registerNote}</p>
+          )}
           {createResult && <JsonViewer data={createResult} title="AID Document" />}
+          {registerResponse && <pre className="text-xs bg-bg p-3 rounded border border-border overflow-x-auto">{registerResponse}</pre>}
         </div>
       )}
 

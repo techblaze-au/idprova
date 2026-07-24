@@ -227,13 +227,16 @@ export function DashboardPanel({ registryUrl }: { registryUrl: string }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-text">Registry Dashboard</h2>
+        <div>
+          <h2 className="text-xl font-semibold text-text">Live registry</h2>
+          <p className="text-sm text-text-muted">Real-time view of the registry enforcing everything — is it healthy, and which agents are registered.</p>
+        </div>
         <button
           onClick={runDemoFlow}
           disabled={!registryUrl || demoRunning}
           className={`btn-primary ${demoRunning ? 'pulse-loading' : ''}`}
         >
-          {demoRunning ? 'Running...' : '▶ Run Demo Flow'}
+          {demoRunning ? 'Running...' : '▶ Run health check'}
         </button>
       </div>
 
@@ -319,7 +322,7 @@ export function DashboardPanel({ registryUrl }: { registryUrl: string }) {
         </div>
 
         <div className="card">
-          <h3 className="text-lg font-medium mb-4">Protocol Meta</h3>
+          <h3 className="text-lg font-medium mb-4">Protocol details</h3>
           {meta ? (
             <div className="text-sm text-text-muted space-y-1">
               <p>Protocol: <span className="text-text">{meta.protocolVersion}</span></p>
